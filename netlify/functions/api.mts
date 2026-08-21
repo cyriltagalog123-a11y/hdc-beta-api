@@ -69,8 +69,8 @@ async function getUserView(sql: DbClient, userId: string): Promise<UserView | nu
     status: String(user.status),
     emailVerified: Boolean(user.email_verified),
     roles: roles.map((row) => String(row.role)),
-    createdAt: new Date(user.created_at as string | number | Date).toISOString(),
-    updatedAt: new Date(user.updated_at as string | number | Date).toISOString(),
+    createdAt: new Date(String(user.created_at)).toISOString(),
+    updatedAt: new Date(String(user.updated_at)).toISOString(),
   };
 }
 
