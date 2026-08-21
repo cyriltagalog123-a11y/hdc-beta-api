@@ -39,7 +39,11 @@ HDC BETA API CHANGELOG
 - No signing secret value was written to source, logs, or documentation.
 - Triggered continuous deployment from main so the production function reloads the restored signing configuration.
 
+2026-08-21 - Auth diagnostic cleanup
+- Confirmed the live diagnostic reported database configuration, signing configuration, database reachability, and auth schema readiness as healthy.
+- Removed the temporary public auth diagnostic endpoint after verification.
+- Kept /api/health as the normal non-sensitive service health endpoint.
+
 Pending verification before public beta:
 - Complete live client registration/login/session/logout test from the integrated Flutter build.
-- Verify the temporary auth diagnostic reports all runtime/auth checks healthy, then remove the diagnostic endpoint.
 - Provision the approved beta customer/technician test identities through the backend flow without committing passwords.
