@@ -22,7 +22,11 @@ HDC BETA API CHANGELOG
 - User linked the Netlify hdc-beta-api project to this GitHub repository.
 - Added this changelog commit after the link to trigger continuous deployment from main.
 
-Pending verification before Flutter integration:
-- Confirm Netlify dependency installation/typecheck/build.
-- Live endpoint tests against the HDC Neon beta database.
-- Provision beta customer/technician test identities through the approved backend flow.
+2026-08-21 - Flutter auth contract hardening
+- Added backend-owned account createdAt and updatedAt values to auth user responses so Flutter does not invent technician membership dates.
+- Tightened timestamp serialization for strict TypeScript compatibility.
+- Netlify continuous deployment republished the production auth function successfully after the API contract update.
+
+Pending verification before public beta:
+- Complete live client registration/login/session/logout test from the integrated Flutter build.
+- Provision the approved beta customer/technician test identities through the backend flow without committing passwords.
