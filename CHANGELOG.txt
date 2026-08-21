@@ -34,7 +34,12 @@ HDC BETA API CHANGELOG
 - Triggered a fresh production deployment so the serverless function reloads the corrected runtime configuration.
 - Kept privileged backend credentials out of Flutter source and this repository.
 
+2026-08-21 - Production session signing recovery
+- Added a new protected HDC_SESSION_SECRET to the Netlify production Functions/Runtime environment after diagnostics confirmed it was missing.
+- No signing secret value was written to source, logs, or documentation.
+- Triggered continuous deployment from main so the production function reloads the restored signing configuration.
+
 Pending verification before public beta:
 - Complete live client registration/login/session/logout test from the integrated Flutter build.
-- Confirm the protected HDC session-signing secret is present in the Netlify project; the connector does not expose protected secret values for readback.
+- Verify the temporary auth diagnostic reports all runtime/auth checks healthy, then remove the diagnostic endpoint.
 - Provision the approved beta customer/technician test identities through the backend flow without committing passwords.
