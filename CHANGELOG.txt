@@ -27,6 +27,14 @@ HDC BETA API CHANGELOG
 - Tightened timestamp serialization for strict TypeScript compatibility.
 - Netlify continuous deployment republished the production auth function successfully after the API contract update.
 
+2026-08-21 - Netlify runtime configuration recovery
+- Investigated live Flutter registration/login failures returning the generic temporary-auth-unavailable message.
+- Confirmed the Flutter build is wired to HdcApiAuthGateway and the production Netlify API URL.
+- Restored the Neon DATABASE_URL in the Netlify project as a server-only runtime/function environment value.
+- Triggered a fresh production deployment so the serverless function reloads the corrected runtime configuration.
+- Kept privileged backend credentials out of Flutter source and this repository.
+
 Pending verification before public beta:
 - Complete live client registration/login/session/logout test from the integrated Flutter build.
+- Confirm the protected HDC session-signing secret is present in the Netlify project; the connector does not expose protected secret values for readback.
 - Provision the approved beta customer/technician test identities through the backend flow without committing passwords.
