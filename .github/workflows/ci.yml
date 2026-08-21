@@ -1,0 +1,43 @@
+name: HDC Backend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      - name: Secret-pattern sanity scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE --exclude-dir=.git --exclude='*.lock' '(postgres(ql)?://[^[:space:]]+:[^[:space:]]+@|npg_[A-Za-z0-9]+|HDC-Customer#|HDC-Tech#)' .; then
+            echo 'Potential secret pattern found.'
+            exit 1
+          fi
+          echo 'No known HDC secret patterns found.'
