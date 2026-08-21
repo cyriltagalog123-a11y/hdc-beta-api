@@ -1,0 +1,23 @@
+{
+  "name": "hdc-beta-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@netlify/functions": "^4.2.5",
+    "bcryptjs": "^3.0.2",
+    "jose": "^6.1.0",
+    "postgres": "^3.4.7"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}
