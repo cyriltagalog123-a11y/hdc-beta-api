@@ -1,0 +1,25 @@
+HDC BETA API CHANGELOG
+======================
+
+2026-08-21 - Initial authentication backend foundation
+- Connected the HDC backend repository for direct managed writes.
+- Added Netlify Functions project configuration.
+- Added provider-neutral server environment handling.
+- Added Neon PostgreSQL database adapter boundary.
+- Added JSON/authorization helpers and authentication input validation.
+- Added signed, revocable session-token handling.
+- Added /api/health.
+- Added customer-only public registration.
+- Added login with backend-owned account status and role lookup.
+- Added failed-login throttling backed by the HDC security audit log.
+- Added session restoration/validation.
+- Added logout with backend session revocation.
+- Added security auditing for registration, login, and logout flows.
+- Added validation tests, environment template, README, and TypeScript configuration.
+- Confirmed no real database URL, session secret, or beta-account password is committed to this repository.
+
+Pending verification before Flutter integration:
+- Netlify continuous-deployment link to this GitHub repository.
+- Netlify dependency installation/typecheck/build.
+- Live endpoint tests against the HDC Neon beta database.
+- Provision beta customer/technician test identities through the approved backend flow.
