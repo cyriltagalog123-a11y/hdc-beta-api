@@ -18,8 +18,11 @@ HDC BETA API CHANGELOG
 - Added validation tests, environment template, README, and TypeScript configuration.
 - Confirmed no real database URL, session secret, or beta-account password is committed to this repository.
 
+2026-08-21 - Netlify deployment link
+- User linked the Netlify hdc-beta-api project to this GitHub repository.
+- Added this changelog commit after the link to trigger continuous deployment from main.
+
 Pending verification before Flutter integration:
-- Netlify continuous-deployment link to this GitHub repository.
-- Netlify dependency installation/typecheck/build.
+- Confirm Netlify dependency installation/typecheck/build.
 - Live endpoint tests against the HDC Neon beta database.
 - Provision beta customer/technician test identities through the approved backend flow.
