@@ -1,0 +1,36 @@
+HDC SPRINT 6.4B - AUTH API FOUNDATION
+Date: 2026-08-21
+
+Scope
+-----
+Establish the first HDC-owned authentication API between Flutter clients and the Neon beta database, hosted through Netlify Functions.
+
+Completed
+---------
+- GitHub App repository installation confirmed for hdc-beta-api.
+- Direct repository write test passed.
+- Netlify server-side DATABASE_URL and HDC_SESSION_SECRET were configured outside source control.
+- Initial Netlify Functions TypeScript project created.
+- Public registration limited to customer role only.
+- Login, session validation, and logout/revocation implemented.
+- Backend role lookup is authoritative; client role claims are not trusted.
+- Failed-login throttling implemented through keyed identity fingerprints recorded in the security audit table.
+- Authentication/security audit events implemented.
+- Validation tests and project documentation added.
+
+Security/Portability Notes
+--------------------------
+- Flutter receives no Neon database credential and performs no direct database authentication.
+- Hosting and database provider details remain server-side.
+- Secrets are read only from server environment variables.
+- No beta account passwords are stored in GitHub.
+- No technician verification, rating, or job history is fabricated.
+- Existing PostgreSQL HDC auth schema is reused rather than recreated by application startup.
+
+Verification Remaining
+----------------------
+- Link Netlify project hdc-beta-api to the GitHub repository for continuous deployment.
+- Run Netlify install/typecheck/build.
+- Test live health, register, login, session, and logout endpoints.
+- Create the approved beta customer and technician test identities through a controlled backend workflow, then verify technician roles from the database.
+- Patch latest Flutter HDC ZIP only after the live API passes endpoint tests.
