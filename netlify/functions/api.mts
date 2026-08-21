@@ -19,6 +19,8 @@ type UserView = {
   status: string;
   emailVerified: boolean;
   roles: string[];
+  createdAt: string;
+  updatedAt: string;
 };
 
 function identityFingerprint(email: string): string {
@@ -44,7 +46,8 @@ async function audit(
 
 async function getUserView(sql: DbClient, userId: string): Promise<UserView | null> {
   const users = await sql`
-    SELECT id, email::text AS email, display_name, status, email_verified
+    SELECT id, email::text AS email, display_name, status, email_verified,
+           created_at, updated_at
     FROM public.hdc_users
     WHERE id = ${userId}
     LIMIT 1
@@ -66,6 +69,8 @@ async function getUserView(sql: DbClient, userId: string): Promise<UserView | nu
     status: String(user.status),
     emailVerified: Boolean(user.email_verified),
     roles: roles.map((row) => String(row.role)),
+    createdAt: new Date(user.created_at as string | number | Date).toISOString(),
+    updatedAt: new Date(user.updated_at as string | number | Date).toISOString(),
   };
 }
 
