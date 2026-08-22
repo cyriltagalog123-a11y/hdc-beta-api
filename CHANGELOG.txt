@@ -19,6 +19,12 @@ HDC BETA API CHANGELOG
 - Rehearsed migration 0005 twice on an isolated Neon branch; both current users,
   their unique UUIDs/public IDs, and the existing reset token were preserved.
 - Backend 0.6.0 passes strict TypeScript compilation and all 32 tests.
+- Promoted migration 0005 to production after the deploy preview and CI passed;
+  production still has two distinct account UUIDs, two distinct public member
+  IDs, one active Owner, and the existing reset token.
+- Deployed Backend 0.6.0 to Netlify production. The live health and recovery-
+  question routes returned 200, the reset page returned 200, and the private
+  dashboard continued to reject unauthenticated access with 401.
 
 2026-08-22 - Build 10 production rollout and active-auth compatibility
 - Added root migration 0001 for the active Neon auth contract. It validates
