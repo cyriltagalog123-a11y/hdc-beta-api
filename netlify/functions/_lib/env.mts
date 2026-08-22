@@ -17,3 +17,8 @@ export function sessionSecret(): Uint8Array {
   }
   return new TextEncoder().encode(secret);
 }
+
+export function securityReviewEmail(): string | null {
+  const value = Netlify.env.get('HDC_SECURITY_REVIEW_EMAIL')?.trim().toLowerCase();
+  return value || null;
+}

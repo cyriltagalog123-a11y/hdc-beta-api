@@ -1,6 +1,87 @@
 HDC BETA API CHANGELOG
 ======================
 
+2026-08-22 - Build 12 structured role applications and secure recovery
+- Replaced free-text elevated public-role requests with versioned,
+  role-specific required fields, private applicant snapshots, request-changes,
+  scoped internal review grants, and auditable role-grant provenance.
+- Added three required registration recovery questions. Answers are normalized,
+  server-peppered, bcrypt-hashed, and never returned or logged in plaintext.
+- Added rate-limited recovery verification: any two correct answers authorize a
+  15-minute one-time reset credential; all prior sessions are revoked after use.
+- Added the private manual recovery queue for Owner, Super Admin, or explicitly
+  granted reviewers without exposing answer match counts.
+- Preserved the existing owner-issued password reset token contract and web
+  reset link through a compatibility endpoint.
+- Added public member IDs separate from authentication UUIDs, terms acceptance
+  evidence, public-role lifecycle provenance, organization memberships, and
+  store-branch foundations. Organization credentials are never shared.
+- Rehearsed migration 0005 twice on an isolated Neon branch; both current users,
+  their unique UUIDs/public IDs, and the existing reset token were preserved.
+- Backend 0.6.0 passes strict TypeScript compilation and all 32 tests.
+
+2026-08-22 - Build 10 production rollout and active-auth compatibility
+- Added root migration 0001 for the active Neon auth contract. It validates
+  existing role values, preserves all users and assignments, and converts the
+  platform-role column from constrained text to hdc_account_role.
+- Kept the obsolete Supabase adapter migration isolated from the active Neon
+  deployment path.
+- Rehearsed migrations 0001-0004, profile backfill, row-level security, Owner
+  bootstrap, audit logging, and dashboard statistics on an isolated branch.
+- Applied the verified sequence atomically to production and created exactly
+  one active Owner through a guarded audited bootstrap.
+- Deployed Backend 0.5.0 to the existing HDC Netlify production site. The live
+  health route returned 200, while unauthenticated internal, role, and profile
+  routes returned 401.
+- Retained the pre-change Neon rollback branch. No GitHub remote was changed.
+
+2026-08-21 - Flutter 0.6.4+10 private operations dashboard
+- Made the public Role Center and profile flow platform-only; neither public
+  API overview returns internal authority, staff assignments, permissions, or
+  private queue counts.
+- Added a separate private operations dashboard and public/private switch that
+  exists only for authenticated accounts with backend-hydrated private access.
+- Private dashboard data is loaded only after the authorized workspace opens;
+  it is not prefetched into the public dashboard.
+- Added permission-filtered statistics, private staff assignments, sanitized
+  operational activity, and authorized-tool indicators.
+- Moved platform-role application review behind the private provider and
+  server-authorized internal endpoints.
+- Added GET /api/internal/dashboard and bumped the matching API contract to
+  0.5.0 without adding a new private-dashboard feature table.
+- Strict TypeScript compilation and all 27 backend tests pass. Flutter/Dart SDK
+  execution remains a clean-extraction release gate outside this workspace.
+- The verified production rollout is recorded in the 2026-08-22 entry above.
+
+2026-08-21 - Flutter 0.6.4+9 analyzer cleanup and connection rescan
+- Removed the unused HDC profile-model import reported by Flutter analyze.
+- Replaced the obsolete double-underscore callback parameter with Dart's
+  wildcard identifier form.
+- Preserved the requested Role Center profile until refreshed account roles are
+  available, so a newly approved role opens its intended workspace profile.
+- Rechecked all 303 project/test Dart files and 828 import/export/part
+  directives; no missing local source reference was found.
+- Re-ran strict backend TypeScript compilation and all 23 automated tests.
+- Excluded machine-local Flutter caches, ephemeral plugin trees, IDE files, and
+  generated registrants from the corrected source package.
+
+2026-08-21 - Sprint 6.4G one-account role profiles
+- Added one shared member profile per HDC user account.
+- Added one independently editable profile per active Customer, Technician,
+  Business, Seller, Supplier, or Store role under the same user ID.
+- Added authenticated profile overview, shared-member update, and role-profile
+  update endpoints; inactive roles cannot create or edit profiles.
+- Added strict server validation for common public fields and every role's
+  specific details, including bounded lists, contact data, URLs, and numbers.
+- Added a private internal-staff view assembled from internal roles and
+  department/section assignments without creating public staff identities.
+- Added migration 0004 with backfill, profile constraints, indexes, versioning,
+  row-level-security enablement, and denied public table access.
+- Added five profile tests; strict TypeScript compilation and all 23 backend
+  tests pass locally.
+- Production database, deployment, and GitHub remote remain unchanged pending
+  isolated-branch migration and preview verification.
+
 2026-08-21 - Initial authentication backend foundation
 - Connected the HDC backend repository for direct managed writes.
 - Added Netlify Functions project configuration.
@@ -47,3 +128,50 @@ HDC BETA API CHANGELOG
 Pending verification before public beta:
 - Complete live client registration/login/session/logout test from the integrated Flutter build.
 - Provision the approved beta customer/technician test identities through the backend flow without committing passwords.
+
+2026-08-21 - Sprint 6.4C/D workflow authority
+- Added the additive 0002 workflow migration for service requests, proposals,
+  transaction seeds, and service transactions.
+- Added a restricted NOLOGIN application role, request-local identity/role
+  context, row-level-security policies, relationship constraints, indexes,
+  lifecycle timestamps, versioning, and server-maintained offer counts.
+- Added authenticated bootstrap and mutation endpoints for requests, proposals,
+  atomic proposal acceptance, and participant-authorized transaction status.
+- Proposal acceptance now closes competing proposals and creates the consumed
+  handoff plus confirmed transaction workspace in one database transaction.
+- Identity, reputation, quality score, timestamps, activity history, and
+  customer/technician relationships are derived or verified by the backend.
+- Standardized request-before-proposal locking to prevent competing acceptance
+  and proposal-update deadlocks.
+- Cancelling an editable request now expires technician drafts and declines
+  active proposals in the same database transaction.
+- Added eight workflow validation/authorization tests; the backend suite now
+  passes 12 tests and strict TypeScript compilation.
+- Production schema and deployment remain intentionally unchanged until the
+  migration passes on an isolated Neon branch and preview workflow tests pass.
+
+2026-08-21 - Sprint 6.4F platform/internal role separation
+- Split user-facing platform roles from private HDC internal authority in the
+  authentication response and authorization helpers.
+- Added Supplier while retaining the existing Store workspace compatibility
+  role; every non-Customer platform role now uses the approval workflow.
+- Added the Owner -> Super Admin -> Admin hierarchy and community-scoped
+  Moderator without exposing internal roles to public registration.
+- Added role application, Owner/Super Admin review, approval-note, and
+  high-priority role-notification endpoints.
+- Added migration 0003 for internal assignments, platform role applications,
+  notifications, and configurable internal departments/sections.
+- Migrated legacy Admin/Super Admin values out of the platform-role table while
+  preserving compatibility during rollout.
+- Added six role-domain tests; strict TypeScript compilation and all 18 backend
+  tests pass locally.
+- Production database, deployment, and GitHub remote remain unchanged pending
+  isolated-branch migration and preview verification.
+
+2026-08-22 - Flutter 0.6.4+11 live-data and account isolation
+- Removed visible demo dashboard, technician, marketplace, review, simulator,
+  and sequential ticket fixtures.
+- Scoped dashboard data, local tickets, and saved marketplace state to the
+  authenticated UUID and protected workflow refreshes from stale accounts.
+- Added UUID response validation, account-identifying dashboard details, and
+  account-switch regression coverage.
