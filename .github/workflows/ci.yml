@@ -36,7 +36,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -RInE --exclude-dir=.git --exclude='*.lock' '(postgres(ql)?://[^[:space:]]+:[^[:space:]]+@|npg_[A-Za-z0-9]+|HDC-Customer#|HDC-Tech#)' .; then
+          if grep -RInE \
+            --exclude-dir=.git \
+            --exclude-dir=node_modules \
+            --exclude='*.lock' \
+            --exclude='ci.yml' \
+            '(postgres(ql)?://[^[:space:]]+:[^[:space:]]+@|npg_[A-Za-z0-9]+|HDC-Customer#|HDC-Tech#)' .; then
             echo 'Potential secret pattern found.'
             exit 1
           fi
