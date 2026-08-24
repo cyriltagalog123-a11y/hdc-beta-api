@@ -8,6 +8,9 @@
   lockfile, analysis, tests, same-origin API discovery, and reset packaging.
 - Added hardened static and JSON response headers, no-store rules for entry and
   recovery pages, and provider-portable deployment/rollback documentation.
+- Self-hosted Flutter renderer and font resources on the HDC origin so Chrome
+  can load under the restrictive content-security policy without third-party
+  CDN access.
 - Rehearsed migrations 0006 through 0008 on an isolated Neon branch, then
   promoted the identical transaction to production after approval. Required
   relations, RLS flags, triggers, migration records, and unique account UUIDs

@@ -11,6 +11,8 @@ IMPLEMENTED
   retaining in-code /api/* Function routes.
 - Flutter web resolves the API from its own trusted origin; native clients keep
   the existing public HTTPS API default.
+- Flutter renderer and font resources are self-hosted on the HDC origin; the
+  web client does not require Google CDN access to start.
 - Pinned Flutter 3.47.1 build script enforces pubspec.lock, then runs analyzer,
   tests, and release compilation before packaging the password-reset page.
 - Static and API responses receive restrictive framing, MIME, referrer,

@@ -13,6 +13,7 @@ android/local.properties
 .env.*
 !.env.example
 npm-debug.log*
+deploy-*.zip
 yarn-debug.log*
 yarn-error.log*
 .DS_Store

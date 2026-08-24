@@ -20,6 +20,7 @@ fi
 "$HDC_FLUTTER_BIN" build web \
   --release \
   --no-pub \
+  --no-web-resources-cdn \
   --base-href=/ \
   --dart-define=HDC_BACKEND_PROVIDER=api \
   --dart-define=HDC_API_BASE_URL=same-origin

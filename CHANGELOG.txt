@@ -8,6 +8,8 @@ HDC BETA API CHANGELOG
   same-origin runtime API discovery.
 - Added hardened static/API headers and a provider-portable deployment,
   preview, promotion, and rollback runbook.
+- Self-hosted Flutter renderer and font resources so Chrome loads Build 16
+  without relaxing the HDC-only content-security policy for third-party CDNs.
 - Rehearsed migrations 0006-0008 on an isolated Neon branch, then promoted the
   identical migration transaction to production after explicit approval.
 - Verified production migrations 0001-0008, required RLS/triggers, the single
