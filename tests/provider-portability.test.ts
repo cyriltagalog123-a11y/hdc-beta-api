@@ -41,8 +41,11 @@ describe('provider-neutral environment', () => {
     expect(await response.json()).toMatchObject({
       service: 'hdc-beta-api',
       status: 'ok',
-      build: '0.6.4-build16',
+      build: '0.6.4-build17',
     });
+    expect(response.headers.get('x-hdc-request-id')).toMatch(
+      /^[0-9a-f-]{36}$/,
+    );
   });
 
   it('trims values and supports branded-to-legacy fallback order', () => {

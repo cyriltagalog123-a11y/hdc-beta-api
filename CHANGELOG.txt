@@ -1,6 +1,17 @@
 HDC BETA API CHANGELOG
 ======================
 
+2026-08-24 - Build 17 service-request reliability hotfix
+- Repaired the Neon/PostgreSQL role membership that prevented the API from
+  entering HDC's restricted RLS role for service requests and proposals.
+- Added migration 0009 plus readiness validation for workflow authority.
+- Made request publishing retry-safe with stable identifiers, coalesced submit
+  taps, and idempotent backend creation.
+- Added safe request references and actionable client errors while keeping
+  sensitive payloads and database details out of responses and logs.
+- Added an opt-in isolated-branch integration test for the authenticated
+  request-publication path.
+
 2026-08-24 - Build 16 secure Netlify web and API deployment foundation
 - Consolidated Flutter web, password recovery, and API routes under one HTTPS
   origin so browser authentication does not require broad CORS access.

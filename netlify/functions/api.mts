@@ -64,6 +64,7 @@ import {
   parseServiceRequestWrite,
   proposalQualityScore,
   proposalView,
+  serviceRequestWriteMatchesRow,
   serviceRequestView,
   serviceTransactionView,
   technicianReputation,
@@ -2740,15 +2741,53 @@ async function handleCreateServiceRequest(
         ${input.urgency}, ${input.minimumBudget}, ${input.maximumBudget},
         ${input.status}
       )
+      ON CONFLICT (id) DO NOTHING
       RETURNING *
     `;
-    return serviceRequestView(rowObject(rows[0]));
+    if (rows.length > 0) {
+      return {
+        serviceRequest: serviceRequestView(rowObject(rows[0])),
+        replayed: false,
+      };
+    }
+
+    const existingRows = await tx`
+      SELECT *
+      FROM public.hdc_service_requests
+      WHERE id = ${input.id}
+      LIMIT 1
+    `;
+    if (
+      existingRows.length === 0 ||
+      !serviceRequestWriteMatchesRow(
+        rowObject(existingRows[0]),
+        input,
+        user.id,
+      )
+    ) {
+      throw new WorkflowHttpError(
+        'service_request_identifier_conflict',
+        409,
+        'That request identifier is already in use.',
+      );
+    }
+    return {
+      serviceRequest: serviceRequestView(rowObject(existingRows[0])),
+      replayed: true,
+    };
   });
 
   await audit(sql, user.id, 'workflow.request.create', 'success', {
     request_id: input.id,
+    idempotent_replay: created.replayed,
   });
-  return json({ serviceRequest: created }, 201);
+  return json(
+    {
+      serviceRequest: created.serviceRequest,
+      idempotentReplay: created.replayed,
+    },
+    created.replayed ? 200 : 201,
+  );
 }
 
 async function handleUpdateServiceRequest(
@@ -3550,10 +3589,33 @@ async function handleReadiness(req: Request): Promise<Response> {
     if (!database.ready) {
       return json({ service: 'hdc-beta-api', status: 'not_ready' }, 503);
     }
+    const authorityRows = await sql`
+      SELECT
+        to_regclass('public.hdc_service_requests') IS NOT NULL
+          AS workflow_table_ready,
+        EXISTS (
+          SELECT 1
+          FROM pg_roles
+          WHERE rolname = 'hdc_app'
+            AND pg_has_role(current_user, oid, 'SET')
+        ) AS workflow_role_ready
+    `;
+    const authority = rowObject(authorityRows[0]);
+    const workflowAuthorityReady =
+      authority.workflow_table_ready === true &&
+      authority.workflow_role_ready === true;
+    if (!workflowAuthorityReady) {
+      return json({
+        service: 'hdc-beta-api',
+        status: 'not_ready',
+        error: 'workflow_authority_unavailable',
+        checks: { database: 'ok', workflowAuthority: 'not_ready' },
+      }, 503);
+    }
     return json({
       service: 'hdc-beta-api',
       status: 'ready',
-      checks: { database: 'ok' },
+      checks: { database: 'ok', workflowAuthority: 'ok' },
       latencyMs: database.latencyMs,
     });
   } catch (error) {
@@ -3573,14 +3635,17 @@ async function handleReadiness(req: Request): Promise<Response> {
   }
 }
 
-async function handleHdcApiRequestCore(req: Request): Promise<Response> {
+async function handleHdcApiRequestCore(
+  req: Request,
+  requestReference: string,
+): Promise<Response> {
   const path = new URL(req.url).pathname;
   if (path === '/api/health') {
     if (req.method !== 'GET') return methodNotAllowed();
     return json({
       service: 'hdc-beta-api',
       status: 'ok',
-      build: '0.6.4-build16',
+      build: '0.6.4-build17',
     });
   }
   if (path === '/api/health/ready') return await handleReadiness(req);
@@ -3591,6 +3656,7 @@ async function handleHdcApiRequestCore(req: Request): Promise<Response> {
       {
         error: operation.errorCode,
         message: 'HDC is temporarily limiting operations. Please try again later.',
+        referenceId: requestReference,
       },
       503,
       { 'retry-after': String(operation.retryAfterSeconds ?? 300) },
@@ -3621,6 +3687,14 @@ async function handleHdcApiRequestCore(req: Request): Promise<Response> {
     path.startsWith('/api/commerce/listings/') ||
     path === '/api/commerce/purchase-requests' ||
     path.startsWith('/api/commerce/purchase-requests/');
+
+  const isWorkflowPath =
+    path === '/api/workflow/bootstrap' ||
+    path === '/api/service-requests' ||
+    path.startsWith('/api/service-requests/') ||
+    path === '/api/proposals' ||
+    path.startsWith('/api/proposals/') ||
+    path.startsWith('/api/service-transactions/');
 
   if (path === '/api/auth/recovery/start') {
     return await handleRecoveryStart(req);
@@ -3766,14 +3840,6 @@ async function handleHdcApiRequestCore(req: Request): Promise<Response> {
       }
     }
 
-    const isWorkflowPath =
-      path === '/api/workflow/bootstrap' ||
-      path === '/api/service-requests' ||
-      path.startsWith('/api/service-requests/') ||
-      path === '/api/proposals' ||
-      path.startsWith('/api/proposals/') ||
-      path.startsWith('/api/service-transactions/');
-
     if (isWorkflowPath) {
       const session = await activeSession(req, sql);
       if (!session) return json({ error: 'unauthorized' }, 401);
@@ -3838,7 +3904,18 @@ async function handleHdcApiRequestCore(req: Request): Promise<Response> {
     return json({ error: 'not_found' }, 404);
   } catch (error) {
     if (error instanceof WorkflowHttpError) {
-      return json({ error: error.code, message: error.message }, error.statusCode);
+      console.warn('HDC workflow request rejected', {
+        referenceId: requestReference,
+        method: req.method,
+        path,
+        code: error.code,
+        statusCode: error.statusCode,
+      });
+      return json({
+        error: error.code,
+        message: error.message,
+        referenceId: requestReference,
+      }, error.statusCode);
     }
 
     const databaseCode = typeof error === 'object' && error !== null && 'code' in error
@@ -3851,6 +3928,7 @@ async function handleHdcApiRequestCore(req: Request): Promise<Response> {
           : isCommercePath
             ? 'commerce_conflict'
             : 'workflow_conflict',
+        referenceId: requestReference,
       }, 409);
     }
     if (databaseCode === '23503' || databaseCode === '23514') {
@@ -3862,6 +3940,7 @@ async function handleHdcApiRequestCore(req: Request): Promise<Response> {
           : isInternalPath
             ? 'invalid_internal_relationship'
             : 'invalid_workflow_relationship',
+        referenceId: requestReference,
       }, 409);
     }
     if (databaseCode === '42P01' || databaseCode === '42704') {
@@ -3875,11 +3954,35 @@ async function handleHdcApiRequestCore(req: Request): Promise<Response> {
           : isRolePath
             ? 'role_backend_not_ready'
             : 'workflow_backend_not_ready',
+        referenceId: requestReference,
       }, 503);
     }
 
-    console.error('Unhandled HDC API error', error instanceof Error ? error.message : 'unknown_error');
-    return json({ error: 'internal_error' }, 500);
+    if (databaseCode === '42501' && isWorkflowPath) {
+      console.error('HDC workflow authority unavailable', {
+        referenceId: requestReference,
+        method: req.method,
+        path,
+        databaseCode,
+      });
+      return json({
+        error: 'workflow_authority_unavailable',
+        message: 'HDC request services are temporarily unavailable.',
+        referenceId: requestReference,
+      }, 503);
+    }
+
+    console.error('Unhandled HDC API error', {
+      referenceId: requestReference,
+      method: req.method,
+      path,
+      databaseCode: databaseCode || null,
+      message: error instanceof Error ? error.message : 'unknown_error',
+    });
+    return json({
+      error: 'internal_error',
+      referenceId: requestReference,
+    }, 500);
   } finally {
     if (sql) {
       try {
@@ -3894,13 +3997,31 @@ async function handleHdcApiRequestCore(req: Request): Promise<Response> {
   }
 }
 
-export async function handleHdcApiRequest(req: Request): Promise<Response> {
-  if (req.method === 'OPTIONS') return corsPreflightResponse(req);
-  return withCors(req, await handleHdcApiRequestCore(req));
+function withRequestReference(
+  response: Response,
+  requestReference: string,
+): Response {
+  const headers = new Headers(response.headers);
+  headers.set('x-hdc-request-id', requestReference);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
-export default async (req: Request, _context: Context): Promise<Response> =>
-  await handleHdcApiRequest(req);
+export async function handleHdcApiRequest(
+  req: Request,
+  requestReference: string = randomUUID(),
+): Promise<Response> {
+  const response = req.method === 'OPTIONS'
+    ? corsPreflightResponse(req)
+    : withCors(req, await handleHdcApiRequestCore(req, requestReference));
+  return withRequestReference(response, requestReference);
+}
+
+export default async (req: Request, context: Context): Promise<Response> =>
+  await handleHdcApiRequest(req, context.requestId);
 
 export const config: Config = {
   path: [

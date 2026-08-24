@@ -12,6 +12,8 @@ class ServiceRequestProvider extends ChangeNotifier {
   bool _isLoading = true;
   bool _isSaving = false;
   Object? _lastError;
+  Future<ServiceRequest>? _publishInFlight;
+  String? _publishRequestId;
 
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
@@ -23,10 +25,8 @@ class ServiceRequestProvider extends ChangeNotifier {
       .where((request) => request.status.isActive)
       .toList(growable: false);
 
-  int get totalOffers => requests.fold<int>(
-        0,
-        (total, request) => total + request.offerCount,
-      );
+  int get totalOffers =>
+      requests.fold<int>(0, (total, request) => total + request.offerCount);
 
   ServiceRequest? byId(String id) => repository.byId(id);
 
@@ -48,12 +48,43 @@ class ServiceRequestProvider extends ChangeNotifier {
     required ServiceRequestFormData form,
     required String customerId,
     required String customerName,
+    required String requestId,
+  }) {
+    final active = _publishInFlight;
+    if (active != null) {
+      if (_publishRequestId == requestId) return active;
+      return Future<ServiceRequest>.error(
+        StateError('Another service request is already being published.'),
+      );
+    }
+
+    final pending = _publish(
+      form: form,
+      customerId: customerId,
+      customerName: customerName,
+      requestId: requestId,
+    );
+    _publishInFlight = pending;
+    _publishRequestId = requestId;
+    return pending.whenComplete(() {
+      if (identical(_publishInFlight, pending)) {
+        _publishInFlight = null;
+        _publishRequestId = null;
+      }
+    });
+  }
+
+  Future<ServiceRequest> _publish({
+    required ServiceRequestFormData form,
+    required String customerId,
+    required String customerName,
+    required String requestId,
   }) async {
     _setSaving(true);
     try {
       final now = DateTime.now();
       final request = ServiceRequest(
-        id: _createId(now),
+        id: requestId,
         customerId: customerId,
         customerName: customerName,
         title: form.title.trim(),
@@ -165,5 +196,6 @@ class ServiceRequestProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  String _createId(DateTime time) => 'SR-${time.millisecondsSinceEpoch}';
+  static String createRequestId() =>
+      'SR-${DateTime.now().microsecondsSinceEpoch}';
 }

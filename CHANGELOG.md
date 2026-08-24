@@ -1,5 +1,20 @@
 # HDC Change Log
 
+## 0.6.4+17 — 2026-08-24
+
+- Fixed authenticated workflow writes on Neon/PostgreSQL by adding migration
+  0009, which grants the database owner explicit permission to enter HDC's
+  restricted `hdc_app` RLS role. The earlier membership existed but had its
+  `SET ROLE` option disabled.
+- Expanded readiness checks so a healthy connection is no longer reported as
+  ready when workflow authority is misconfigured.
+- Added stable request IDs, duplicate-submit coalescing, and idempotent service-
+  request creation so a safe retry cannot publish the same request twice.
+- Added safe request reference IDs to API responses and specific client error
+  feedback without exposing payloads, credentials, or database details.
+- Added an opt-in isolated-database integration test for registration, login,
+  request publication, and workflow bootstrap.
+
 ## 0.6.4+16 — 2026-08-24
 
 - Structured Netlify as one HTTPS origin for Flutter web, password recovery,

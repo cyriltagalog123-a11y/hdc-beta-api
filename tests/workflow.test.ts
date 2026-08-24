@@ -6,6 +6,7 @@ import {
   parseProposalWrite,
   parseServiceRequestWrite,
   proposalQualityScore,
+  serviceRequestWriteMatchesRow,
   technicianReputation,
   transactionTransition,
 } from '../netlify/functions/_lib/workflow.mjs';
@@ -66,6 +67,42 @@ describe('workflow input validation', () => {
       minimumBudget: 3000,
       maximumBudget: 1000,
     })).toThrow(/minimumBudget/);
+  });
+
+  it('recognizes an exact service-request retry without trusting client identity', () => {
+    const parsed = parseServiceRequestWrite(validRequest);
+    expect(serviceRequestWriteMatchesRow({
+      customer_id: 'customer-uuid',
+      title: parsed.title,
+      category_id: parsed.categoryId,
+      category_name: parsed.categoryName,
+      description: parsed.description,
+      location: parsed.location,
+      preferred_date: parsed.preferredDate,
+      preferred_time: parsed.preferredTime,
+      urgency: parsed.urgency,
+      minimum_budget: '800.00',
+      maximum_budget: '2000.00',
+      status: parsed.status,
+    }, parsed, 'customer-uuid')).toBe(true);
+  });
+
+  it('rejects a reused service-request identifier with different content', () => {
+    const parsed = parseServiceRequestWrite(validRequest);
+    expect(serviceRequestWriteMatchesRow({
+      customer_id: 'customer-uuid',
+      title: 'A different request',
+      category_id: parsed.categoryId,
+      category_name: parsed.categoryName,
+      description: parsed.description,
+      location: parsed.location,
+      preferred_date: parsed.preferredDate,
+      preferred_time: parsed.preferredTime,
+      urgency: parsed.urgency,
+      minimum_budget: parsed.minimumBudget,
+      maximum_budget: parsed.maximumBudget,
+      status: parsed.status,
+    }, parsed, 'customer-uuid')).toBe(false);
   });
 
   it('requires parts cost to match technician-supplied parts', () => {

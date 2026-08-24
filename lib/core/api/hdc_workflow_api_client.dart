@@ -9,11 +9,13 @@ class HdcWorkflowException implements Exception {
   final String code;
   final String message;
   final int? statusCode;
+  final String? referenceId;
 
   const HdcWorkflowException({
     required this.code,
     required this.message,
     this.statusCode,
+    this.referenceId,
   });
 
   @override
@@ -46,10 +48,7 @@ class HdcWorkflowApiClient {
     return _send('GET', path, requiresAuthentication: false);
   }
 
-  Future<Map<String, dynamic>> post(
-    String path, {
-    Map<String, Object?>? body,
-  }) {
+  Future<Map<String, dynamic>> post(String path, {Map<String, Object?>? body}) {
     return _send('POST', path, body: body);
   }
 
@@ -97,10 +96,23 @@ class HdcWorkflowApiClient {
         final code = decoded?['error'] is String
             ? decoded!['error'] as String
             : 'workflow_request_failed';
+        final referenceId = decoded?['referenceId'] is String
+            ? decoded!['referenceId'] as String
+            : response.headers['x-hdc-request-id'];
+        final serverMessage = decoded?['message'] is String
+            ? (decoded!['message'] as String).trim()
+            : null;
         throw HdcWorkflowException(
           code: code,
-          message: _messageFor(code, response.statusCode),
+          message: _messageFor(
+            code,
+            response.statusCode,
+            serverMessage: serverMessage,
+          ),
           statusCode: response.statusCode,
+          referenceId: (referenceId?.trim().isEmpty ?? true)
+              ? null
+              : referenceId!.trim(),
         );
       }
 
@@ -119,7 +131,8 @@ class HdcWorkflowApiClient {
     } on http.ClientException {
       throw const HdcWorkflowException(
         code: 'network_unavailable',
-        message: 'Could not reach HDC workflow services. Check your connection.',
+        message:
+            'Could not reach HDC workflow services. Check your connection.',
       );
     }
   }
@@ -143,13 +156,23 @@ class HdcWorkflowApiClient {
     return null;
   }
 
-  String _messageFor(String code, int statusCode) {
+  String _messageFor(String code, int statusCode, {String? serverMessage}) {
+    final safeServerMessage =
+        serverMessage != null &&
+            serverMessage.isNotEmpty &&
+            serverMessage.length <= 300
+        ? serverMessage
+        : null;
     return switch (code) {
       'unauthorized' || 'authentication_required' =>
         'Your HDC session is no longer valid. Please sign in again.',
       'forbidden' => 'Your HDC account is not allowed to perform this action.',
       'workflow_backend_not_ready' =>
         'HDC transaction services are being prepared. Please try again later.',
+      'workflow_authority_unavailable' => 'HDC request services are temporarily unavailable. Please try again shortly.',
+      'invalid_workflow_payload' ||
+      'invalid_request_status' => 'Check the request details and try again.',
+      'service_request_identifier_conflict' => 'This request could not be retried safely. Return to the form and review it again.',
       'role_backend_not_ready' || 'role_backend_unavailable' =>
         'HDC role services are being prepared. Please try again later.',
       'profile_backend_not_ready' || 'profile_backend_unavailable' =>
@@ -158,8 +181,7 @@ class HdcWorkflowApiClient {
         'The private HDC workspace is being prepared. Please try again later.',
       'commerce_backend_not_ready' || 'commerce_backend_unavailable' =>
         'HDC marketplace services are being prepared. Please try again later.',
-      'selling_role_required' =>
-        'An approved Seller, Supplier, or Store role is required to list items.',
+      'selling_role_required' => 'An approved Seller, Supplier, or Store role is required to list items.',
       'customer_role_required' =>
         'An active Customer workspace is required to request a purchase.',
       'invalid_product_listing' =>
@@ -190,8 +212,8 @@ class HdcWorkflowApiClient {
         'This account is not authorized for the private HDC workspace.',
       'profile_role_inactive' =>
         'Activate that platform role before editing its profile.',
-      'invalid_member_profile' || 'invalid_role_profile' =>
-        'Check the profile fields and try again.',
+      'invalid_member_profile' ||
+      'invalid_role_profile' => 'Check the profile fields and try again.',
       'profile_conflict' =>
         'That HDC profile changed elsewhere. Refresh and try again.',
       'platform_role_already_active' =>
@@ -210,7 +232,8 @@ class HdcWorkflowApiClient {
         'That account recovery request is no longer available.',
       'recovery_review_already_completed' =>
         'That account recovery request has already been reviewed.',
-      'service_request_not_found' => 'The service request is no longer available.',
+      'service_request_not_found' =>
+        'The service request is no longer available.',
       'proposal_not_found' => 'The proposal is no longer available.',
       'technician_already_selected' =>
         'A technician has already been selected for this request.',
@@ -224,8 +247,11 @@ class HdcWorkflowApiClient {
         'That status change is no longer allowed. Refresh and try again.',
       'workflow_conflict' =>
         'That HDC record already exists or was changed elsewhere.',
+      'service_read_only' || 'service_maintenance' || 'service_incident' =>
+        'HDC is temporarily limiting changes. Please try again later.',
       _ when statusCode >= 500 =>
         'HDC services are temporarily unavailable. Please try again.',
+      _ when safeServerMessage != null => safeServerMessage,
       _ => 'The HDC workflow request could not be completed.',
     };
   }

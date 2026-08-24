@@ -67,6 +67,32 @@ export type ServiceRequestWrite = {
   status: string;
 };
 
+export function serviceRequestWriteMatchesRow(
+  row: Record<string, unknown>,
+  input: ServiceRequestWrite,
+  customerId: string,
+): boolean {
+  const sameDate = new Date(String(row.preferred_date)).getTime() ===
+    new Date(input.preferredDate).getTime();
+  const sameOptionalNumber = (value: unknown, expected: number | null) =>
+    expected === null
+      ? value === null || value === undefined
+      : value !== null && value !== undefined && Number(value) === expected;
+
+  return String(row.customer_id) === customerId &&
+    String(row.title) === input.title &&
+    String(row.category_id) === input.categoryId &&
+    String(row.category_name) === input.categoryName &&
+    String(row.description) === input.description &&
+    String(row.location) === input.location &&
+    sameDate &&
+    String(row.preferred_time) === input.preferredTime &&
+    String(row.urgency) === input.urgency &&
+    sameOptionalNumber(row.minimum_budget, input.minimumBudget) &&
+    sameOptionalNumber(row.maximum_budget, input.maximumBudget) &&
+    String(row.status) === input.status;
+}
+
 export type ProposalWrite = {
   id: string;
   requestId: string;
