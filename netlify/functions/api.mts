@@ -3580,7 +3580,7 @@ async function handleHdcApiRequestCore(req: Request): Promise<Response> {
     return json({
       service: 'hdc-beta-api',
       status: 'ok',
-      build: '0.6.4-build15',
+      build: '0.6.4-build16',
     });
   }
   if (path === '/api/health/ready') return await handleReadiness(req);

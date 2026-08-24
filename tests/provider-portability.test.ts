@@ -41,7 +41,7 @@ describe('provider-neutral environment', () => {
     expect(await response.json()).toMatchObject({
       service: 'hdc-beta-api',
       status: 'ok',
-      build: '0.6.4-build15',
+      build: '0.6.4-build16',
     });
   });
 
