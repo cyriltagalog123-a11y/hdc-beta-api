@@ -1,0 +1,54 @@
+
+
+2026-08-20 — Sprint 6.4 Technician Role Gate + Test Accounts
+
+Purpose:
+- Prevent Guest and non-Technician accounts from accessing Technician Marketplace.
+- Replace TECH-DEMO-001 proposal/marketplace identity with the authenticated
+  technician account ID.
+- Prepare real customer-versus-technician interaction testing.
+
+Authorization:
+- Dashboard hides Technician Marketplace unless the current authenticated
+  identity has the Technician role.
+- Dashboard navigation performs a second role check.
+- Technician Marketplace performs its own hard role gate so direct navigation
+  cannot bypass the restriction.
+- Technician Request Details and Proposal Studio also validate the authenticated
+  Technician role.
+- Proposal ownership now uses the authenticated technician UUID.
+
+Technician Profile Note:
+- The current backend does not yet have a verified technician reputation
+  profile. Proposal Studio therefore uses the authenticated technician's
+  display name but does NOT falsely mark the technician as verified and does
+  not invent ratings or job history.
+
+Test Accounts:
+- Two Supabase beta test users were provisioned outside the source package:
+  one Customer role account and one Customer + Technician role account.
+- Passwords are deliberately not stored in source code, logs, or changelogs.
+
+Security:
+- Guest mode cannot access Technician Marketplace.
+- Registered Customer-only accounts cannot access Technician Marketplace.
+- Role enforcement relies on backend-hydrated HDC roles, not a client-selected
+  role string.
+- No service-role key or backend private credential was added to Flutter.
+
+Compatibility:
+- No new dependency.
+- No OS-specific API.
+- Windows and Android beta compatibility preserved.
+
+Validation:
+- Scan for TECH-DEMO-001.
+- Scan relative imports.
+- Structural delimiter scan.
+- Run flutter analyze locally.
+- Test Guest -> no Technician Marketplace.
+- Test Customer -> no Technician Marketplace.
+- Test Technician -> Marketplace available.
+- Submit a proposal as Technician and verify the authenticated technician ID
+  is used through proposal and transaction flows.
+

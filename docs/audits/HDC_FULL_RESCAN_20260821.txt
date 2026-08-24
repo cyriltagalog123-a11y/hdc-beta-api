@@ -1,0 +1,148 @@
+HISTORICAL BUILD 0.6.4+3 AUDIT - SUPERSEDED BY BUILD 0.6.4+6
+
+HDC FULL CURRENT-STATE RESCAN
+Date: 2026-08-21
+Source package reviewed: hdc_app(20260821-044728).zip
+Target: HDC 0.6.4+3 Windows/Android beta
+
+RESULT
+======
+Static source review passed with no blocking structural/import/secret/provider-gating issue found after the fixes in this package.
+
+STATIC SCAN RESULTS
+===================
+- Dart files scanned: 282
+- Dart import/export/part directives scanned: 693
+- Missing relative/package-local imports: 0
+- Delimiter/structural bracket issues in Dart source: 0
+- Package imports not declared in pubspec: 0
+- Active Appwrite references in lib/test/pubspec: 0
+- Known credential/connection-string patterns across the distributable package: 0
+- TECH-DEMO-001 occurrences in active source: 0
+- Supabase client URL/publishable-key/runtime-package patterns in active source: 0
+- Android main manifest XML parse: PASS
+- iOS Info.plist XML parse: PASS
+- web/manifest.json parse: PASS
+- pubspec.yaml parse: PASS
+
+ACTIVE PACKAGE IMPORTS
+======================
+flutter
+flutter_secure_storage
+flutter_test
+hdc_app
+http
+provider
+shared_preferences
+
+AUTHENTICATION REVIEW
+=====================
+PASS - Active client auth is HdcApiAuthGateway, not Appwrite/Supabase.
+PASS - Flutter contains only the public HTTPS HDC API base URL; it contains no Neon database credentials or server signing secret.
+PASS - Public registration does not grant Technician role client-side.
+PASS - Backend role response is mapped to HDC identity roles.
+PASS - Opaque auth token is stored in platform secure storage rather than SharedPreferences.
+PASS - Session restore asks the backend to validate the stored token before treating the account as authenticated.
+PASS - Explicit logout performs best-effort backend revocation and always removes the local secure credential.
+PASS - Unknown auth errors are not dumped verbatim to the login UI.
+PASS - Non-working password-reset action is not exposed as if it works.
+
+TECHNICIAN ACCESS REVIEW
+========================
+PASS - Dashboard hides/rechecks Technician Marketplace for non-technicians.
+PASS - TechnicianMarketplaceScreen checks authenticated + Technician role.
+PASS - Technician request details checks authenticated + Technician role.
+PASS - Proposal Studio checks authenticated + Technician role.
+PASS - Authenticated proposal reputation does not fabricate verification/rating/job statistics.
+PASS - Backend account creation timestamp is available for membership date rather than inventing a date locally.
+
+TECHNOLOGY-ONLY SCOPE REVIEW
+============================
+PASS - Current service categories are technology/IT/device focused.
+PASS - POS/restaurant wording refers to POS/KDS technology support, not food service.
+PASS - Technology power category is limited to UPS/PoE/device power diagnostics and includes licensed-electrician escalation for building/high-risk electrical work.
+No generic appliance, beauty, plumbing, or carpentry service category was found in the active HDC service taxonomy.
+
+PLATFORM/BUILD REVIEW
+=====================
+FIXED - Android main/release INTERNET permission was missing; added.
+FIXED - Android minimum SDK set to API 23 for secure session storage support.
+FIXED - Visible HDC branding refreshed on Windows, Android, web, iOS display name, and Linux window title.
+CLEANED - .dart_tool, build output, Flutter ephemeral folders, and stale plugin dependency metadata removed from handoff package.
+CLEANED - stale pubspec.lock removed because the dependency graph changed and Flutter SDK was unavailable here to regenerate it safely.
+CLEANED - obsolete Appwrite gateway is absent; dead Supabase auth compatibility source stub removed.
+CLEANED - machine-local Android local.properties and .iml files removed from the distributable package.
+SECURITY - legacy beta passwords redacted from archived Appwrite setup notes.
+CLEANED - stale generated desktop plugin registrants removed; flutter pub get/build will generate registrants for the new dependency graph.
+
+DEPENDENCY REVIEW
+=================
+Updated:
+- provider -> 6.1.5+1
+- cupertino_icons -> 1.0.9
+Added for HDC auth integration:
+- http -> 1.6.0
+- flutter_secure_storage -> 11.0.0
+Already current in this review:
+- shared_preferences -> 2.5.5
+- flutter_lints -> 6.0.0
+
+DEFERRED / NON-BLOCKING WORK
+============================
+1. Android application identity
+   Current namespace/applicationId remains com.example.hdc_app. Choose a permanent unique identifier before public/external Android beta distribution. This was not invented automatically because changing it becomes an app identity decision.
+
+2. Android release signing
+   Release currently points to the debug signing configuration. Configure a real protected release keystore before external distribution.
+
+3. Server migration of local repositories
+   Existing onboarding/service request/proposal/transaction/private conversation repositories still use SharedPreferences. Bulk conversion was deferred because these are planned for staged server-backed repository adapters; changing all persistence during the auth cutover would add unnecessary regression risk.
+
+4. SharedPreferences API modernization
+   Existing repositories use the legacy SharedPreferences API. Modernization can be done during the same staged data-repository migration rather than performing two persistence rewrites.
+
+5. Password reset
+   Backend reset/delivery is not implemented yet and the UI explicitly treats it as pending.
+
+6. Sample technician discovery fixtures
+   lib/models/technician.dart and lib/data/sample_technicians.dart contain obvious demo ratings/job counts. These are sample discovery fixtures, not authenticated technician account reputation. They should be replaced with real server data or clearly demo-labeled before the public marketplace contains real technician listings.
+
+7. Existing planned placeholders
+   Role onboarding preview contains an intentional later-destination placeholder. Product Passport has timeline/audit integration marked coming soon. These are feature-completeness items rather than auth blockers.
+
+8. Windows secure storage build prerequisite
+   If the Windows build environment reports an ATL/C++ toolchain error while compiling secure storage, install the relevant Visual Studio C++/ATL component and rebuild.
+
+REQUIRED LOCAL VERIFICATION
+===========================
+The packaging environment does NOT contain the Flutter or Dart SDK. Therefore this audit does not claim that `flutter analyze`, `flutter test`, or a platform build ran here.
+
+Run in this exact order on the user's Flutter workstation:
+
+  flutter pub get
+  flutter analyze
+  flutter test
+  flutter run -d windows
+
+Then test:
+- Guest path
+- New customer registration
+- Customer login
+- App restart/session restore
+- Customer denied from Technician Marketplace
+- Logout
+- Registered technician login
+- Technician Marketplace access
+- Proposal flow
+- Transaction workspace/private chat authorization
+
+If flutter pub get changes generated desktop registrants or creates a new pubspec.lock, that is expected after this dependency cutover.
+
+
+CLEAN EXTRACTION CORRECTION (BUILD +3)
+======================================
+The original uploaded project contained lib/core/auth/appwrite_auth_gateway.dart.
+The build +2 replacement ZIP did not contain that file; analyzer errors reported
+after handoff were caused by extracting the new ZIP over an older folder, which
+does not delete files removed from the new archive. Build +3 is packaged under a
+new top-level directory specifically to prevent this stale-file merge.

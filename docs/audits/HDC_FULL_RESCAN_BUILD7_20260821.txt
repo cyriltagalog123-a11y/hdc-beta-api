@@ -1,0 +1,72 @@
+HDC FULL SOURCE RESCAN - BUILD 0.6.4+7
+Date: 2026-08-21
+
+Scope
+-----
+Clean Flutter source prepared from Build 0.6.4+6 plus the Sprint 6.4F
+platform/internal role separation. The user's later 0.6.4+5 archive was
+source-identical to the existing baseline and contributed no divergent source.
+
+Flutter source structure
+------------------------
+- Dart files in lib/test: 297
+- Import/export/part directives: 790
+- Missing relative or package:hdc_app imports: 0
+- Structural delimiter issues: 0
+- Referenced packages:
+  flutter, flutter_secure_storage, flutter_test, hdc_app, http, provider,
+  shared_preferences
+- Undeclared packages: 0
+
+Manifest checks
+---------------
+- JSON manifests parsed: 4
+- XML manifests parsed: 7
+- YAML manifests parsed: 2
+
+Role-domain checks
+------------------
+- Active HDCAccountRole references: 0
+- Active hasRole()/identity.roles mixed-domain checks: 0
+- Internal roles represented as platform enum values: 0
+- Internal roles exposed through the platform-role application body: 0
+- Technician feature gates using hasPlatformRole: 4 files
+- Dashboard Role Center routed to the new server-backed screen: confirmed
+- Legacy generic Role/UserRole foundation marked non-authoritative: confirmed
+
+Security/configuration checks
+-----------------------------
+- Direct Flutter database provider packages: 0
+- Active PostgreSQL connection strings/private keys/session secrets: 0
+- Generated cache/build/ephemeral/machine-local artifacts: 0
+- HDC HTTPS API remains the default backend provider: confirmed
+- Public registration remains Customer-only: confirmed
+- Unknown backend role codes fail closed: confirmed
+- Moderator privileged resource override: disabled
+- Platform-role approvals limited to Owner/Super Admin: confirmed
+
+Backend companion
+-----------------
+- Branch: codex/sprint-6.4cd-workflow-backend
+- Local commit: f502d3a93414b44f9ff045165f6c8cd8154d6937
+- npm run typecheck: PASS
+- npm test -- --run: PASS (3 files, 18 tests)
+- git diff --check: PASS before commit
+- Secret-pattern matches outside dependencies/git metadata: 0
+- Migration 0003 role-domain tables: 6
+- Migration 0003 RLS-enabled tables: 6
+- Production Neon/Netlify and the GitHub remote: unchanged
+
+Runtime boundary
+----------------
+Flutter and Dart SDKs are not installed in this environment. This rescan does
+not claim flutter analyze, flutter test, Windows runtime, or Android runtime
+success. Those checks remain mandatory from a clean Build 7 extraction.
+
+Database boundary
+-----------------
+No PostgreSQL runtime is available here and migration 0003 was not executed.
+Apply migrations 0002 then 0003 on an isolated Neon branch, explicitly verify
+and bootstrap the intended Owner account, deploy a matching preview, and test
+the full role matrix before production promotion.
+

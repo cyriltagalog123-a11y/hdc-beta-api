@@ -1,0 +1,54 @@
+
+
+2026-08-20 — Sprint 5.4E — Accept Proposal
+
+Purpose:
+- Convert customer proposal selection into a controlled service engagement.
+- Synchronize accepted proposal, competing proposals, service-request status,
+  marketplace eligibility, and a transaction handoff record.
+
+Backend / Domain:
+- Added ProposalAcceptanceService with ownership, lifecycle, duplicate-
+  acceptance, and request-state validation.
+- Added TransactionSeed and persistent TransactionSeedRepository.
+- Added ProposalAcceptanceResult.
+- Acceptance updates the selected proposal to Accepted.
+- Active competing proposals are closed as Declined / Not Selected.
+- Service request moves to Technician Selected.
+- Transaction seed is created for Sprint 5.5.
+- Added best-effort rollback for the current local-beta persistence layer.
+  Production backend must perform the same operation in one database
+  transaction.
+
+Frontend:
+- Added customer acceptance confirmation.
+- Added Accept Proposal from proposal details and comparison.
+- Added acceptance success screen.
+- Marketplace now excludes requests that no longer accept proposals.
+
+Security / Privacy:
+- Acceptance validation remains in the domain/service layer.
+- Frontend does not decide authorization or lifecycle validity.
+- No secret, credential, backend private key, or sensitive implementation
+  detail was added to the UI.
+
+Compatibility:
+- No new plugin.
+- No OS-specific API.
+- Windows / Android beta architecture preserved.
+- Linux / macOS portability unaffected.
+
+Known Limitation:
+- Beta uses local SharedPreferences repositories, which cannot provide a true
+  cross-repository atomic transaction. The service performs best-effort
+  rollback. A real backend database transaction is mandatory before production.
+
+Testing:
+- flutter analyze
+- Accept an active proposal.
+- Confirm accepted proposal becomes Accepted.
+- Confirm competing active proposals become Declined.
+- Confirm request becomes Technician Selected.
+- Confirm request disappears from Technician Marketplace.
+- Restart HDC and confirm state persists.
+- Re-running acceptance must not create a second transaction handoff.

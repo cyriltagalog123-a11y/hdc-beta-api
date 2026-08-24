@@ -1,0 +1,100 @@
+
+
+2026-08-20 — Sprint 5.5B/5.5C — Transaction Workspace & Synchronization
+
+Purpose:
+- Deliver the Transaction Workspace frontend and the remaining transaction
+  domain/application synchronization in one accelerated build.
+- Preserve the backend/domain-first rule even though backend and frontend are
+  delivered together in the same package.
+
+Backend / Domain Changes:
+- Strengthened ServiceTransaction participant-role modeling.
+- Added customerName and technicianName transaction snapshots with backward-
+  compatible deserialization for transactions created by Sprint 5.5A.
+- Added role-aware transition authorization:
+  Technician controls operational progress:
+    Confirmed -> Scheduled -> Technician En Route -> Arrived -> In Progress
+    -> Awaiting Customer Confirmation.
+  Customer controls:
+    Awaiting Customer Confirmation -> Completed.
+- Dispute remains modeled for future workflow; no dispute UI is activated.
+- Customer cancellation remains domain-restricted and is not exposed in this
+  sprint.
+- Transaction lifecycle now synchronizes relevant ServiceRequest states:
+  In Progress, Completed, and Cancelled.
+- Transaction transition updates use best-effort beta rollback across local
+  repositories.
+- Accepted TransactionSeed creation and ServiceTransaction consumption now
+  share the same repository instance at application root.
+- Acceptance flow consumes the new seed immediately instead of requiring an
+  app restart.
+- ServiceTransactionProvider now supports seed synchronization, immediate seed
+  consumption, active transaction queries, and repository refresh.
+
+Frontend Changes:
+- Added customer "My Active Services" transaction list.
+- Added technician "My Technician Jobs" list.
+- Added shared Service Transaction Workspace with role-specific actions.
+- Added accepted terms, participant information, transaction status, Nexus
+  guidance, and transaction activity timeline.
+- Added disabled future-tool surfaces for private chat, payments/receipts,
+  documents, and disputes. These are informational only and do not activate
+  unfinished systems.
+- Proposal acceptance success screen can open the transaction workspace.
+- Customer Dashboard now shows active transaction count and Active Services.
+- Service Request Details links directly to its transaction workspace.
+- My Service Requests displays linked transaction status.
+- Technician Marketplace now links to technician jobs.
+
+Security / Privacy:
+- Frontend does not decide transition authorization.
+- Domain service validates transaction participant identity and participant
+  role before status changes.
+- Transaction workspace is designed around authorized customer/technician
+  participants.
+- No backend secret, credential, private key, storage token, or sensitive
+  implementation secret is embedded in the frontend.
+- Current beta still has prototype identity constants because production
+  authentication/session identity is not yet connected. Production must
+  replace prototype IDs with server-verified session identity.
+
+Messaging:
+- Private chat remains NOT IMPLEMENTED in this sprint.
+- Transaction now provides the participant relationship and messaging-
+  eligibility foundation required by the later messaging sprint.
+
+Compatibility:
+- No new package/plugin.
+- No Windows-only or Android-only API introduced.
+- Shared Flutter/domain implementation remains portable toward Android,
+  Windows, Linux, and macOS.
+- Windows and Android remain the beta priorities.
+
+Known Beta Limitation:
+- SharedPreferences remains local beta persistence and is not the production
+  backend.
+- Cross-repository updates use best-effort rollback only.
+- Production must enforce transitions, authorization, audit logging, and
+  request synchronization server-side in a transactional database operation.
+
+Mandatory Pre-Handoff Review:
+- Relative import scan across lib/ and test/.
+- Structural delimiter scan across project Dart files.
+- Constructor/signature usage scan for changed dashboard/acceptance widgets.
+- No new dependency/plugin.
+- No OS-specific imports in changed files.
+- No obvious embedded credential/private-key patterns in changed files.
+
+Required User Test:
+- flutter analyze
+- flutter run -d windows
+- Accept a proposal and open Service Workspace immediately.
+- Customer workspace initially shows Confirmed and waits for technician.
+- Technician Marketplace -> My Technician Jobs opens same transaction.
+- Technician progresses:
+  Scheduled -> En Route -> Arrived -> In Progress -> Ready for Review.
+- Customer then confirms completion.
+- My Service Requests status must synchronize to In Progress then Completed.
+- Dashboard active-service count and workspace list must update.
+- Restart HDC and verify transaction state/timeline persists.

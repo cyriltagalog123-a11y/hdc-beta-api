@@ -1,0 +1,132 @@
+
+
+2026-08-20 — Sprint 5.6 — Private Transaction Messaging (Combined Backend + Frontend)
+
+Purpose:
+- Add transaction-bound 1-to-1 private messaging between the authorized
+  customer and technician.
+- Preserve HDC's rule that private chat is created only from a valid service
+  transaction relationship.
+- Introduce storage-choice architecture without exposing backend storage
+  credentials or binding HDC to a single future storage provider.
+
+Backend / Domain:
+- Added PrivateConversation and PrivateMessage domain models.
+- Added PrivateMessageStatus lifecycle.
+- Added ConversationStorageMode and ConversationStorageSettings.
+- Added PrivateConversationRepository abstraction.
+- Added SharedPreferences beta conversation repository.
+- Added PrivateMessagingService.
+- Added participant/transaction authorization before conversation creation,
+  reading, storage changes, and message sending.
+- Added deterministic private-message moderation hook:
+  ordinary messages = allow;
+  detected profanity = send-time warning;
+  selected severe threat/credential-theft patterns = block.
+- Added per-conversation HDC beta quota enforcement.
+- Added provider-neutral ChatStorageProvider abstraction for future HDC
+  backend, Drive, OneDrive, or authorized user-storage adapters.
+- Added read-state updates for messages opened by the other participant.
+
+Frontend:
+- Activated Private Transaction Chat from the Service Workspace.
+- Added pinned transaction context above chat.
+- Added message bubbles, timestamps, and message status labels.
+- Added send-time profanity warning with Edit Message / Send Anyway.
+- Added first-open Chat Storage notice.
+- Added HDC Storage usage meter and quota display.
+- Added storage settings surface.
+- User-owned storage option is visible but disabled until a real authorized
+  provider connector is connected.
+- Payment/Receipt, Documents, and Dispute remain reserved.
+
+Security / Privacy:
+- Private chat cannot be opened by arbitrary HDC users.
+- ServiceTransaction participant IDs authorize conversation access.
+- Frontend does not receive backend credentials, private storage tokens,
+  private keys, or unrestricted conversation-database access.
+- Serious abuse/reporting remains a backend safety responsibility in
+  production; client-side checks are an additional UX/safety layer only.
+- Private profanity warning does not make private chat exempt from HDC safety
+  rules.
+
+Storage / Restore:
+- Current developer beta still persists HDC-managed chat locally using
+  SharedPreferences.
+- The architecture separates storage mode and provider adapter contracts so
+  authoritative HDC or user-owned storage can replace local persistence
+  without redesigning the chat UI/domain.
+- TRUE uninstall-safe restore is NOT falsely claimed in this build:
+  uninstall-safe restoration requires the protected HDC backend or an
+  authorized external/user-owned storage provider.
+- The UI states this limitation explicitly.
+- HDC beta storage quota is currently 5 MB per conversation and remains a
+  configurable implementation value that may change in later versions.
+
+Compatibility:
+- No new Flutter plugin/dependency.
+- No Windows-only or Android-only API.
+- Domain and UI remain shared Flutter code suitable for Windows/Android beta
+  and future Linux/macOS adapters.
+
+Known Beta Limitations:
+- No real-time network transport/WebSocket yet; the current beta conversation
+  is local persistent simulation on one application data store.
+- No attachment upload yet.
+- No connected user-owned cloud/file provider yet.
+- No uninstall-safe restore until authoritative storage is connected.
+- Production must move authorization, message delivery, moderation
+  enforcement, quotas, audit logging, and authoritative history server-side.
+
+Mandatory Pre-Handoff Review:
+- Relative import scan across lib/ and test/.
+- Structural delimiter scan across Dart files.
+- Constructor/signature usage scan for changed messaging/workspace classes.
+- No new package/plugin.
+- No OS-specific imports.
+- No obvious embedded credential/private-key patterns.
+
+Required User Test:
+- flutter analyze
+- flutter run -d windows
+- Open an existing customer transaction workspace.
+- Open Private Transaction Chat.
+- Confirm first-use HDC Storage notice appears.
+- Send a normal message.
+- Send a profanity-containing test message and confirm warning appears before
+  Send Anyway.
+- Reopen the same transaction from the technician view and confirm the same
+  conversation is visible.
+- Confirm opening from the other participant marks incoming messages Read.
+- Restart HDC and confirm local chat history remains.
+- Confirm My Storage is shown but not falsely offered as connected.
+
+Pre-Handoff Scan Result:
+- Missing relative imports: 0
+- Structural delimiter issues: 0
+- New OS-specific API/imports: 0
+- Obvious embedded secret assignments: 0
+- New dependency/plugin: 0
+- Changed constructor/signature usages reviewed: complete
+2026-08-20 — Sprint 5.6 Analyzer + Beta Storage Notice Fix
+
+Changed:
+- lib/features/messaging/private_transaction_chat_screen.dart
+
+Fixes:
+- Removed invalid const from ConstrainedBox in the initial chat storage dialog.
+- Added an explicit Beta Chat Storage Notice explaining that locally stored chat history may be lost if HDC is uninstalled, app data is cleared, or the device becomes unavailable.
+- Updated the storage sheet restore note to match the same beta limitation.
+
+Impact:
+- No messaging authorization change.
+- No storage schema change.
+- No backend/frontend contract change.
+- No new dependency or OS-specific API.
+- User-facing transparency improvement only.
+
+Validation:
+- Relative import scan completed.
+- Structural delimiter scan completed.
+- Run flutter analyze locally; expected result: No issues found.
+

@@ -1,0 +1,87 @@
+HISTORICAL SUPABASE-ERA RECORD - SUPERSEDED BY BUILD 0.6.4+6
+
+HDC Sprint 6.4 Audit & Reconciliation — 2026-08-20
+
+FINDINGS
+1. The uploaded build contained the 6.1-6.3 identity interfaces and SQL file,
+   but real Supabase Flutter authentication had NOT yet been wired into
+   main.dart/login. Important customer flows still used prototype-user and
+   customer-001.
+2. pubspec.yaml did not include supabase_flutter.
+3. The Supabase public schema had no HDC application tables before this audit.
+4. The original identity migration granted broad profile UPDATE access. This
+   could have exposed the account-status field to client updates. It is now
+   display_name-only.
+5. Supabase security advisors found an existing rls_auto_enable SECURITY
+   DEFINER helper executable by anon/authenticated roles. Those API execute
+   privileges were revoked.
+6. Performance advisors found repeated auth.uid() RLS evaluation and an
+   unindexed audit foreign key. Both were corrected.
+7. HDC contained out-of-scope sample/service data for air conditioning,
+   plumbing, handyman work, generic residential electrical work and
+   motorcycle service. These were removed/replaced with technology-only data.
+8. Version metadata was inconsistent: pubspec 1.0.0 while UI said 0.1.0 Beta.
+   Standardized to 0.6.4 Beta / 0.6.4+1.
+9. SharedPreferences repositories still own requests, proposals, transactions
+   and private-message data. This is acceptable only as development/beta-local
+   persistence until Sprint 6.4C/D completes server repository migration.
+10. Technician marketplace/proposal studio still uses TECH-DEMO-001 and demo
+    reputation. It remains a controlled test placeholder until technician
+    identity/role migration in 6.4C/D.
+
+CHANGES
+- Deployed the reviewed HDC identity/profile/role/RLS migration to the existing
+  Supabase beta project.
+- Added Supabase Auth adapter behind AuthGateway.
+- Added HDCAuthProvider and session restoration during splash/startup.
+- Replaced the fake login delay with real email/password sign-in, beta account
+  creation and password-reset request.
+- Kept the current visual design intentionally; the distinctive final login and
+  application UI redesign remains deferred until beta-critical functionality is
+  complete.
+- New customer service requests now use the authenticated user ID/display name.
+- Proposal acceptance now uses authenticated customer identity instead of the
+  customer-001 placeholder.
+- Dashboard display/transaction actor uses the current authenticated identity.
+- Added graceful auth-backend failure behavior so HDC can still open in guest
+  mode instead of failing completely.
+- Removed non-technology service categories and marketplace examples.
+- Added technology-related electrical-support wording with explicit licensed-
+  electrician escalation for unsafe/high-risk work.
+- Added provider-isolated backend configuration. No service-role key, database
+  password or privileged backend credential is included in Flutter.
+
+PORTABILITY
+- Supabase implementation is isolated behind AuthGateway.
+- PostgreSQL tables/types remain standard where practical.
+- Supabase-specific auth.users/auth.uid() references exist only inside the
+  backend/supabase adapter migrations.
+- Neon remains the first fallback target. A future provider implements HDC
+  contracts/adapters instead of changing UI/business workflows.
+
+NEXT BETA BLOCKER
+Sprint 6.4C/D must move service requests, proposals, transactions and private
+messages from local SharedPreferences authority to server-authorized
+PostgreSQL repositories/RLS. Technician demo identity must also be replaced by
+real role-backed identity before closed beta.
+
+SOURCE HYGIENE NOTE
+The uploaded ZIP also contains generated build/, .dart_tool/ and platform
+.ephemeral files. They are not part of HDC's authoritative source and are
+already ignored by .gitignore. Future source handoffs should ideally exclude
+those generated folders to reduce stale-cache risk and ZIP size.
+
+DATABASE VERIFICATION
+Applied migration history in the beta Supabase project:
+- hdc_identity_auth_permissions_v1
+- lock_down_rls_auto_enable
+- optimize_identity_rls_and_audit_index
+
+Post-migration advisor review:
+- Security WARN items for the exposed SECURITY DEFINER helper were removed.
+- The security-audit table intentionally has RLS with no client policy. This
+  means clients have no direct audit-table access; server-controlled audit
+  writing will be introduced in the hardening sprint.
+- Previous auth.uid() RLS performance warnings were removed.
+- The audit actor foreign-key index is present. It is currently reported as
+  unused only because the beta database has not yet processed audit traffic.

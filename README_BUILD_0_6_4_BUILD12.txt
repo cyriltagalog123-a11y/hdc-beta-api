@@ -15,6 +15,9 @@ What changed
   fields. Internal roles remain private and cannot be selected or requested.
 - Reviewers can approve, reject, or request changes. Approval records the source
   application and reviewer on the public role grant.
+- Existing accounts can open Profiles & Workspaces > Account Security, confirm
+  the current password, and set or replace all three protected answers without
+  registering a second account.
 
 Security boundaries
 -------------------

@@ -1,0 +1,135 @@
+HDC FULL CURRENT-STATE RESCAN - BUILD 0.6.4+6
+Date: 2026-08-21
+Target: Windows/Android workflow backend deployment candidate
+
+RESULT
+======
+Static source review passed with no missing import, delimiter, manifest, package,
+active-provider, demo-identity, or embedded-secret blocker found. Companion HDC
+backend strict TypeScript compilation and all 12 backend tests pass.
+
+This result does not claim a live schema/deployment change or Flutter compiler
+result. Production Neon/Netlify were intentionally unchanged while authorized
+Neon access was unavailable, and this environment has no Flutter/Dart SDK.
+
+STATIC CLIENT SCAN
+==================
+- Dart files scanned: 291
+- Dart import/export/part directives scanned: 757
+- Missing relative/package-local imports: 0
+- Delimiter/structural bracket issues: 0
+- Package imports not declared in pubspec: 0
+- Active Appwrite references in lib/test/pubspec: 0
+- Active Supabase runtime package/client/URL patterns: 0
+- TECH-DEMO-001 occurrences in active source: 0
+- Demo account/request ID patterns in active source/test: 0
+- Direct database packages in pubspec: 0
+- Database connection-string/private-key patterns in the package: 0
+- Android main manifest XML parse: PASS
+- iOS Info.plist XML parse: PASS
+- web/manifest.json parse: PASS
+- pubspec.yaml parse: PASS
+
+ACTIVE PACKAGE IMPORTS
+======================
+dart
+flutter
+flutter_secure_storage
+flutter_test
+hdc_app
+http
+provider
+shared_preferences
+
+WORKFLOW AUTHORITY REVIEW
+=========================
+PASS - API is the default HDC_BACKEND_PROVIDER.
+PASS - Legacy neon/supabase launch labels alias to the provider-neutral HDC API;
+       Flutter has no direct vendor client.
+PASS - Requests, proposals, transaction seeds, and service transactions are
+       injected through HDC API repository adapters in the default path.
+PASS - The four SharedPreferences workflow repositories remain reachable only
+       through the explicit local development fallback.
+PASS - Workflow requests reuse the active process-local authenticated bearer
+       session and fail closed when no usable session exists.
+PASS - Proposal acceptance uses one backend atomic gateway and consumes the
+       canonical accepted/declined proposal, request, handoff, and transaction.
+PASS - Transaction status uses one backend transition gateway; it does not
+       perform a second client-side service-request update.
+PASS - Create/update providers return canonical repository state after the
+       backend derives identity, reputation, score, counts, and timestamps.
+PASS - Logout/account switch clears all workflow caches immediately.
+PASS - Binding-generation checks clear an old response that finishes after an
+       account switch and schedule the new account refresh.
+PASS - Sample marketplace request fixtures are included only in local mode.
+
+BACKEND REVIEW
+==============
+PASS - Additive 0002 migration checks for existing HDC auth prerequisites.
+PASS - Runtime workflow SQL assumes the restricted hdc_app NOLOGIN role.
+PASS - PostgreSQL RLS filters requests, proposals, seeds, and transactions by
+       authenticated customer/technician identity and backend roles.
+PASS - Workflow input ignores client-supplied identity, reputation, score,
+       offer count, activity, relationship, and lifecycle authority.
+PASS - Proposal acceptance is one DB transaction with request-first locking,
+       competing-offer closure, consumed handoff, and confirmed transaction.
+PASS - Request-before-proposal lock order prevents concurrent acceptance/update
+       deadlocks; draft deletion skips the unnecessary offer-count trigger write.
+PASS - Transaction transitions are participant/status-specific and update the
+       linked request in the same DB transaction.
+PASS - npm run typecheck.
+PASS - npm test: 12 tests across 2 test files.
+PASS - git diff --check.
+
+DEFERRED / VISIBLE BETA WORK
+============================
+1. Production migration/deployment
+   Apply migration 0002 on an isolated Neon branch and verify a Netlify preview
+   before any production promotion.
+
+2. Private messaging (Sprint 6.4E)
+   Conversations remain local SharedPreferences data, but creation/access still
+   requires a confirmed server-backed transaction relationship. Server storage,
+   realtime delivery, and multi-device sync are not claimed in Build 6.
+
+3. Flutter compiler/runtime verification
+   The packaging environment has no Flutter/Dart SDK. Analyzer, tests, Windows,
+   and Android runtime behavior require the workstation commands below.
+
+4. Android public identity/signing
+   Permanent applicationId/namespace and protected release signing remain user
+   product/release decisions before external distribution.
+
+5. Password reset
+   Backend delivery remains unavailable and is not presented as working.
+
+6. Technician discovery fixtures
+   Separate technician discovery/profile samples remain obvious fixtures. They
+   are not used as authenticated proposal reputation and should be replaced or
+   clearly demo-labeled before real public listings.
+
+7. Final UI redesign
+   Intentionally deferred; this sprint preserves the current UI while replacing
+   data authority.
+
+REQUIRED PREVIEW/WORKSTATION VERIFICATION
+=========================================
+Backend:
+  1. Reconnect authorized Neon tooling.
+  2. Create an isolated branch from the current beta database.
+  3. Apply migrations/0002_workflow_authority.sql using the runtime DB role.
+  4. Deploy the feature branch to a Netlify preview.
+  5. Verify customer/technician RLS isolation, competing proposal acceptance,
+     status authorization, audit events, rollback, and idempotent acceptance.
+
+Flutter:
+  flutter clean
+  flutter pub get
+  flutter analyze
+  flutter test
+  flutter run -d windows
+  flutter run -d android
+
+Test both customer and technician accounts, logout during an active refresh,
+account switching, request/proposal lifecycle, atomic acceptance, transaction
+status, and transaction-gated private chat.

@@ -1,6 +1,62 @@
 HDC BETA API CHANGELOG
 ======================
 
+2026-08-24 - Build 16 secure Netlify web and API deployment foundation
+- Consolidated Flutter web, password recovery, and API routes under one HTTPS
+  origin so browser authentication does not require broad CORS access.
+- Added pinned Flutter web build checks, an enforced dependency lockfile, and
+  same-origin runtime API discovery.
+- Added hardened static/API headers and a provider-portable deployment,
+  preview, promotion, and rollback runbook.
+- Rehearsed migrations 0006-0008 on an isolated Neon branch, then promoted the
+  identical migration transaction to production after explicit approval.
+- Verified production migrations 0001-0008, required RLS/triggers, the single
+  active Owner, and both existing accounts as distinct UUIDs; retained a
+  pre-change rollback branch.
+- Updated four transitive packages to Flutter 3.47.1's required pins and
+  verified every final hosted package archive against its lockfile SHA-256.
+
+2026-08-24 - Build 15 product marketplace and Flutter web authentication
+- Added Shop Technology to the dashboard and app bar with a public catalog,
+  search/category filters, and account-scoped My Purchases history.
+- Added buyer purchase requests and cancellation plus seller accept/decline
+  order management in Items & Sales.
+- Seller acceptance atomically allocates stock but is not payment, receipt,
+  delivery, or fulfillment proof.
+- Added migration 0008 with UUID idempotency, participant isolation, lifecycle
+  evidence, version conflicts, integer minor-unit totals, and self-buy blocking.
+- Fixed Chrome API access with restricted CORS and OPTIONS preflight support;
+  hosted Flutter web origins must be listed in HDC_WEB_ALLOWED_ORIGINS.
+- No production migration or backend deployment was performed by this package.
+
+2026-08-24 - Build 14 marketplace items and sales dashboard
+- Added a dashboard Items & Sales card with Selling, Sold, and Low Stock counts.
+- Added approved Seller, Supplier, and Store listing management with independent
+  role-profile ownership under one authenticated account UUID.
+- Added draft, active, paused, sold, and archived states with version conflicts,
+  lifecycle evidence, stock validation, and integer minor-unit PHP pricing.
+- Added migration 0007 and automatic pausing when a selling role is removed.
+- Kept prior listing history visible but read-only after role removal and
+  rejected cross-account listing payloads on the client.
+- Kept seller-reported sold state separate from future verified payment,
+  receipt, fulfillment, and dispute systems.
+- No production migration or deployment was performed by this package.
+
+2026-08-24 - Build 13 provider portability and recovery foundation
+- Centralized runtime environment access and exported the HDC Web API handler
+  so alternate Node-compatible hosting adapters can reuse domain behavior.
+- Added PostgreSQL portability contracts, migration ledger, external-provider
+  reference isolation, dependency readiness, encrypted backup verification,
+  resumable storage checkpoints, and versioned data-export manifests.
+- Added provider-neutral email/SMS, object-storage, and payment contracts with
+  disabled, queued, or fail-closed defaults; no paid provider was activated.
+- Separated session-signing and recovery-pepper keys and preserved explicit
+  previous/legacy verification paths for safe key rotation.
+- Added CI boundary enforcement and the provider migration/rollback runbook.
+- Added normal, read-only, maintenance, and incident operation gates that do
+  not depend on a hosting provider dashboard.
+- No production database, hosting, DNS, or paid-service change was performed.
+
 2026-08-22 - Build 12 structured role applications and secure recovery
 - Replaced free-text elevated public-role requests with versioned,
   role-specific required fields, private applicant snapshots, request-changes,
@@ -181,3 +237,14 @@ Pending verification before public beta:
   authenticated UUID and protected workflow refreshes from stale accounts.
 - Added UUID response validation, account-identifying dashboard details, and
   account-switch regression coverage.
+
+2026-08-24 - HDC 0.6.4+12 account security and structured role applications
+- Added mandatory three-question account recovery and versioned Terms/Privacy
+  acceptance for every new registration.
+- Added 2-of-3 Forgot Password verification, single-use reset authorization,
+  manual private review, reset throttling, security audit, and session revocation.
+- Added authenticated recovery-answer setup for accounts created before Build 12.
+- Added role-specific application forms and private approve/request-changes/reject
+  review for Technician, Business, Seller, Supplier, and Store.
+- Preserved one unique UUID account per person and kept internal roles private.
+- Removed obsolete top-level Appwrite setup files and saved test credentials.

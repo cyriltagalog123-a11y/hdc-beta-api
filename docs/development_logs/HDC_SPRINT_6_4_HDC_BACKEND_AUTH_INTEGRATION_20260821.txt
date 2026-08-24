@@ -1,0 +1,54 @@
+HDC DEVELOPMENT LOG
+Sprint: 6.4 - HDC Backend Auth Integration
+Date: 2026-08-21
+
+Summary
+=======
+The active Flutter authentication provider was migrated from Appwrite to an HDC-owned HTTPS API. The API is hosted through Netlify Functions and uses Neon PostgreSQL server-side. The client receives only public API responses/session tokens and never receives Neon credentials or server secrets.
+
+Implemented
+===========
+1. HDCAuthException introduced for clean authentication error handling.
+2. SecureAuthSessionStore introduced with flutter_secure_storage.
+3. HdcApiAuthGateway introduced for login/register/session/logout.
+4. BackendConfig converted to HDC API configuration with HTTPS validation.
+5. main.dart changed to construct HdcApiAuthGateway instead of Appwrite Client/AuthGateway.
+6. Appwrite SDK dependency and active gateway removed.
+7. Legacy Supabase auth adapter reduced to an archive/compatibility note so it cannot accidentally initialize a provider.
+8. Login/create-account UI aligned to backend validation and removed non-functional reset action.
+9. Android INTERNET permission fixed for non-debug/release builds.
+10. Android minimum API set to 23 for secure session storage.
+11. HDC branding refreshed for active Windows/Android/web project surfaces.
+12. Added HDC API auth unit tests using MockClient and an in-memory session store.
+13. Updated dependencies that had safe current releases available.
+14. Appwrite transition notes moved under docs/archive/appwrite/.
+15. Backend auth user contract updated to return backend-owned createdAt/updatedAt values so technician membership dates are not fabricated in Flutter.
+
+Security/authority notes
+========================
+- Backend roles remain authoritative.
+- Public registration is customer-only.
+- Technician marketplace screens continue to hard-gate authenticated technician role.
+- Auth token is stored with platform secure storage, not SharedPreferences.
+- No database URL, server secret, or account password is stored in Flutter source/config/logs.
+- HTTPS is required for configured HDC API base URL.
+
+Known deferred work
+===================
+- Staged migration of locally persisted domain repositories to server-backed adapters.
+- Stable Android application ID before public distribution.
+- Android production signing key/configuration.
+- Password-reset backend route and delivery.
+- Replace demo/sample technician fixture data before it can be presented as real public reputation data.
+
+Verification boundary
+=====================
+The packaging environment did not contain the Flutter SDK. Therefore flutter analyze/flutter test were not executed here. Static import, delimiter, secret, provider-reference, role-gating, scope, and generated-artifact scans were run before handoff.
+
+Additional full-review fixes
+============================
+- Create-account success dialog title changed from misleading "Check your email" to "Account created" because this beta flow does not yet send a verification email.
+- Login UI no longer renders arbitrary unknown exception text; only known HDC/validation/state messages are shown and unknown errors receive a generic safe message.
+- Explicit logout now always clears the local secure token, even when the backend cannot be reached for remote revocation.
+- iOS display name and Linux window title were aligned to HelpDesk Connect for portability; internal platform identifiers were left unchanged.
+- Removed stale generated Flutter/plugin artifacts and the stale dependency lock from the handoff package. `flutter pub get` must regenerate the correct plugin registrants and lock file for the new dependency graph.

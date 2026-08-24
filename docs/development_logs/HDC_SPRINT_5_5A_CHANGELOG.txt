@@ -1,0 +1,73 @@
+
+
+2026-08-20 — Sprint 5.5A — Transaction Foundation
+
+Purpose:
+- Convert accepted-proposal TransactionSeed records into authoritative
+  service transactions before building the Transaction Workspace UI.
+- Establish transaction lifecycle, immutable accepted terms, participants,
+  audit activity, persistence, and future private-messaging eligibility.
+
+Backend / Domain Added:
+- ServiceTransaction and ServiceTransactionStatus.
+- AcceptedServiceTerms snapshot so accepted commercial/service terms remain
+  stable even if proposal presentation evolves later.
+- ServiceTransactionActivity timeline entries.
+- ServiceTransactionRepository abstraction.
+- SharedPreferences beta repository.
+- ServiceTransactionService.
+- Idempotent TransactionSeed consumption.
+- Transaction lifecycle validation and participant authorization.
+- ServiceTransactionProvider application bridge for startup initialization.
+
+Lifecycle:
+Created -> Confirmed -> Scheduled -> Technician En Route -> Arrived
+-> In Progress -> Awaiting Customer Confirmation -> Completed.
+Cancellation and dispute paths are explicitly modeled.
+
+Messaging Preparation:
+- Transaction owns customerId and technicianId.
+- Transaction exposes participant checks.
+- Messaging eligibility is modeled without implementing chat in this sprint.
+- No private-chat UI, message storage, or storage-provider integration was
+  added yet.
+
+Security:
+- Transaction transition authorization is enforced by domain/service logic,
+  not by frontend widgets.
+- Seed, request, proposal, customer, and technician relationships are checked
+  before transaction creation.
+- No secrets, credentials, private keys, or backend internals are exposed.
+
+Compatibility:
+- No new dependency.
+- No OS-specific API.
+- Windows and Android beta compatibility preserved.
+- Linux/macOS portability remains viable because persistence and domain logic
+  contain no platform-specific implementation.
+
+Important Beta Limitation:
+- SharedPreferences is still local beta persistence, not the production
+  backend.
+- Cross-repository atomicity is best-effort only.
+- Production transaction creation/status changes must use server-side
+  authorization and transactional database writes.
+
+Frontend:
+- No Transaction Workspace UI was added in 5.5A.
+- Visible behavior should remain unchanged.
+- 5.5B will consume this backend foundation.
+
+Validation Before Handoff:
+- Full relative-import scan.
+- Dart structural delimiter scan.
+- No new dependency/plugin.
+- No OS-specific imports.
+- No obvious secret/credential patterns introduced.
+
+Local Test:
+- flutter analyze
+- flutter run -d windows
+- Existing acceptance flow must remain stable.
+- After accepting a proposal and restarting, startup must consume its ready
+  transaction seed without changing the visible UI.

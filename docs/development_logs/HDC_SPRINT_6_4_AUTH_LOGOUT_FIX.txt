@@ -1,0 +1,35 @@
+
+
+2026-08-20 — Sprint 6.4 Authentication Test + Logout Fix
+
+Changed:
+- test/widget_test.dart
+- lib/features/dashboard/dashboard_screen.dart
+
+Fix:
+- Updated widget_test.dart to construct HDCApp with an explicit AuthGateway,
+  matching the required production constructor.
+- Added a visible Dashboard Sign Out action.
+- Sign Out requires user confirmation, calls HDCAuthProvider.signOut(), and
+  clears the navigation stack before returning to LoginScreen.
+- Guest sessions use the same action as an Exit Guest Session path.
+
+Security / Architecture:
+- Logout delegates to AuthGateway through HDCAuthProvider. The Dashboard does
+  not manipulate Supabase sessions directly.
+- No service-role key, password, private key, or backend secret is exposed.
+- Navigation is cleared after logout to prevent returning to authenticated
+  screens with the Back button.
+
+Compatibility:
+- No new dependency.
+- No OS-specific API.
+- Windows / Android beta compatibility preserved.
+
+Validation:
+- Full relative-import scan completed.
+- Structural delimiter scan completed.
+- No obvious embedded-secret assignments detected.
+- Run flutter analyze locally.
+- Test login -> dashboard -> sign out -> login.
+- Confirm Back cannot reopen Dashboard after sign out.

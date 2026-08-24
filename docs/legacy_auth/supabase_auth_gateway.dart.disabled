@@ -1,0 +1,223 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../models/account_identity.dart';
+import '../../models/authenticated_session.dart';
+import 'auth_gateway.dart';
+
+class SupabaseAuthGateway implements AuthGateway {
+  final SupabaseClient client;
+
+  AccountIdentity? _currentIdentity;
+  AuthenticatedSession? _currentSession;
+
+  SupabaseAuthGateway({required this.client});
+
+  @override
+  AccountIdentity? get currentIdentity => _currentIdentity;
+
+  @override
+  AuthenticatedSession? get currentSession => _currentSession;
+
+  @override
+  Future<void> initialize() async {
+    final session = client.auth.currentSession;
+    if (session == null) {
+      _clear();
+      return;
+    }
+    await _hydrate(session);
+  }
+
+  @override
+  Future<AccountIdentity> signIn({
+    required String identifier,
+    required String password,
+  }) async {
+    if (!identifier.contains('@')) {
+      throw ArgumentError(
+        'Email sign-in is enabled for this beta. Phone sign-in will be added '
+        'after the authentication backend is hardened.',
+      );
+    }
+
+    final response = await client.auth.signInWithPassword(
+      email: identifier,
+      password: password,
+    );
+
+    final session = response.session;
+    if (session == null) {
+      throw StateError('Supabase did not return an authenticated session.');
+    }
+
+    await _hydrate(session);
+    return _currentIdentity!;
+  }
+
+  @override
+  Future<AccountIdentity> signUp({
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    final response = await client.auth.signUp(
+      email: email,
+      password: password,
+      data: <String, dynamic>{'display_name': displayName},
+    );
+
+    final user = response.user;
+    if (user == null) {
+      throw StateError('The HDC account could not be created.');
+    }
+
+    if (response.session != null) {
+      await _hydrate(response.session!);
+      return _currentIdentity!;
+    }
+
+    final now = DateTime.now();
+    _currentIdentity = AccountIdentity(
+      id: user.id,
+      email: user.email,
+      phone: user.phone,
+      displayName: displayName,
+      status: HDCAccountStatus.active,
+      roles: const {HDCAccountRole.customer},
+      createdAt: _parseDate(user.createdAt) ?? now,
+      updatedAt: now,
+    );
+    _currentSession = null;
+    return _currentIdentity!;
+  }
+
+  @override
+  Future<void> signOut() async {
+    try {
+      await client.auth.signOut();
+    } finally {
+      _clear();
+    }
+  }
+
+  @override
+  Future<void> requestPasswordReset({required String email}) async {
+    await client.auth.resetPasswordForEmail(email.trim().toLowerCase());
+  }
+
+  @override
+  Future<void> refreshSession() async {
+    final response = await client.auth.refreshSession();
+    final session = response.session;
+    if (session == null) {
+      _clear();
+      throw StateError('The HDC session could not be refreshed.');
+    }
+    await _hydrate(session);
+  }
+
+  @override
+  Future<void> revokeSession(String sessionId) async {
+    await signOut();
+  }
+
+  Future<void> _hydrate(Session session) async {
+    final user = session.user;
+
+    final profile = await client
+        .from('hdc_profiles')
+        .select('user_id, display_name, status, created_at, updated_at')
+        .eq('user_id', user.id)
+        .single();
+
+    final roleRows = await client
+        .from('hdc_user_roles')
+        .select('role')
+        .eq('user_id', user.id);
+
+    final roles = <HDCAccountRole>{};
+    for (final row in roleRows) {
+      final value = row['role'] as String?;
+      if (value != null) {
+        roles.add(_roleFromDatabase(value));
+      }
+    }
+    if (roles.isEmpty) {
+      roles.add(HDCAccountRole.customer);
+    }
+
+    final now = DateTime.now();
+    final expiresAtSeconds = session.expiresAt;
+    final expiresAt = expiresAtSeconds == null
+        ? now.add(const Duration(hours: 1))
+        : DateTime.fromMillisecondsSinceEpoch(expiresAtSeconds * 1000);
+
+    _currentIdentity = AccountIdentity(
+      id: user.id,
+      email: user.email,
+      phone: user.phone,
+      displayName: profile['display_name'] as String,
+      status: _statusFromDatabase(profile['status'] as String),
+      roles: Set<HDCAccountRole>.unmodifiable(roles),
+      createdAt: _parseDate(profile['created_at'] as String?) ??
+          _parseDate(user.createdAt) ??
+          now,
+      updatedAt: _parseDate(profile['updated_at'] as String?) ?? now,
+    );
+
+    _currentSession = AuthenticatedSession(
+      id: '${user.id}:$expiresAtSeconds',
+      userId: user.id,
+      issuedAt: now,
+      expiresAt: expiresAt,
+      lastSeenAt: now,
+      revoked: false,
+    );
+  }
+
+  HDCAccountStatus _statusFromDatabase(String value) {
+    switch (value) {
+      case 'active':
+        return HDCAccountStatus.active;
+      case 'suspended':
+        return HDCAccountStatus.suspended;
+      case 'disabled':
+        return HDCAccountStatus.disabled;
+      case 'deleted':
+        return HDCAccountStatus.deleted;
+      default:
+        return HDCAccountStatus.disabled;
+    }
+  }
+
+  HDCAccountRole _roleFromDatabase(String value) {
+    switch (value) {
+      case 'customer':
+        return HDCAccountRole.customer;
+      case 'technician':
+        return HDCAccountRole.technician;
+      case 'seller':
+        return HDCAccountRole.seller;
+      case 'business':
+        return HDCAccountRole.business;
+      case 'store':
+        return HDCAccountRole.store;
+      case 'admin':
+        return HDCAccountRole.admin;
+      case 'super_admin':
+        return HDCAccountRole.superAdmin;
+      default:
+        throw StateError('Unknown HDC role returned by the backend: $value');
+    }
+  }
+
+  DateTime? _parseDate(String? value) {
+    if (value == null) return null;
+    return DateTime.tryParse(value)?.toLocal();
+  }
+
+  void _clear() {
+    _currentIdentity = null;
+    _currentSession = null;
+  }
+}

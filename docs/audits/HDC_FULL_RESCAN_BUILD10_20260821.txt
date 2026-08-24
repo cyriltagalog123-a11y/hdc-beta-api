@@ -1,0 +1,74 @@
+HDC FULL SOURCE RESCAN - BUILD 0.6.4+10
+Date: 2026-08-21
+Source: user-uploaded HDC 0.6.4+9 package
+
+Outcome
+-------
+Private operational authority is no longer rendered or returned through public
+Role Center or profile surfaces. Authorized staff use the same authenticated HDC
+account to switch to a separate, server-authorized private operations dashboard.
+
+Confirmed public boundary
+-------------------------
+- Public Role Center has no internal-role card, labels, permission explanation,
+  private queue entry point, or staff authority names.
+- Public Profile Center has no internal staff card, staff role labels, or
+  department/section assignments.
+- The public role-overview contract omits internal roles, private permission
+  flags, and pending private review counts.
+- The public profile-overview contract omits internal staff data.
+- Dashboard headers continue to render platform-role labels only.
+- An ordinary or Guest account receives no private-dashboard switch.
+
+Confirmed private boundary
+--------------------------
+- The switch is derived from a backend-hydrated authenticated identity and does
+  not change account, session, user ID, or login.
+- Private dashboard data is loaded only after the authorized workspace opens,
+  rather than being prefetched while the user remains on the public dashboard.
+- GET /api/internal/dashboard rejects accounts without active internal access.
+- Permission-filtered queries prevent community-only authority from receiving
+  global member/workflow statistics or the platform-role approval queue.
+- Active assignment/structure statistics exclude inactive departments and
+  inactive assigned sections.
+- Recent private activity omits audit metadata and user identifiers.
+- The private response exposes permission capabilities rather than role names.
+- Platform-role review remains protected again at its list/update endpoints.
+
+Connection checks
+-----------------
+- Auth provider -> internal-dashboard Provider binding: connected.
+- Authorized public-dashboard switch -> private dashboard: connected.
+- Private dashboard -> shared authenticated API client/session: connected.
+- Private provider -> GET /api/internal/dashboard: connected.
+- Approval action -> private list/update endpoints: connected.
+- API path configuration -> private dashboard handler: connected.
+- Permission helper -> role policy: connected.
+- Dashboard queries -> migration 0002/0003 tables: connected.
+- No new migration is required.
+
+Verification performed
+----------------------
+- Project/test Dart files scanned: 307.
+- Import/export/part directives scanned: 850.
+- Missing local Dart references: 0.
+- Duplicate directives: 0.
+- Merge-conflict markers in Dart source: 0.
+- Backend strict TypeScript compilation: passed.
+- Backend automated tests: 27/27 passed across five files.
+- Package JSON files parsed successfully.
+- Reported Build 9 analyzer corrections remain present: the obsolete profile
+  import is absent and the review-list separator uses wildcard identifiers.
+
+Environment limitation
+----------------------
+No Flutter/Dart SDK is installed in this workspace. Flutter analyze, Flutter
+tests, widget execution, and platform compilation were therefore not claimed.
+Run them from a clean extraction with Dart 3.12.2 or newer before release.
+
+Packaging and production safety
+-------------------------------
+The corrected ZIP excludes generated caches, build outputs, ephemeral plugin
+trees, IDE files, machine-local configuration, generated registrants, secrets,
+and dependency modules. No database migration, Netlify deployment, or GitHub
+push was made.

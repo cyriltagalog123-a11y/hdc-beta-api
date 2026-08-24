@@ -1,0 +1,51 @@
+HDC Sprint 6.4C/D - Workflow Backend Authority
+Date: 2026-08-21
+
+Outcome
+-------
+Prepared the provider-neutral HDC API and PostgreSQL migration for real service
+requests, proposals, proposal acceptance, transaction handoffs, and service
+transaction status. The production database and production Netlify deployment
+were not changed during preparation.
+
+Backend work
+------------
+- Added migrations/0002_workflow_authority.sql.
+- Added authenticated workflow bootstrap and mutation routes.
+- Added PostgreSQL row-level security executed through the restricted hdc_app
+  role with transaction-local authenticated identity and roles.
+- Kept customer/technician IDs, names, proposal reputation, quality scores,
+  offer counts, timestamps, transaction activities, and relationships under
+  server authority.
+- Made proposal acceptance atomic: one proposal is accepted, competing active
+  proposals are declined, the request is locked, and a consumed handoff plus
+  confirmed transaction workspace are created in the same DB transaction.
+- Used request-before-proposal locking for mutations that can update proposal
+  offer counts, preventing conflicting lock order during concurrent acceptance.
+- Request cancellation expires draft proposals and declines active proposals in
+  the same database transaction so cancelled work cannot retain live offers.
+- Added participant- and status-specific transaction transitions which also
+  update the linked service-request status atomically.
+
+Verification completed
+----------------------
+- npm run typecheck: PASS
+- npm test: PASS (12 tests across 2 files)
+- git diff --check: PASS
+- Secret scan of tracked/new source: no database URL, signing secret, account
+  password, or direct client database credential introduced.
+
+Required before production
+--------------------------
+1. Restore/reconnect authorized Neon tooling.
+2. Create an isolated Neon branch from the current beta database.
+3. Apply migration 0002 using the same database role as the runtime URL.
+4. Test customer and technician bootstrap/mutations through a Netlify preview.
+5. Verify row-level isolation, acceptance concurrency, audit writes, rollback,
+   and Windows/Android Flutter flows.
+6. Apply/deploy production only after those checks pass.
+
+Next sprint boundary
+--------------------
+Private messaging is deliberately left for Sprint 6.4E, including server-side
+message authority and realtime/delivery behavior.

@@ -1,0 +1,52 @@
+HDC FULL SOURCE RESCAN - BUILD 0.6.4+9
+Date: 2026-08-21
+Source: user-uploaded HDC 0.6.4+8 package
+
+Outcome
+-------
+The two reported analyzer findings were corrected. The one-account profile path
+is statically connected from authenticated identity and shared API session,
+through Provider registration and profile screens, to the matching authenticated
+Netlify profile routes and migration 0004 tables.
+
+Confirmed role boundaries
+-------------------------
+- Platform roles: Customer, Technician, Business, Seller, Supplier, and Store.
+- Internal roles: Owner, Super Admin, Admin, and Moderator.
+- One hdc_users ID owns one shared member-profile row.
+- The same user ID owns at most one profile row per active platform role.
+- Role-profile names/details are independent of the shared member display name.
+- Internal roles compose one private staff view and are not public profiles.
+- Public registration grants Customer only; other platform roles require Owner
+  or Super Admin approval.
+
+Corrections
+-----------
+- Removed an unused hdc_profile.dart import.
+- Replaced an unnecessary double-underscore callback parameter.
+- Delayed requested workspace selection until a refreshed, newly approved role
+  becomes available, preserving Role Center-to-profile navigation intent.
+
+Verification performed
+----------------------
+- Project/test Dart files scanned: 303.
+- Import/export/part directives scanned: 828.
+- Missing local Dart references: 0.
+- Duplicate directives: 0.
+- Merge-conflict markers in Dart source: 0.
+- Required UI/provider/API/migration connection checks: passed.
+- Backend strict TypeScript compilation: passed.
+- Backend automated tests: 23/23 passed across four files.
+- Package JSON files parsed successfully.
+
+Environment limitation
+----------------------
+No Flutter/Dart SDK is installed in this workspace. Flutter analyze, Flutter
+tests, widget execution, and platform compilation were therefore not claimed.
+Run them from a clean extraction with Dart 3.12.2 or newer before release.
+
+Packaging and production safety
+-------------------------------
+The corrected ZIP excludes generated caches, ephemeral plugin trees, IDE files,
+machine-local configuration, generated registrants, secrets, and dependency
+modules. No database migration, Netlify deployment, or GitHub push was made.

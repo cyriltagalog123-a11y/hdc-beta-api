@@ -1,0 +1,71 @@
+HDC FULL SOURCE RESCAN - BUILD 0.6.4+8
+Date: 2026-08-21
+Scope: one-account member, platform-role profiles, and private staff view
+
+Outcome
+-------
+Build 8 consistently uses one authenticated account ID. The shared member
+profile and all active platform-role profiles reference that ID. No profile UI
+creates credentials, signs into a second account, or accepts role authority
+from client input.
+
+Architecture checks
+-------------------
+- Platform roles remain Customer, Technician, Business, Seller, Supplier, and
+  Store.
+- Internal roles remain Owner, Super Admin, Admin, and Moderator in the private
+  authority domain.
+- Public registration still grants Customer only.
+- Inactive platform roles cannot be edited through the profile provider or API.
+- Role public-name changes are isolated from the master member display name and
+  from every other role profile.
+- Internal roles resolve into one private staff view and never into public
+  marketplace profile identities.
+- Member and role-profile rows are keyed to the backend-authenticated user ID.
+- New accounts and newly activated roles receive profile rows through migration
+  triggers; the GET profile endpoint also backfills defensively.
+
+Backend verification
+--------------------
+- API version: 0.4.0.
+- Strict TypeScript compilation: passed (tsc --noEmit).
+- Automated backend tests: 23/23 passed in four test files.
+- Profile normalization coverage includes all six platform-role detail schemas,
+  shared identity input, cross-role field rejection, contacts, URLs, arrays,
+  and numeric boundaries.
+- SQL migration 0004 transaction delimiters and PL/pgSQL dollar delimiters were
+  structurally balanced.
+- Git whitespace/error check: passed.
+
+Flutter source verification
+---------------------------
+- Project/test Dart files scanned: 303.
+- Dart import/export/part directives scanned: 829.
+- Missing local imports: 0.
+- Structural delimiter issues found by the source scan: 0.
+- New provider test source confirms one user ID across Customer and Technician
+  profiles and confirms a Technician update does not overwrite Customer or the
+  shared member name.
+- No legacy Admin/Super Admin platform-role reference was introduced.
+
+Environment limitation
+----------------------
+The Flutter/Dart SDK is not installed in this workspace. Therefore flutter
+analyze, flutter test, widget execution, Android/iOS compilation, and runtime UI
+testing were not claimed. Run those checks from a clean package extraction with
+a Flutter SDK that satisfies pubspec.yaml (Dart 3.12.2 or newer) before release.
+
+Packaging and safety
+--------------------
+The clean package excludes dependency caches, build output, IDE state, local
+platform files, generated ephemeral/plugin registrants, private environment
+files, and backend dependency modules. No production database migration,
+Netlify deployment, or remote Git push was performed.
+
+Release gate
+------------
+Apply migrations 0001-0004 on an isolated database branch, deploy the matching
+API preview, then test Customer plus every approved platform role and every
+internal authority boundary. Production promotion remains blocked until those
+checks and clean Flutter analyze/test/build runs pass.
+

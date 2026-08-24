@@ -12,9 +12,23 @@ currently the hosting provider. Provider-specific details stay behind the
 backend boundary, so Flutter never receives database credentials or direct
 database access.
 
+Build 13 adds enforced portability contracts, a standard Web Request/Response
+handler, a PostgreSQL migration ledger, external-provider reference isolation,
+rotatable security keys, encrypted backup verification, and a cold-standby
+runbook. See `docs/PORTABILITY_AND_RECOVERY.md`.
+
+Build 15 adds the buyer side of the technology marketplace. Guests can browse
+active listings, registered Customers can send quantity-based purchase
+requests, and the owning Seller, Supplier, or Store can accept or decline them.
+Acceptance atomically allocates inventory but deliberately does not claim
+payment, receipt issuance, delivery, or fulfillment. Build 15 also adds a
+restricted browser-origin policy and OPTIONS preflight handling so Flutter web
+can reach HDC authentication and workflow routes.
+
 ## Endpoints
 
 - `GET /api/health`
+- `GET /api/health/ready` (PostgreSQL readiness; no credentials returned)
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `GET /api/auth/session`
@@ -22,6 +36,7 @@ database access.
 - `POST /api/auth/recovery/start`
 - `POST /api/auth/recovery/verify`
 - `POST /api/auth/recovery/reset`
+- `POST /api/auth/recovery/answers` (authenticated answer setup/replacement)
 - `POST /api/auth/password-reset/confirm` (existing-link compatibility)
 - `GET /api/roles/overview`
 - `POST /api/role-applications`
@@ -33,6 +48,13 @@ database access.
 - `GET /api/profiles`
 - `PUT /api/profiles/member`
 - `PUT /api/profiles/:role`
+- `GET /api/commerce/catalog` (public active-listing catalog)
+- `GET /api/commerce/buyer-dashboard`
+- `GET /api/commerce/seller-dashboard`
+- `POST /api/commerce/listings`
+- `PUT /api/commerce/listings/:id`
+- `POST /api/commerce/purchase-requests`
+- `PUT /api/commerce/purchase-requests/:id/status`
 - `GET /api/workflow/bootstrap`
 - `POST /api/service-requests`
 - `PUT /api/service-requests/:id`
@@ -93,12 +115,34 @@ visible only to its customer and technician.
 
 ## Required server environment variables
 
-- `DATABASE_URL`
+- `HDC_DATABASE_URL` (preferred) or legacy `DATABASE_URL`
 - `HDC_SESSION_SECRET`
+
+Provider selectors default to `disabled` and never contain credentials:
+
+- `HDC_EMAIL_PROVIDER`
+- `HDC_SMS_PROVIDER`
+- `HDC_PHONE_VERIFICATION_PROVIDER`
+- `HDC_OBJECT_STORAGE_PROVIDER`
+- `HDC_PAYMENT_PROVIDER`
+
+Separate recovery and rotation variables are documented in `.env.example` and
+the portability runbook.
 
 Optional until the dedicated security inbox and delivery worker are ready:
 
 - `HDC_SECURITY_REVIEW_EMAIL`
+
+Separate-origin Flutter web deployments must set:
+
+- `HDC_WEB_ALLOWED_ORIGINS` — comma-separated exact frontend origins such as
+  `https://app.example.com`. Do not include paths or wildcards. Loopback
+  `localhost`, `127.0.0.1`, and `::1` origins are allowed for local Flutter
+  Chrome development; arbitrary hosted origins remain denied.
+
+The preferred production layout serves Flutter and `/api/*` from one HTTPS
+origin. Build it with `HDC_API_BASE_URL=same-origin`; no hosted cross-origin
+allow-list entry is then required. See `docs/NETLIFY_DEPLOYMENT.md`.
 
 Never commit real values. Store them in the hosting provider's secret/environment-variable system.
 
@@ -113,7 +157,7 @@ check, and converts `hdc_user_roles.role` without replacing users or role rows.
 This migration is intentionally separate from the historical Supabase adapter
 under `backend/supabase/migrations`. Do not apply that historical migration to
 the active Neon schema. Test 0001 on an isolated branch, then apply root
-migrations 0001 through 0005 in order.
+migrations 0001 through 0008 in order.
 
 ## Workflow migration
 
@@ -168,12 +212,44 @@ Apply migration 0005 after migration 0004. Rehearse it on an isolated branch,
 rerun it to verify idempotency, and deploy it with API 0.6.0 and Flutter Build
 12 so registration, recovery, and role-review contracts remain synchronized.
 
+## Provider-portability migration
+
+`migrations/0006_provider_portability_foundation.sql` adds the HDC migration
+ledger, recovery-pepper key IDs, delivery worker leases/idempotency, and a
+private non-secret mapping between immutable HDC IDs and replaceable provider
+references. It also creates user/organization storage bindings and a resumable
+storage-migration queue with worker leases and checkpoints, plus durable data
+export manifests. Apply it after migration 0005 on an isolated
+PostgreSQL branch, then deploy it with Build 13. It activates no paid provider
+by itself.
+
+## Marketplace-listing migration
+
+`migrations/0007_marketplace_listing_dashboard.sql` creates technology product
+listings owned by one immutable account UUID and one approved Seller, Supplier,
+or Store role profile. It adds optimistic versioning, active/draft/paused/sold/
+archived lifecycle states, lifecycle events, and automatic pausing when a
+selling role is removed. Apply it after migration 0006 and deploy it with Build
+14. It does not activate checkout, payments, receipts, or public catalog search.
+
+## Marketplace purchase-request migration
+
+`migrations/0008_product_catalog_purchase_requests.sql` adds the public active
+technology catalog contract and account-scoped buyer/seller purchase requests.
+Requests use immutable HDC public references, UUID idempotency, integer
+minor-unit totals, optimistic versions, lifecycle events, self-purchase
+prevention, bounded per-account submission rates, and seller-owned inventory
+allocation. Closing a listing or
+deactivating its selling role automatically declines still-pending requests;
+accepted historical allocations remain preserved. Apply it after migration
+0007 and deploy it together with the Build 15 API and Flutter client.
+
 ## Local checks
 
 ```bash
-npm install
-npm run typecheck
-npm test
+npm ci
+npm run verify
+HDC_FLUTTER_BIN=/absolute/path/to/flutter npm run build:web
 ```
 
 For local Netlify execution, use Netlify's development command with local environment variables kept outside source control.
@@ -202,13 +278,28 @@ For local Netlify execution, use Netlify's development command with local enviro
   answer content. Manual reviewers can authorize a reset but cannot view or
   choose the member's password.
 - API responses use generic errors and do not return database credentials or internal exception details.
+- Marketplace listings are filtered by the authenticated seller UUID, tied to
+  an approved public selling profile, and version-checked on every update.
+- Marking an item sold preserves a seller-reported listing state but cannot be
+  used as proof of payment, fulfillment, or receipt issuance.
+- Public catalog responses expose seller public names and listing references,
+  but never seller or buyer account UUIDs. Purchase dashboards are filtered by
+  the authenticated participant on the server.
+- Only a Customer can submit a purchase request; an account cannot buy its own
+  listing. Seller acceptance and buyer cancellation lock and version-check the
+  request so competing decisions cannot both succeed.
+- CORS echoes only the same origin, a configured exact hosted frontend origin,
+  or a narrow local-loopback development origin. Wildcard browser access is
+  not enabled.
 - The repository intentionally contains no beta account passwords, database URLs, or session secrets.
 
 ## Current beta limitations
 
 Email verification, the outbound email delivery worker/provider, stronger
 device/session controls, self-service internal-authority management, internal
-department mutation endpoints, public profile discovery/search endpoints,
+department mutation endpoints, public profile discovery endpoints, server-side
+catalog pagination/advanced search, payment-confirmed checkout and sales,
+receipts, fulfillment/disputes, listing images, buyer/seller commerce messaging,
 private-message authority/realtime delivery, and broader platform authorization
 checks belong to later HDC backend work. Until email delivery is configured,
 manual recovery cases remain available in the private operations dashboard.

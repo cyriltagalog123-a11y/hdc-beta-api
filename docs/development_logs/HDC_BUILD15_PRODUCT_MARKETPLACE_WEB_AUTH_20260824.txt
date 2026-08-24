@@ -1,0 +1,32 @@
+HDC BUILD 15 ENGINEERING RECORD
+===============================
+
+Decision: use a payment-neutral purchase request, not a false checkout.
+
+The existing listing lifecycle was seller-facing only. Build 15 exposes active
+technology listings through a sanitized public catalog and gives authenticated
+Customers a tracked request-to-buy action. The request snapshots listing,
+seller, buyer-public-reference, quantity, and integer minor-unit price data.
+
+A submitted request does not reserve inventory. A seller acceptance locks both
+the request and listing, verifies that the approved selling workspace and stock
+remain active, updates the request once, and then decrements inventory in the
+same database transaction. This avoids overselling without representing an
+unavailable payment or fulfillment service as complete.
+
+Buyer and seller dashboards are filtered by the authenticated account. Public
+catalog and participant-facing response views omit seller/buyer account UUIDs.
+The client clears purchase caches immediately when its bound identity changes.
+
+Decision: use an allow-list CORS policy for Flutter web.
+
+Native Flutter clients were not subject to browser cross-origin enforcement,
+but Chrome sent an OPTIONS preflight before HDC authentication. The API did not
+answer it or return access-control headers, so the browser reported a network
+failure before login logic ran. Build 15 wraps every API response with CORS only
+when the Origin is the API's own origin, an exact configured hosted origin, or
+a loopback development origin. Unknown hosted origins receive no permission.
+
+Deployment requires HDC_WEB_ALLOWED_ORIGINS to contain comma-separated exact
+frontend origins. Wildcards and paths are not supported. The source package
+does not mutate the production database, Netlify environment, or deployment.

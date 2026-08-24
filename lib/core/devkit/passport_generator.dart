@@ -1,0 +1,5 @@
+class PassportGenerator {
+
+  const PassportGenerator();
+
+}

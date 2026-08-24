@@ -1,0 +1,47 @@
+HDC Sprint 6.4C/D - Flutter Workflow Backend Adapter
+Date: 2026-08-21
+
+Outcome
+-------
+Prepared Build 0.6.4+6 to replace local authority for requests, proposals,
+acceptance handoffs, and service transactions with the HDC HTTPS API. Existing
+domain repository contracts remain provider-neutral.
+
+Client changes
+--------------
+- Added authenticated HdcWorkflowApiClient transport.
+- Added one shared HdcApiWorkflowStore and repository adapters for service
+  requests, proposals, transaction seeds, and service transactions.
+- Added explicit atomic gateways for proposal acceptance and transaction status.
+- Wired API mode as the default; legacy provider names alias to the HDC API and
+  an explicit local mode remains for isolated development.
+- Bound workflow bootstrap to authenticated identity and clear all cached
+  workflow data immediately on logout/account change.
+- Added generation checks so an old in-flight response cannot repopulate data
+  after sign-out or a user switch.
+- Consume canonical server responses after creates/updates instead of returning
+  locally invented identity, reputation, score, count, timestamp, or activity.
+- Excluded sample marketplace requests while using server authority.
+- Kept private conversations local and relationship-gated for Sprint 6.4E.
+
+Tests and review
+----------------
+- Added HdcWorkflowApiClient tests for bearer authorization, no-session
+  fail-closed behavior, and conflict error mapping.
+- Added workflow-store coverage proving request cancellation consumes canonical
+  server proposal state and notifies repository consumers.
+- Updated HDCApp widget construction for injected repository dependencies.
+- Static import, dependency, configuration, secret, identity, fixture, and
+  delimiter scans completed for the package.
+- Flutter/Dart SDK unavailable in this environment; flutter analyze, flutter
+  test, Windows run, and Android run must be completed on the Flutter workstation.
+- Companion backend changes pass locally in commit e1f6a0b on
+  codex/sprint-6.4cd-workflow-backend. The GitHub remote was not changed because
+  publishing external code requires explicit user approval.
+
+Deferred
+--------
+- Private message server storage/realtime (Sprint 6.4E).
+- Final application UI redesign.
+- Permanent Android application ID and production signing.
+- Password-reset backend delivery.

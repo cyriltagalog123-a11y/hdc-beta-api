@@ -1,5 +1,9 @@
 import { SignJWT, jwtVerify } from 'jose';
-import { sessionSecret } from './env.mjs';
+import {
+  sessionKeyId,
+  sessionSecret,
+  sessionVerificationKeys,
+} from './env.mjs';
 
 const ISSUER = 'hdc-beta-api';
 const AUDIENCE = 'hdc-client';
@@ -12,7 +16,7 @@ export interface VerifiedSessionToken {
 
 export async function signSessionToken(userId: string, jti: string, expiresAt: Date): Promise<string> {
   return new SignJWT({})
-    .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+    .setProtectedHeader({ alg: 'HS256', typ: 'JWT', kid: sessionKeyId() })
     .setIssuer(ISSUER)
     .setAudience(AUDIENCE)
     .setSubject(userId)
@@ -23,20 +27,23 @@ export async function signSessionToken(userId: string, jti: string, expiresAt: D
 }
 
 export async function verifySessionToken(token: string): Promise<VerifiedSessionToken | null> {
-  try {
-    const { payload } = await jwtVerify(token, sessionSecret(), {
-      issuer: ISSUER,
-      audience: AUDIENCE,
-      algorithms: ['HS256'],
-    });
+  for (const key of sessionVerificationKeys()) {
+    try {
+      const { payload } = await jwtVerify(token, key.secret, {
+        issuer: ISSUER,
+        audience: AUDIENCE,
+        algorithms: ['HS256'],
+      });
 
-    if (!payload.sub || !payload.jti || !payload.exp) return null;
-    return {
-      userId: payload.sub,
-      jti: payload.jti,
-      expiresAt: new Date(payload.exp * 1000),
-    };
-  } catch {
-    return null;
+      if (!payload.sub || !payload.jti || !payload.exp) return null;
+      return {
+        userId: payload.sub,
+        jti: payload.jti,
+        expiresAt: new Date(payload.exp * 1000),
+      };
+    } catch {
+      // Key rotation keeps one explicitly configured previous key available.
+    }
   }
+  return null;
 }

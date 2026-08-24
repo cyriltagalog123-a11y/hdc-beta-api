@@ -1,0 +1,5 @@
+class DomainGenerator {
+
+  const DomainGenerator();
+
+}

@@ -1,0 +1,138 @@
+HDC SPRINT 5.4D DEVELOPMENT LOG
+=================================
+Sprint: 5.4D - Professional Proposal Comparison
+Date: 2026-08-20
+
+PURPOSE
+-------
+Give customers a transparent way to compare two or three professional
+technology-service proposals before any acceptance/transaction action exists.
+
+ARCHITECTURE REVIEW
+-------------------
+Approved because proposal comparison directly supports HDC's technology-service
+marketplace and customer decision-support mission.
+
+Backend/domain-first order used:
+1. ProposalComparison domain model.
+2. ProposalComparisonService rules and deterministic calculations.
+3. ProposalProvider comparison bridge.
+4. Customer Proposal Inbox selection UI.
+5. Professional Proposal Comparison UI.
+
+IMPORTANT DESIGN DECISION
+-------------------------
+HDC does NOT calculate or declare an overall "best technician" or "best
+proposal". The engine only highlights objective category leaders. Nexus
+explains trade-offs and explicitly leaves the decision to the customer.
+
+DATA INTEGRITY RULES
+--------------------
+- Minimum 2 and maximum 3 proposals.
+- Every proposal must belong to the same ServiceRequest.
+- Duplicate proposal IDs are rejected.
+- Only submitted/viewed/shortlisted proposals are eligible.
+- Comparison does not mutate proposal status.
+- Comparison data remains derived from the existing Proposal source of truth.
+
+TRUTHFUL-DATA CORRECTION
+------------------------
+The current TechnicianReputationSnapshot contains memberSinceYear but does not
+contain verified years of professional experience. Therefore Sprint 5.4D uses
+"HDC tenure" rather than presenting membership tenure as professional
+experience. A true experience metric can be added later when the technician
+profile/backend owns verified experience data.
+
+FILES ADDED
+-----------
+lib/models/proposal_comparison.dart
+lib/core/proposals/proposal_comparison_service.dart
+lib/features/customer_proposals/customer_proposal_comparison_screen.dart
+
+FILES MODIFIED
+--------------
+lib/providers/proposal_provider.dart
+lib/features/customer_proposals/customer_proposal_inbox_screen.dart
+CHANGELOG.txt
+
+FRONTEND/BACKEND SECURITY IMPACT
+--------------------------------
+No secrets, backend credentials, storage tokens, private keys, or privileged
+implementation data were added. Comparison UI consumes only proposal data
+already available to the authorized customer-side proposal workflow.
+
+PERSISTENCE / MIGRATION
+-----------------------
+No persistence schema change. No migration required.
+
+COMPATIBILITY
+-------------
+No new plugins.
+No OS-specific APIs.
+Uses shared Flutter/Dart code and remains suitable for current Windows/Android
+targets with future Linux/macOS portability.
+
+PRE-HANDOFF RESCAN
+------------------
+- Relative imports checked across project Dart sources: no missing project
+  relative imports detected.
+- Structural delimiter scan run on project-owned Dart code.
+- Generated Flutter/plugin symlink folders excluded from ownership scan because
+  they are dependency-generated and not HDC source.
+- New comparison code checked for new secrets/dependencies/OS-specific APIs.
+
+LOCAL VERIFICATION REQUIRED
+---------------------------
+Packaging environment does not contain the Flutter/Dart SDK. Final verification:
+  flutter clean
+  flutter pub get
+  flutter analyze
+  flutter run -d windows
+
+MANUAL TEST CHECKLIST
+----------------------
+1. Open a request with at least two active proposals.
+2. Select one proposal: Compare remains disabled.
+3. Select a second proposal: Compare becomes enabled.
+4. Select a third: comparison still works.
+5. Attempt a fourth: HDC prevents it.
+6. Compare proposals and verify objective highlight chips.
+7. Confirm Nexus explains trade-offs without naming an overall winner.
+8. Open Full Proposal from comparison and return.
+9. Confirm comparison changes no Submitted/Viewed/Shortlisted status.
+10. Resize Windows app and confirm horizontal comparison remains usable.
+
+ROLLBACK
+--------
+Restore the previous versions of ProposalProvider and CustomerProposalInboxScreen
+and remove the three files added by this sprint. No stored proposal migration is
+needed.
+
+NEXT RECOMMENDED STEP
+---------------------
+After successful verification: Sprint 5.4E - Accept Proposal and transaction
+creation boundary.
+
+2026-08-20 — Sprint 5.4D Analyzer Fix
+
+Changed:
+- lib/core/proposals/proposal_comparison_service.dart
+- lib/features/customer_proposals/customer_proposal_comparison_screen.dart
+
+Reason:
+- Dart generic helper methods allowed nullable generic types, while the shared
+  ID resolver accepts Object. The comparison helpers are now constrained to
+  non-null Object types.
+- Removed one unused Proposal import from the comparison screen.
+
+Impact:
+- No proposal comparison behavior changed.
+- No persistence schema changed.
+- No frontend/backend contract changed.
+- Analyzer compatibility cleanup only.
+
+Validation:
+- Relative import review completed for the two affected files.
+- Structural delimiter review completed for the two affected files.
+- No new dependency, OS-specific API, secret, or credential added.
+- Run flutter analyze locally. Expected result: No issues found.

@@ -1,0 +1,36 @@
+
+
+2026-08-20 — Sprint 6.4 Authentication Provider Switch: Appwrite
+
+Reason:
+- Repeated Supabase Auth schema failures were blocking beta-critical testing.
+- HDC authentication is now isolated from the PostgreSQL data provider.
+
+Changed:
+- Replaced active Supabase Flutter authentication with Appwrite Flutter Auth.
+- Added AppwriteAuthGateway behind the existing provider-neutral AuthGateway.
+- Kept Supabase/Neon as data-provider architecture targets; this auth switch does
+  not change the planned PostgreSQL repository migration.
+- Added Appwrite endpoint/project/recovery dart-define configuration.
+- Removed supabase_flutter from active Flutter dependencies.
+- Archived the prior SupabaseAuthGateway source outside lib so it remains as
+  migration history without being compiled.
+- Preserved Guest mode.
+- Preserved the two approved beta sample account credentials.
+- Added temporary test-only technician role seeding for the saved technician
+  email AFTER successful Appwrite authentication.
+- Appwrite server-managed labels remain the intended role source for registered
+  technician/seller/business/store/admin identities.
+
+Security:
+- No Appwrite server API key is stored in Flutter.
+- Authentication does not trust a client-entered role.
+- The temporary beta technician email mapping cannot authenticate an account;
+  Appwrite must first establish a valid password session.
+- Public beta must disable HDC_BETA_TEST_ROLE_SEEDS and use server-managed role
+  provisioning/authorization.
+
+Portability:
+- HDC UI/providers continue to depend on AuthGateway, not Appwrite directly.
+- Appwrite can later be replaced without rewriting dashboard/marketplace/chat.
+- Supabase PostgreSQL remains current data target; Neon remains PostgreSQL fallback.

@@ -1,0 +1,13 @@
+{
+  "algorithm": "sha256",
+  "files": {
+    "0001_active_neon_auth_contract.sql": "7171c5e52956a5c654d6aad009cfc3144a250d8c860cba5061fa267bb1ea2de3",
+    "0002_workflow_authority.sql": "f4449683f4aed2717c10b7b3ebdc34d10554a8ceec3f975c0e93308a6beba2b6",
+    "0003_role_domain_separation.sql": "38dcd9c8ee7515ba185f9b115c9699e759336d5e4e19f0efec8a5ba86fd6ae56",
+    "0004_one_account_role_profiles.sql": "e68e24c8a0a86e9871e415be028491122ebb93c2e0d80687c7b4c98cad263598",
+    "0005_account_security_and_structured_role_applications.sql": "59ea1a734e1505cfec6a42380553fa208466cbf5ae79eb0fd11f4077c9950715",
+    "0006_provider_portability_foundation.sql": "ca52eb9305c1cff2418958b92fefa65d2316e178bac06cf3cd0b65f7d6c6f377",
+    "0007_marketplace_listing_dashboard.sql": "3a432dbb601104953b087c22c6e8c15be427c11252976a5282bee2cf0dbeb653",
+    "0008_product_catalog_purchase_requests.sql": "fd35e3d948189a7c77b110f76bb0b20f018878d4e54efa26cd7ee76cac59d125"
+  }
+}

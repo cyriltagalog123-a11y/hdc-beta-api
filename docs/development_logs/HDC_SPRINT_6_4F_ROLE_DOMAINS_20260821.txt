@@ -1,0 +1,53 @@
+HDC SPRINT 6.4F - PLATFORM AND INTERNAL ROLE DOMAINS
+Date: 2026-08-21
+
+Decision
+--------
+HDC roles are two different security domains and must never share implied
+authority:
+
+1. Platform roles grant product workspaces: Customer, Technician, Business,
+   Seller, Supplier, and the existing Store workspace.
+2. Internal roles grant private HDC operational authority: Owner, Super Admin,
+   Admin, and Moderator.
+
+Owner and Super Admin review elevated platform-role applications. Admin is one
+level below Super Admin. Moderator is community-scoped and cannot manage
+platform settings. Internal roles cannot be requested through public/self-
+service flows.
+
+Implemented
+-----------
+- Added typed role-domain helpers and a split auth payload.
+- Kept a platform-only legacy `roles` response during client transition.
+- Added role overview, application, queue, and review endpoints.
+- Added approval notes and high-priority notifications for applicants and
+  Owner/Super Admin reviewers.
+- Added migration 0003 with internal assignments, applications,
+  notifications, and extensible department/section foundations (for example,
+  CSR without hard-coding CSR as a global role).
+- Legacy Admin/Super Admin rows are migrated out of hdc_user_roles.
+- Workflow/RLS context receives platform roles only.
+
+Security boundaries
+-------------------
+- Customer remains the only public-registration role.
+- Technician, Business, Seller, Supplier, and Store require approval.
+- Only Owner or Super Admin can approve those applications.
+- Admin cannot approve platform roles or change internal structure.
+- Moderator cannot override resource ownership or change platform settings.
+- The migration does not guess the first Owner account.
+
+Validation
+----------
+- npm run typecheck: PASS
+- npm test -- --run: PASS (3 files, 18 tests)
+- git diff --check: PASS
+- No secrets, credentials, or production changes were introduced.
+
+Deployment status
+-----------------
+Migration 0003 and the matching API remain local/staged. Apply on an isolated
+Neon branch after 0002, explicitly bootstrap the verified Owner account, deploy
+a Netlify preview, and verify ordinary-user, Moderator, Admin, Super Admin, and
+Owner boundaries before production promotion.

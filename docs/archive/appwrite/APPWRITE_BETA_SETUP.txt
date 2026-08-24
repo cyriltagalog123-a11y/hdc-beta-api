@@ -1,0 +1,40 @@
+HDC APPWRITE BETA AUTH SETUP
+
+Required once before the Appwrite-backed login can run:
+
+1. Create one free Appwrite Cloud project.
+2. Add Flutter platforms for Windows and Android in the Appwrite Console.
+3. Copy the Appwrite Project ID. No API key belongs in Flutter.
+4. Run HDC with:
+
+flutter run -d windows --dart-define=HDC_APPWRITE_PROJECT_ID=YOUR_PROJECT_ID
+
+If your Appwrite region uses a region-specific endpoint, also pass:
+--dart-define=HDC_APPWRITE_ENDPOINT=https://YOUR_REGION.cloud.appwrite.io/v1
+
+SAVED TEST ACCOUNTS
+Create these accounts from HDC's Create a Beta Account screen so Appwrite owns
+their password hashes and sessions:
+
+Regular customer
+Email: hdc.beta.customer@example.com
+Password: [REDACTED — use the separately saved beta credential]
+Display name: HDC Beta Customer
+
+Technician test account
+Email: hdc.beta.tech@example.com
+Password: [REDACTED — use the separately saved beta credential]
+Display name: HDC Beta Technician
+
+During this closed-beta test build only, a successfully authenticated
+hdc.beta.tech@example.com session receives the Technician role locally so the
+marketplace/proposal/chat interaction can be tested immediately. This mapping
+DOES NOT authenticate the user and MUST be removed before public beta.
+
+Production-oriented technician roles will use server-managed Appwrite labels
+(hdc_technician) and HDC backend authorization.
+
+PASSWORD RECOVERY
+Forgot Password remains present but will report that recovery is not configured
+until HDC_APPWRITE_RECOVERY_URL is supplied and that URL is registered in the
+Appwrite project's platform settings.

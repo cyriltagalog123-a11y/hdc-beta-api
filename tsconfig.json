@@ -11,5 +11,9 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["netlify/functions/**/*.mts", "tests/**/*.ts"]
+  "include": [
+    "netlify/functions/**/*.mts",
+    "server/**/*.mts",
+    "tests/**/*.ts"
+  ]
 }

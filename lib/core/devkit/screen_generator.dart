@@ -1,0 +1,5 @@
+class ScreenGenerator {
+
+  const ScreenGenerator();
+
+}

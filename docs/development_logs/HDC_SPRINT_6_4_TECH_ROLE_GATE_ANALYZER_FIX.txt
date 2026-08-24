@@ -1,0 +1,28 @@
+
+
+2026-08-20 — Sprint 6.4 Technician Role Gate Analyzer Fix
+
+Changed:
+- lib/features/technician_marketplace/technician_marketplace_screen.dart
+
+Fixes:
+- Removed const from MyTransactionsScreen because actorId is the authenticated
+  technician UUID resolved at runtime.
+- Removed the outer const context from the Technician Marketplace access-denied
+  body and retained const only on values/constructors that are safe to evaluate
+  at compile time.
+
+Impact:
+- No authorization behavior changed.
+- No role policy changed.
+- No persistence/backend contract changed.
+- No database migration changed.
+- Analyzer/Flutter compatibility fix only.
+
+Validation:
+- Full project relative-import scan completed.
+- Structural delimiter scan completed.
+- TECH-DEMO-001 scan completed.
+- No new dependency or OS-specific API added.
+- Run flutter analyze locally. Expected result: No issues found.
+

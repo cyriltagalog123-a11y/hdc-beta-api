@@ -1,0 +1,55 @@
+HDC Sprint 6.4F - Platform and Internal Role Separation
+Date: 2026-08-21
+
+Outcome
+-------
+Prepared Build 0.6.4+7 so user-facing platform capabilities and private HDC
+internal authority can no longer be confused or implied by one another.
+
+Client changes
+--------------
+- Replaced the mixed HDCAccountRole model with HDCPlatformRole and
+  HDCInternalRole.
+- Added Supplier and retained Store as an existing compatibility workspace.
+- Kept Customer as the only automatic public-registration role.
+- Made elevated platform-role application status visible in a real Role Center.
+- Added Owner/Super Admin approval queue UI with approval and required rejection
+  notes.
+- Kept internal roles private and impossible to request through self-service.
+- Limited Moderator to community authority and excluded it from platform
+  settings/resource overrides.
+- Displayed actual active platform roles in the dashboard header.
+- Added legacy mixed-payload parsing that fails closed for unknown values.
+
+Backend companion
+-----------------
+- Added separate platform/internal role response properties.
+- Added role overview, application, queue, and review endpoints.
+- Added migration 0003 for role applications, internal assignments,
+  notifications, departments, sections, and staff assignment foundations.
+- Migrated legacy Admin/Super Admin values away from platform-role storage.
+- Sends platform roles only into workflow RLS context.
+- Creates high-priority notifications for Owner/Super Admin review and for the
+  applicant's decision.
+
+Security decisions preserved
+----------------------------
+- Owner and Super Admin can approve elevated platform roles.
+- Admin cannot approve roles or manage internal structure.
+- Moderator cannot manage platform settings.
+- No client-selected role is trusted.
+- No internal role assignment endpoint or self-service path exists.
+- The first Owner is not guessed or auto-assigned.
+
+Validation boundary
+-------------------
+- Backend TypeScript typecheck: PASS.
+- Backend tests: PASS (3 files, 18 tests).
+- Companion backend local commit: f502d3a on
+  codex/sprint-6.4cd-workflow-backend (not pushed).
+- Dart import scan: zero missing imports.
+- Dart structural scan: zero issues.
+- Active mixed-role references: zero.
+- Direct Flutter database packages: zero.
+- Flutter SDK unavailable; workstation analyze/test/runtime checks remain
+  mandatory and are not claimed by this package.

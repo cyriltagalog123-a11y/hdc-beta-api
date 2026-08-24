@@ -2,9 +2,17 @@ import type { Config, Context } from '@netlify/functions';
 import bcrypt from 'bcryptjs';
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import type { DbClient } from './_lib/db.mjs';
-import { closeDb, openDb } from './_lib/db.mjs';
+import { checkDbReadiness, closeDb, openDb } from './_lib/db.mjs';
+import { corsPreflightResponse, withCors } from './_lib/cors.mjs';
 import { bearerToken, json, methodNotAllowed, readJson } from './_lib/http.mjs';
-import { securityReviewEmail, sessionSecret } from './_lib/env.mjs';
+import {
+  currentRecoveryPepper,
+  identityFingerprintSecret,
+  operationMode,
+  recoveryPepperForKey,
+  securityReviewEmail,
+} from './_lib/env.mjs';
+import { operationDecision } from '../../server/core/operation-mode.mjs';
 import { signSessionToken, verifySessionToken } from './_lib/session.mjs';
 import { normalizeDisplayName, normalizeEmail, normalizePassword } from './_lib/validation.mjs';
 import {
@@ -15,6 +23,17 @@ import {
   publicRecoveryQuestions,
   recoveryAnswerDigest,
 } from './_lib/account-recovery.mjs';
+import {
+  canTransitionProductListing,
+  isProductListingStatus,
+  parseProductListingWrite,
+  parseProductPurchaseDecisionWrite,
+  parseProductPurchaseRequestWrite,
+  productListingView,
+  productPurchaseRequestView,
+  publicProductListingView,
+  type SellingRoleCode,
+} from './_lib/commerce.mjs';
 import {
   normalizeMemberProfileWrite,
   normalizePlatformRoleProfileWrite,
@@ -79,7 +98,9 @@ type UserView = {
 };
 
 function identityFingerprint(email: string): string {
-  return createHmac('sha256', sessionSecret()).update(email).digest('hex');
+  return createHmac('sha256', identityFingerprintSecret())
+    .update(email)
+    .digest('hex');
 }
 
 async function audit(
@@ -112,7 +133,9 @@ async function getUserView(sql: DbClient, userId: string): Promise<UserView | nu
   const roleRows = await sql`
     SELECT role
     FROM public.hdc_user_roles
-    WHERE user_id = ${userId} AND is_active = true
+    WHERE user_id = ${userId}
+      AND is_active = true
+      AND status = 'active'
     ORDER BY role
   `;
 
@@ -178,11 +201,13 @@ async function activeSession(req: Request, sql: DbClient): Promise<{ user: UserV
   const user = await getUserView(sql, verified.userId);
   if (!user || user.status !== 'active') return null;
 
-  await sql`
-    UPDATE public.hdc_auth_sessions
-    SET last_seen_at = now()
-    WHERE user_id = ${verified.userId} AND token_jti = ${verified.jti}
-  `;
+  if (operationMode() === 'normal') {
+    await sql`
+      UPDATE public.hdc_auth_sessions
+      SET last_seen_at = now()
+      WHERE user_id = ${verified.userId} AND token_jti = ${verified.jti}
+    `;
+  }
 
   return { user, jti: verified.jti };
 }
@@ -223,11 +248,12 @@ async function handleRegister(req: Request, sql: DbClient): Promise<Response> {
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const pepper = sessionSecret();
+  const pepper = currentRecoveryPepper();
   const recoveryHashes = await Promise.all(recoveryAnswers.map(async (item) => ({
     questionCode: item.questionCode,
+    pepperKeyId: pepper.keyId,
     answerHash: await bcrypt.hash(
-      recoveryAnswerDigest(item.answer, pepper),
+      recoveryAnswerDigest(item.answer, pepper.secret),
       12,
     ),
   })));
@@ -247,10 +273,10 @@ async function handleRegister(req: Request, sql: DbClient): Promise<Response> {
       for (const item of recoveryHashes) {
         await tx`
           INSERT INTO public.hdc_account_recovery_answers (
-            user_id, question_version, question_code, answer_hash
+            user_id, question_version, question_code, pepper_key_id, answer_hash
           ) VALUES (
             ${userId}, ${RECOVERY_QUESTION_VERSION},
-            ${item.questionCode}, ${item.answerHash}
+            ${item.questionCode}, ${item.pepperKeyId}, ${item.answerHash}
           )
         `;
       }
@@ -439,23 +465,32 @@ async function handleRecoveryVerify(
   const userId = userRows.length > 0 ? String(userRows[0].id) : null;
   const answerRows = userId
     ? await sql`
-        SELECT question_code, answer_hash
+        SELECT question_code, answer_hash, pepper_key_id
         FROM public.hdc_account_recovery_answers
         WHERE user_id = ${userId}
           AND question_version = ${RECOVERY_QUESTION_VERSION}
       `
     : [];
-  const storedHashes = new Map(
-    answerRows.map((row) => [String(row.question_code), String(row.answer_hash)]),
+  const storedAnswers = new Map(
+    answerRows.map((row) => [String(row.question_code), {
+      answerHash: String(row.answer_hash),
+      pepperKeyId: String(row.pepper_key_id),
+    }]),
   );
-  const pepper = sessionSecret();
+  const currentPepper = currentRecoveryPepper();
   const comparisons = await Promise.all(answers.map(async (item) => {
-    const storedHash = storedHashes.get(item.questionCode);
+    const storedAnswer = storedAnswers.get(item.questionCode);
+    const pepper = storedAnswer
+      ? recoveryPepperForKey(storedAnswer.pepperKeyId)
+      : null;
     const valid = await bcrypt.compare(
-      recoveryAnswerDigest(item.answer, pepper),
-      storedHash ?? DUMMY_RECOVERY_HASH,
+      recoveryAnswerDigest(
+        item.answer,
+        pepper?.secret ?? currentPepper.secret,
+      ),
+      storedAnswer?.answerHash ?? DUMMY_RECOVERY_HASH,
     );
-    return Boolean(storedHash) && valid;
+    return Boolean(storedAnswer && pepper) && valid;
   }));
   const correctCount = comparisons.filter(Boolean).length;
 
@@ -580,6 +615,140 @@ async function handlePasswordReset(
     }
     throw error;
   }
+}
+
+async function recentRecoveryAnswerUpdateFailures(
+  sql: DbClient,
+  userId: string,
+): Promise<number> {
+  const rows = await sql`
+    SELECT count(*)::int AS failures
+    FROM public.hdc_security_audit
+    WHERE user_id = ${userId}
+      AND event_type = 'auth.recovery.answers_update'
+      AND event_status IN ('failed', 'blocked')
+      AND created_at > now() -
+        (${LOGIN_FAILURE_WINDOW_MINUTES} * interval '1 minute')
+  `;
+  return Number(rows[0]?.failures ?? 0);
+}
+
+/**
+ * Lets authenticated members created before Build 12 add recovery answers,
+ * and lets every member replace them after confirming the current password.
+ * Plaintext answers never leave this request handler or enter the audit log.
+ */
+async function handleUpdateRecoveryAnswers(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+): Promise<Response> {
+  if (req.method !== 'POST') return methodNotAllowed();
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+
+  const currentPassword = typeof body.currentPassword === 'string'
+    ? body.currentPassword
+    : '';
+  const recoveryAnswers = parseRecoveryAnswers(body.recoveryAnswers);
+  if (
+    currentPassword.length < 1 || currentPassword.length > 128 ||
+    !recoveryAnswers
+  ) {
+    return json({
+      error: 'invalid_recovery_answers',
+      message: 'Enter your current password and three distinct recovery answers.',
+    }, 400);
+  }
+
+  if (
+    await recentRecoveryAnswerUpdateFailures(sql, user.id) >=
+      LOGIN_FAILURE_LIMIT
+  ) {
+    await audit(sql, user.id, 'auth.recovery.answers_update', 'blocked', {
+      reason: 'rate_limit',
+    });
+    return json({
+      error: 'too_many_attempts',
+      message: 'Security updates are temporarily limited. Try again later.',
+    }, 429);
+  }
+
+  const passwordRows = await sql`
+    SELECT password_hash
+    FROM public.hdc_users
+    WHERE id = ${user.id} AND status = 'active'
+    LIMIT 1
+  `;
+  const validPassword = passwordRows.length > 0 && await bcrypt.compare(
+    currentPassword,
+    String(passwordRows[0].password_hash),
+  );
+  if (!validPassword) {
+    await audit(sql, user.id, 'auth.recovery.answers_update', 'failed', {
+      reason: 'invalid_current_password',
+    });
+    return json({
+      error: 'invalid_current_password',
+      message: 'The current password is incorrect.',
+    }, 401);
+  }
+
+  const prohibitedAnswers = new Set([
+    normalizeRecoveryAnswer(user.email),
+    normalizeRecoveryAnswer(user.displayName),
+    normalizeRecoveryAnswer(currentPassword),
+  ].filter((value): value is string => value !== null));
+  if (recoveryAnswers.some((item) => prohibitedAnswers.has(item.answer))) {
+    return json({
+      error: 'weak_recovery_answers',
+      message: 'Recovery answers must not repeat your email, name, or password.',
+    }, 400);
+  }
+
+  const pepper = currentRecoveryPepper();
+  const recoveryHashes = await Promise.all(recoveryAnswers.map(async (item) => ({
+    questionCode: item.questionCode,
+    pepperKeyId: pepper.keyId,
+    answerHash: await bcrypt.hash(
+      recoveryAnswerDigest(item.answer, pepper.secret),
+      12,
+    ),
+  })));
+
+  await sql.begin(async (tx) => {
+    for (const item of recoveryHashes) {
+      await tx`
+        INSERT INTO public.hdc_account_recovery_answers (
+          user_id, question_version, question_code, pepper_key_id, answer_hash
+        ) VALUES (
+          ${user.id}, ${RECOVERY_QUESTION_VERSION},
+          ${item.questionCode}, ${item.pepperKeyId}, ${item.answerHash}
+        )
+        ON CONFLICT (user_id, question_code)
+        DO UPDATE SET
+          question_version = EXCLUDED.question_version,
+          pepper_key_id = EXCLUDED.pepper_key_id,
+          answer_hash = EXCLUDED.answer_hash
+      `;
+    }
+    await tx`
+      UPDATE public.hdc_password_reset_tokens
+      SET status = 'revoked', consumed_at = COALESCE(consumed_at, now())
+      WHERE user_id = ${user.id} AND status = 'pending'
+    `;
+    await tx`
+      UPDATE public.hdc_account_recovery_review_requests
+      SET status = 'cancelled', delivery_status = 'not_required'
+      WHERE user_id = ${user.id} AND status = 'pending'
+    `;
+  });
+
+  await audit(sql, user.id, 'auth.recovery.answers_update', 'success', {
+    question_version: RECOVERY_QUESTION_VERSION,
+    reset_tokens_revoked: true,
+  });
+  return json({ success: true });
 }
 
 function recoveryReviewView(row: Record<string, unknown>): Record<string, unknown> {
@@ -1099,6 +1268,7 @@ async function handleProfilesOverview(
       ON assignment.user_id = profile.user_id
       AND assignment.role::text = profile.role
       AND assignment.is_active = true
+      AND assignment.status = 'active'
     WHERE profile.user_id = ${user.id}
     ORDER BY CASE profile.role
       WHEN 'customer' THEN 1
@@ -1731,6 +1901,750 @@ async function handleReviewRoleApplication(
     decision,
   });
   return json({ application: roleApplicationView(application) });
+}
+
+async function activeSellingProfile(
+  sql: DbClient,
+  userId: string,
+  role: SellingRoleCode,
+): Promise<Record<string, unknown> | null> {
+  const rows = await sql`
+    SELECT profile.id, profile.role, profile.public_name
+    FROM public.hdc_platform_role_profiles profile
+    JOIN public.hdc_user_roles assignment
+      ON assignment.user_id = profile.user_id
+     AND assignment.role::text = profile.role
+    WHERE profile.user_id = ${userId}
+      AND profile.role = ${role}
+      AND assignment.is_active = true
+      AND assignment.status = 'active'
+      AND assignment.role::text IN ('seller', 'supplier', 'store')
+    LIMIT 1
+  `;
+  return rows.length === 0 ? null : rowObject(rows[0]);
+}
+
+async function handleProductCatalog(
+  req: Request,
+  sql: DbClient,
+): Promise<Response> {
+  if (req.method !== 'GET') return methodNotAllowed();
+  const rows = await sql`
+    SELECT listing.*, profile.public_name AS seller_public_name
+    FROM public.hdc_product_listings listing
+    JOIN public.hdc_platform_role_profiles profile
+      ON profile.id = listing.seller_profile_id
+     AND profile.user_id = listing.seller_user_id
+     AND profile.role = listing.seller_role
+    JOIN public.hdc_user_roles assignment
+      ON assignment.user_id = listing.seller_user_id
+     AND assignment.role::text = listing.seller_role
+     AND assignment.is_active = true
+     AND assignment.status = 'active'
+    WHERE listing.status = 'active'
+      AND listing.stock_quantity > 0
+      AND listing.published_at IS NOT NULL
+    ORDER BY listing.updated_at DESC
+    LIMIT 500
+  `;
+  return json({
+    listings: rows.map((row) => publicProductListingView(rowObject(row))),
+    returned: rows.length,
+    limit: 500,
+  });
+}
+
+async function handleBuyerDashboard(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+): Promise<Response> {
+  if (req.method !== 'GET') return methodNotAllowed();
+  const rows = await sql`
+    SELECT *
+    FROM public.hdc_product_purchase_requests
+    WHERE buyer_user_id = ${user.id}
+    ORDER BY submitted_at DESC
+    LIMIT 500
+  `;
+  return json({
+    purchaseRequests: rows.map((row) =>
+      productPurchaseRequestView(rowObject(row))),
+  });
+}
+
+async function handleCreateProductPurchaseRequest(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+): Promise<Response> {
+  if (req.method !== 'POST') return methodNotAllowed();
+  if (!user.platformRoles.includes('customer')) {
+    throw new WorkflowHttpError(
+      'customer_role_required',
+      403,
+      'An active HDC Customer workspace is required to request a purchase.',
+    );
+  }
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const write = parseProductPurchaseRequestWrite(body);
+  if (!write) {
+    return json({
+      error: 'invalid_purchase_request',
+      message: 'Choose an available quantity and check the buyer note.',
+    }, 400);
+  }
+
+  const result = await sql.begin(async (tx) => {
+    const retryRows = await tx`
+      SELECT *
+      FROM public.hdc_product_purchase_requests
+      WHERE buyer_user_id = ${user.id}
+        AND idempotency_key = ${write.clientRequestId}
+      LIMIT 1
+    `;
+    if (retryRows.length > 0) {
+      return { request: rowObject(retryRows[0]), created: false };
+    }
+
+    const recentRows = await tx`
+      SELECT count(*)::int AS request_count
+      FROM public.hdc_product_purchase_requests
+      WHERE buyer_user_id = ${user.id}
+        AND submitted_at >= now() - interval '1 hour'
+    `;
+    if (Number(recentRows[0]?.request_count ?? 0) >= 50) {
+      throw new WorkflowHttpError(
+        'purchase_request_rate_limited',
+        429,
+        'Too many purchase requests were submitted recently. Try again later.',
+      );
+    }
+
+    const listingRows = await tx`
+      SELECT listing.*, profile.public_name AS seller_public_name
+      FROM public.hdc_product_listings listing
+      JOIN public.hdc_platform_role_profiles profile
+        ON profile.id = listing.seller_profile_id
+       AND profile.user_id = listing.seller_user_id
+       AND profile.role = listing.seller_role
+      JOIN public.hdc_user_roles assignment
+        ON assignment.user_id = listing.seller_user_id
+       AND assignment.role::text = listing.seller_role
+       AND assignment.is_active = true
+       AND assignment.status = 'active'
+      WHERE listing.id = ${write.listingId}
+        AND listing.status = 'active'
+        AND listing.stock_quantity >= ${write.quantity}
+      FOR UPDATE OF listing
+    `;
+    if (listingRows.length === 0) {
+      throw new WorkflowHttpError(
+        'product_listing_unavailable',
+        409,
+        'That item or requested quantity is no longer available.',
+      );
+    }
+    const listing = rowObject(listingRows[0]);
+    if (String(listing.seller_user_id) === user.id) {
+      throw new WorkflowHttpError(
+        'self_purchase_not_allowed',
+        409,
+        'An account cannot request a purchase from its own listing.',
+      );
+    }
+
+    const subtotal = Number(listing.unit_price_minor) * write.quantity;
+    const insertedRows = await tx`
+      INSERT INTO public.hdc_product_purchase_requests (
+        idempotency_key, listing_id, seller_user_id, seller_role,
+        buyer_user_id, public_listing_id_snapshot, listing_title_snapshot,
+        seller_name_snapshot, buyer_name_snapshot,
+        buyer_public_member_id_snapshot, quantity, currency,
+        unit_price_minor, subtotal_minor, buyer_note
+      ) VALUES (
+        ${write.clientRequestId}, ${write.listingId},
+        ${String(listing.seller_user_id)}, ${String(listing.seller_role)},
+        ${user.id}, ${String(listing.public_listing_id)},
+        ${String(listing.title)}, ${String(listing.seller_public_name)},
+        ${user.displayName}, ${user.publicMemberId}, ${write.quantity},
+        ${String(listing.currency)}, ${Number(listing.unit_price_minor)},
+        ${subtotal}, ${write.buyerNote}
+      )
+      ON CONFLICT DO NOTHING
+      RETURNING *
+    `;
+
+    if (insertedRows.length === 0) {
+      const concurrentRetryRows = await tx`
+        SELECT *
+        FROM public.hdc_product_purchase_requests
+        WHERE buyer_user_id = ${user.id}
+          AND idempotency_key = ${write.clientRequestId}
+        LIMIT 1
+      `;
+      if (concurrentRetryRows.length > 0) {
+        return { request: rowObject(concurrentRetryRows[0]), created: false };
+      }
+      const pendingRows = await tx`
+        SELECT id
+        FROM public.hdc_product_purchase_requests
+        WHERE buyer_user_id = ${user.id}
+          AND listing_id = ${write.listingId}
+          AND status = 'submitted'
+        LIMIT 1
+      `;
+      if (pendingRows.length > 0) {
+        throw new WorkflowHttpError(
+          'purchase_request_pending',
+          409,
+          'You already have a pending purchase request for this listing.',
+        );
+      }
+      throw new WorkflowHttpError(
+        'commerce_conflict',
+        409,
+        'The purchase request conflicted with a newer marketplace change.',
+      );
+    }
+
+    const created = rowObject(insertedRows[0]);
+    await tx`
+      INSERT INTO public.hdc_product_purchase_request_events (
+        purchase_request_id, actor_user_id, event_type,
+        from_status, to_status, snapshot
+      ) VALUES (
+        ${String(created.id)}, ${user.id}, 'submitted', NULL, 'submitted',
+        ${tx.json({
+          publicPurchaseId: String(created.public_purchase_id),
+          publicListingId: String(created.public_listing_id_snapshot),
+          quantity: Number(created.quantity),
+          subtotalMinor: Number(created.subtotal_minor),
+        })}
+      )
+    `;
+    return { request: created, created: true };
+  });
+
+  await audit(sql, user.id, 'commerce.purchase_request.submit', 'success', {
+    purchase_request_id: String(result.request.id),
+    listing_id: String(result.request.listing_id),
+    created: result.created,
+  });
+  return json(
+    { purchaseRequest: productPurchaseRequestView(result.request) },
+    result.created ? 201 : 200,
+  );
+}
+
+async function handleProductPurchaseRequestAction(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  purchaseRequestId: string,
+): Promise<Response> {
+  if (req.method !== 'PUT') return methodNotAllowed();
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const write = parseProductPurchaseDecisionWrite(body);
+  if (!write) return json({ error: 'invalid_purchase_request_action' }, 400);
+
+  const updated = await sql.begin(async (tx) => {
+    const lookupRows = await tx`
+      SELECT *
+      FROM public.hdc_product_purchase_requests
+      WHERE id = ${purchaseRequestId}
+    `;
+    if (lookupRows.length === 0) {
+      throw new WorkflowHttpError(
+        'purchase_request_not_found',
+        404,
+        'The purchase request was not found.',
+      );
+    }
+    const lookup = rowObject(lookupRows[0]);
+    const isBuyer = String(lookup.buyer_user_id) === user.id;
+    const isSeller = String(lookup.seller_user_id) === user.id;
+    if ((write.action === 'cancel' && !isBuyer) ||
+        (write.action !== 'cancel' && !isSeller)) {
+      throw new WorkflowHttpError(
+        'purchase_request_not_found',
+        404,
+        'The purchase request was not found.',
+      );
+    }
+    if (String(lookup.status) !== 'submitted') {
+      throw new WorkflowHttpError(
+        'purchase_request_already_decided',
+        409,
+        'That purchase request is no longer pending.',
+      );
+    }
+
+    const nextStatus = write.action === 'accept'
+      ? 'accepted'
+      : write.action === 'decline'
+        ? 'declined'
+        : 'cancelled';
+
+    let listing: Record<string, unknown> | null = null;
+    if (write.action === 'accept') {
+      const listingRows = await tx`
+        SELECT *
+        FROM public.hdc_product_listings
+        WHERE id = ${String(lookup.listing_id)}
+          AND seller_user_id = ${user.id}
+        FOR UPDATE
+      `;
+      if (listingRows.length === 0) {
+        throw new WorkflowHttpError(
+          'product_listing_unavailable',
+          409,
+          'The related product listing is no longer available.',
+        );
+      }
+      listing = rowObject(listingRows[0]);
+      const role = String(listing.seller_role);
+      if (role !== 'seller' && role !== 'supplier' && role !== 'store') {
+        throw new Error('Invalid stored HDC selling role.');
+      }
+      const profile = await activeSellingProfile(
+        tx as unknown as DbClient,
+        user.id,
+        role,
+      );
+      if (!profile) {
+        throw new WorkflowHttpError(
+          'selling_role_required',
+          403,
+          'An active selling workspace is required to accept this request.',
+        );
+      }
+    }
+
+    // Acceptance locks the listing before the request. Listing-close triggers
+    // use that same order, preventing a listing/order deadlock. Buyer cancel
+    // and seller decline need only the request lock.
+    const currentRows = await tx`
+      SELECT *
+      FROM public.hdc_product_purchase_requests
+      WHERE id = ${purchaseRequestId}
+      FOR UPDATE
+    `;
+    if (currentRows.length === 0) {
+      throw new WorkflowHttpError(
+        'purchase_request_not_found',
+        404,
+        'The purchase request was not found.',
+      );
+    }
+    const current = rowObject(currentRows[0]);
+    const stillBuyer = String(current.buyer_user_id) === user.id;
+    const stillSeller = String(current.seller_user_id) === user.id;
+    if ((write.action === 'cancel' && !stillBuyer) ||
+        (write.action !== 'cancel' && !stillSeller)) {
+      throw new WorkflowHttpError(
+        'purchase_request_not_found',
+        404,
+        'The purchase request was not found.',
+      );
+    }
+    if (Number(current.version) !== write.version) {
+      throw new WorkflowHttpError(
+        'purchase_request_conflict',
+        409,
+        'The purchase request changed elsewhere. Refresh and try again.',
+      );
+    }
+    if (String(current.status) !== 'submitted') {
+      throw new WorkflowHttpError(
+        'purchase_request_already_decided',
+        409,
+        'That purchase request is no longer pending.',
+      );
+    }
+    if (write.action === 'accept' && listing) {
+      if (String(current.listing_id) !== String(listing.id) ||
+          String(current.seller_role) !== String(listing.seller_role)) {
+        throw new WorkflowHttpError(
+          'purchase_request_conflict',
+          409,
+          'The purchase request changed elsewhere. Refresh and try again.',
+        );
+      }
+      const quantity = Number(current.quantity);
+      if (String(listing.status) !== 'active' ||
+          Number(listing.stock_quantity) < quantity) {
+        throw new WorkflowHttpError(
+          'product_listing_unavailable',
+          409,
+          'There is not enough active stock to accept this request.',
+        );
+      }
+    }
+
+    const requestRows = await tx`
+      UPDATE public.hdc_product_purchase_requests
+      SET status = ${nextStatus},
+          seller_note = CASE
+            WHEN ${nextStatus} IN ('accepted', 'declined') THEN ${write.note}
+            ELSE seller_note
+          END,
+          decided_at = CASE
+            WHEN ${nextStatus} IN ('accepted', 'declined') THEN now()
+            ELSE NULL
+          END,
+          cancelled_at = CASE
+            WHEN ${nextStatus} = 'cancelled' THEN now()
+            ELSE NULL
+          END
+      WHERE id = ${purchaseRequestId}
+      RETURNING *
+    `;
+    const requestRow = rowObject(requestRows[0]);
+
+    if (write.action === 'accept' && listing) {
+      const quantity = Number(current.quantity);
+      const remainingStock = Number(listing.stock_quantity) - quantity;
+      const nextListingStatus = remainingStock === 0 ? 'sold' : 'active';
+      const listingRows = await tx`
+        UPDATE public.hdc_product_listings
+        SET stock_quantity = ${remainingStock},
+            status = ${nextListingStatus},
+            sold_at = CASE
+              WHEN ${nextListingStatus} = 'sold' THEN now()
+              ELSE NULL
+            END
+        WHERE id = ${String(current.listing_id)}
+          AND seller_user_id = ${user.id}
+        RETURNING *
+      `;
+      const listingRow = rowObject(listingRows[0]);
+      await tx`
+        INSERT INTO public.hdc_product_listing_events (
+          listing_id, actor_user_id, event_type,
+          from_status, to_status, snapshot
+        ) VALUES (
+          ${String(current.listing_id)}, ${user.id},
+          ${nextListingStatus === 'sold' ? 'status_changed' : 'updated'},
+          'active', ${nextListingStatus},
+          ${tx.json({
+            reason: 'purchase_request_accepted',
+            publicPurchaseId: String(current.public_purchase_id),
+            quantity,
+            remainingStock,
+            version: Number(listingRow.version),
+          })}
+        )
+      `;
+    }
+
+    await tx`
+      INSERT INTO public.hdc_product_purchase_request_events (
+        purchase_request_id, actor_user_id, event_type,
+        from_status, to_status, snapshot
+      ) VALUES (
+        ${purchaseRequestId}, ${user.id}, ${nextStatus},
+        'submitted', ${nextStatus},
+        ${tx.json({ note: write.note })}
+      )
+    `;
+    return requestRow;
+  });
+
+  await audit(sql, user.id, 'commerce.purchase_request.status', 'success', {
+    purchase_request_id: purchaseRequestId,
+    status: String(updated.status),
+  });
+  return json({ purchaseRequest: productPurchaseRequestView(updated) });
+}
+
+async function handleSellerDashboard(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+): Promise<Response> {
+  if (req.method !== 'GET') return methodNotAllowed();
+
+  const profiles = await sql`
+    SELECT profile.id, profile.role, profile.public_name
+    FROM public.hdc_platform_role_profiles profile
+    JOIN public.hdc_user_roles assignment
+      ON assignment.user_id = profile.user_id
+     AND assignment.role::text = profile.role
+    WHERE profile.user_id = ${user.id}
+      AND profile.role IN ('seller', 'supplier', 'store')
+      AND assignment.is_active = true
+      AND assignment.status = 'active'
+    ORDER BY profile.role
+  `;
+  const listings = await sql`
+    SELECT *
+    FROM public.hdc_product_listings
+    WHERE seller_user_id = ${user.id}
+    ORDER BY
+      CASE status
+        WHEN 'active' THEN 1
+        WHEN 'draft' THEN 2
+        WHEN 'paused' THEN 3
+        WHEN 'sold' THEN 4
+        ELSE 5
+      END,
+      updated_at DESC
+    LIMIT 500
+  `;
+  const summaryRows = await sql`
+    SELECT
+      (count(*) FILTER (WHERE status = 'active'))::int
+        AS active_listings,
+      (count(*) FILTER (WHERE status = 'draft'))::int
+        AS draft_listings,
+      (count(*) FILTER (WHERE status = 'paused'))::int
+        AS paused_listings,
+      (count(*) FILTER (WHERE status = 'sold'))::int
+        AS sold_listings,
+      (count(*) FILTER (
+        WHERE status = 'active' AND stock_quantity BETWEEN 1 AND 3
+      ))::int AS low_stock_listings
+    FROM public.hdc_product_listings
+    WHERE seller_user_id = ${user.id}
+  `;
+  const purchaseRequests = await sql`
+    SELECT *
+    FROM public.hdc_product_purchase_requests
+    WHERE seller_user_id = ${user.id}
+    ORDER BY
+      CASE status
+        WHEN 'submitted' THEN 1
+        WHEN 'accepted' THEN 2
+        WHEN 'declined' THEN 3
+        ELSE 4
+      END,
+      submitted_at DESC
+    LIMIT 500
+  `;
+  const purchaseSummaryRows = await sql`
+    SELECT (count(*) FILTER (WHERE status = 'submitted'))::int
+      AS pending_purchase_requests
+    FROM public.hdc_product_purchase_requests
+    WHERE seller_user_id = ${user.id}
+  `;
+  const views = listings.map((row) => productListingView(rowObject(row)));
+  const summary = rowObject(summaryRows[0]);
+  const purchaseSummary = rowObject(purchaseSummaryRows[0]);
+
+  return json({
+    canSell: profiles.length > 0,
+    sellingProfiles: profiles.map((row) => ({
+      profileId: String(row.id),
+      role: String(row.role),
+      publicName: String(row.public_name),
+    })),
+    summary: {
+      activeListings: Number(summary.active_listings),
+      draftListings: Number(summary.draft_listings),
+      pausedListings: Number(summary.paused_listings),
+      soldListings: Number(summary.sold_listings),
+      lowStockListings: Number(summary.low_stock_listings),
+      pendingPurchaseRequests:
+        Number(purchaseSummary.pending_purchase_requests),
+    },
+    listings: views,
+    purchaseRequests: purchaseRequests.map((row) =>
+      productPurchaseRequestView(rowObject(row))),
+  });
+}
+
+async function handleCreateProductListing(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+): Promise<Response> {
+  if (req.method !== 'POST') return methodNotAllowed();
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const write = parseProductListingWrite(body);
+  if (
+    !write || write.version !== null ||
+    (write.status !== 'draft' && write.status !== 'active')
+  ) {
+    return json({
+      error: 'invalid_product_listing',
+      message: 'Complete the required technology item fields and save it as a draft or active listing.',
+    }, 400);
+  }
+
+  const listing = await sql.begin(async (tx) => {
+    const profile = await activeSellingProfile(
+      tx as unknown as DbClient,
+      user.id,
+      write.sellerRole,
+    );
+    if (!profile) {
+      throw new WorkflowHttpError(
+        'selling_role_required',
+        403,
+        'An approved Seller, Supplier, or Store profile is required.',
+      );
+    }
+
+    const rows = await tx`
+      INSERT INTO public.hdc_product_listings (
+        seller_profile_id, seller_user_id, seller_role, category_code,
+        title, description, item_condition, currency, unit_price_minor,
+        stock_quantity, status, published_at
+      ) VALUES (
+        ${String(profile.id)}, ${user.id}, ${write.sellerRole},
+        ${write.categoryCode}, ${write.title}, ${write.description},
+        ${write.condition}, ${write.currency}, ${write.unitPriceMinor},
+        ${write.stockQuantity}, ${write.status},
+        CASE WHEN ${write.status} = 'active' THEN now() ELSE NULL END
+      )
+      RETURNING *
+    `;
+    const created = rowObject(rows[0]);
+    await tx`
+      INSERT INTO public.hdc_product_listing_events (
+        listing_id, actor_user_id, event_type, from_status, to_status, snapshot
+      ) VALUES (
+        ${String(created.id)}, ${user.id}, 'created', NULL,
+        ${write.status},
+        ${tx.json({
+          publicListingId: String(created.public_listing_id),
+          sellerRole: write.sellerRole,
+          categoryCode: write.categoryCode,
+          stockQuantity: write.stockQuantity,
+        })}
+      )
+    `;
+    return created;
+  });
+
+  await audit(sql, user.id, 'commerce.listing.create', 'success', {
+    listing_id: String(listing.id),
+    public_listing_id: String(listing.public_listing_id),
+    status: String(listing.status),
+  });
+  return json({ listing: productListingView(listing) }, 201);
+}
+
+async function handleUpdateProductListing(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  listingId: string,
+): Promise<Response> {
+  if (req.method !== 'PUT') return methodNotAllowed();
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const write = parseProductListingWrite(body);
+  if (!write || write.version === null) {
+    return json({ error: 'invalid_product_listing' }, 400);
+  }
+
+  const listing = await sql.begin(async (tx) => {
+    const currentRows = await tx`
+      SELECT *
+      FROM public.hdc_product_listings
+      WHERE id = ${listingId} AND seller_user_id = ${user.id}
+      FOR UPDATE
+    `;
+    if (currentRows.length === 0) {
+      throw new WorkflowHttpError(
+        'product_listing_not_found',
+        404,
+        'The product listing was not found.',
+      );
+    }
+    const current = rowObject(currentRows[0]);
+    const currentStatus = String(current.status);
+    if (!isProductListingStatus(currentStatus)) {
+      throw new Error('Invalid stored HDC product-listing status.');
+    }
+    if (Number(current.version) !== write.version) {
+      throw new WorkflowHttpError(
+        'product_listing_conflict',
+        409,
+        'The product listing changed elsewhere. Refresh and try again.',
+      );
+    }
+    if (!canTransitionProductListing(currentStatus, write.status)) {
+      throw new WorkflowHttpError(
+        'invalid_product_listing_transition',
+        409,
+        'That product-listing status change is not allowed.',
+      );
+    }
+
+    const profile = await activeSellingProfile(
+      tx as unknown as DbClient,
+      user.id,
+      write.sellerRole,
+    );
+    if (!profile) {
+      throw new WorkflowHttpError(
+        'selling_role_required',
+        403,
+        'An approved Seller, Supplier, or Store profile is required.',
+      );
+    }
+
+    const updatedRows = await tx`
+      UPDATE public.hdc_product_listings
+      SET
+        seller_profile_id = ${String(profile.id)},
+        seller_role = ${write.sellerRole},
+        category_code = ${write.categoryCode},
+        title = ${write.title},
+        description = ${write.description},
+        item_condition = ${write.condition},
+        currency = ${write.currency},
+        unit_price_minor = ${write.unitPriceMinor},
+        stock_quantity = ${write.stockQuantity},
+        status = ${write.status},
+        published_at = CASE
+          WHEN ${write.status} = 'active' THEN COALESCE(published_at, now())
+          ELSE published_at
+        END,
+        sold_at = CASE
+          WHEN ${write.status} = 'sold' THEN COALESCE(sold_at, now())
+          WHEN ${write.status} = 'archived' THEN sold_at
+          ELSE NULL
+        END,
+        archived_at = CASE
+          WHEN ${write.status} = 'archived' THEN COALESCE(archived_at, now())
+          ELSE NULL
+        END
+      WHERE id = ${listingId}
+        AND seller_user_id = ${user.id}
+      RETURNING *
+    `;
+    const updated = rowObject(updatedRows[0]);
+    await tx`
+      INSERT INTO public.hdc_product_listing_events (
+        listing_id, actor_user_id, event_type, from_status, to_status, snapshot
+      ) VALUES (
+        ${listingId}, ${user.id},
+        ${currentStatus === write.status ? 'updated' : 'status_changed'},
+        ${currentStatus}, ${write.status},
+        ${tx.json({
+          sellerRole: write.sellerRole,
+          categoryCode: write.categoryCode,
+          stockQuantity: write.stockQuantity,
+          version: Number(updated.version),
+        })}
+      )
+    `;
+    return updated;
+  });
+
+  await audit(sql, user.id, 'commerce.listing.update', 'success', {
+    listing_id: listingId,
+    status: String(listing.status),
+    version: Number(listing.version),
+  });
+  return json({ listing: productListingView(listing) });
 }
 
 async function withWorkflowAuthority<T>(
@@ -2627,11 +3541,60 @@ async function handleTransactionStatus(
   return json(updated);
 }
 
-export default async (req: Request, _context: Context): Promise<Response> => {
+async function handleReadiness(req: Request): Promise<Response> {
+  if (req.method !== 'GET') return methodNotAllowed();
+  let sql: DbClient | null = null;
+  try {
+    sql = openDb();
+    const database = await checkDbReadiness(sql);
+    if (!database.ready) {
+      return json({ service: 'hdc-beta-api', status: 'not_ready' }, 503);
+    }
+    return json({
+      service: 'hdc-beta-api',
+      status: 'ready',
+      checks: { database: 'ok' },
+      latencyMs: database.latencyMs,
+    });
+  } catch (error) {
+    console.warn(
+      'HDC readiness check failed',
+      error instanceof Error ? error.message : 'unknown_error',
+    );
+    return json({ service: 'hdc-beta-api', status: 'not_ready' }, 503);
+  } finally {
+    if (sql) {
+      try {
+        await closeDb(sql);
+      } catch {
+        // A failed readiness connection may already be closed by the driver.
+      }
+    }
+  }
+}
+
+async function handleHdcApiRequestCore(req: Request): Promise<Response> {
   const path = new URL(req.url).pathname;
   if (path === '/api/health') {
     if (req.method !== 'GET') return methodNotAllowed();
-    return json({ service: 'hdc-beta-api', status: 'ok' });
+    return json({
+      service: 'hdc-beta-api',
+      status: 'ok',
+      build: '0.6.4-build15',
+    });
+  }
+  if (path === '/api/health/ready') return await handleReadiness(req);
+
+  const operation = operationDecision(operationMode(), req.method, path);
+  if (!operation.allowed) {
+    return json(
+      {
+        error: operation.errorCode,
+        message: 'HDC is temporarily limiting operations. Please try again later.',
+      },
+      503,
+      { 'retry-after': String(operation.retryAfterSeconds ?? 300) },
+    );
   }
 
   const isRolePath =
@@ -2650,12 +3613,22 @@ export default async (req: Request, _context: Context): Promise<Response> => {
     path === '/api/profiles/member' ||
     path.startsWith('/api/profiles/');
 
+  const isCommercePath =
+    path === '/api/commerce/catalog' ||
+    path === '/api/commerce/buyer-dashboard' ||
+    path === '/api/commerce/seller-dashboard' ||
+    path === '/api/commerce/listings' ||
+    path.startsWith('/api/commerce/listings/') ||
+    path === '/api/commerce/purchase-requests' ||
+    path.startsWith('/api/commerce/purchase-requests/');
+
   if (path === '/api/auth/recovery/start') {
     return await handleRecoveryStart(req);
   }
 
-  const sql = openDb();
+  let sql: DbClient | null = null;
   try {
+    sql = openDb();
     if (path === '/api/auth/register') return await handleRegister(req, sql);
     if (path === '/api/auth/login') return await handleLogin(req, sql);
     if (path === '/api/auth/session') return await handleSession(req, sql);
@@ -2668,6 +3641,15 @@ export default async (req: Request, _context: Context): Promise<Response> => {
     }
     if (path === '/api/auth/password-reset/confirm') {
       return await handlePasswordReset(req, sql);
+    }
+    if (path === '/api/auth/recovery/answers') {
+      const session = await activeSession(req, sql);
+      if (!session) return json({ error: 'unauthorized' }, 401);
+      return await handleUpdateRecoveryAnswers(req, sql, session.user);
+    }
+
+    if (path === '/api/commerce/catalog') {
+      return await handleProductCatalog(req, sql);
     }
 
     if (isProfilePath) {
@@ -2688,6 +3670,49 @@ export default async (req: Request, _context: Context): Promise<Response> => {
           sql,
           session.user,
           profileMatch[1],
+        );
+      }
+    }
+
+    if (isCommercePath) {
+      const session = await activeSession(req, sql);
+      if (!session) return json({ error: 'unauthorized' }, 401);
+
+      if (path === '/api/commerce/seller-dashboard') {
+        return await handleSellerDashboard(req, sql, session.user);
+      }
+      if (path === '/api/commerce/buyer-dashboard') {
+        return await handleBuyerDashboard(req, sql, session.user);
+      }
+      if (path === '/api/commerce/listings') {
+        return await handleCreateProductListing(req, sql, session.user);
+      }
+      if (path === '/api/commerce/purchase-requests') {
+        return await handleCreateProductPurchaseRequest(
+          req,
+          sql,
+          session.user,
+        );
+      }
+
+      const purchaseRequestMatch =
+        /^\/api\/commerce\/purchase-requests\/([^/]+)\/status$/.exec(path);
+      if (purchaseRequestMatch) {
+        return await handleProductPurchaseRequestAction(
+          req,
+          sql,
+          session.user,
+          requirePathId(purchaseRequestMatch[1]),
+        );
+      }
+
+      const listingMatch = /^\/api\/commerce\/listings\/([^/]+)$/.exec(path);
+      if (listingMatch) {
+        return await handleUpdateProductListing(
+          req,
+          sql,
+          session.user,
+          requirePathId(listingMatch[1]),
         );
       }
     }
@@ -2821,13 +3846,19 @@ export default async (req: Request, _context: Context): Promise<Response> => {
       : '';
     if (databaseCode === '23505') {
       return json({
-        error: isProfilePath ? 'profile_conflict' : 'workflow_conflict',
+        error: isProfilePath
+          ? 'profile_conflict'
+          : isCommercePath
+            ? 'commerce_conflict'
+            : 'workflow_conflict',
       }, 409);
     }
     if (databaseCode === '23503' || databaseCode === '23514') {
       return json({
         error: isProfilePath
           ? 'invalid_profile_relationship'
+          : isCommercePath
+            ? 'invalid_commerce_relationship'
           : isInternalPath
             ? 'invalid_internal_relationship'
             : 'invalid_workflow_relationship',
@@ -2837,6 +3868,8 @@ export default async (req: Request, _context: Context): Promise<Response> => {
       return json({
         error: isProfilePath
           ? 'profile_backend_not_ready'
+          : isCommercePath
+            ? 'commerce_backend_not_ready'
           : isInternalPath
             ? 'internal_backend_not_ready'
           : isRolePath
@@ -2848,13 +3881,31 @@ export default async (req: Request, _context: Context): Promise<Response> => {
     console.error('Unhandled HDC API error', error instanceof Error ? error.message : 'unknown_error');
     return json({ error: 'internal_error' }, 500);
   } finally {
-    await closeDb(sql);
+    if (sql) {
+      try {
+        await closeDb(sql);
+      } catch (error) {
+        console.warn(
+          'HDC database close failed',
+          error instanceof Error ? error.message : 'unknown_error',
+        );
+      }
+    }
   }
-};
+}
+
+export async function handleHdcApiRequest(req: Request): Promise<Response> {
+  if (req.method === 'OPTIONS') return corsPreflightResponse(req);
+  return withCors(req, await handleHdcApiRequestCore(req));
+}
+
+export default async (req: Request, _context: Context): Promise<Response> =>
+  await handleHdcApiRequest(req);
 
 export const config: Config = {
   path: [
     '/api/health',
+    '/api/health/ready',
     '/api/auth/register',
     '/api/auth/login',
     '/api/auth/session',
@@ -2862,6 +3913,7 @@ export const config: Config = {
     '/api/auth/recovery/start',
     '/api/auth/recovery/verify',
     '/api/auth/recovery/reset',
+    '/api/auth/recovery/answers',
     '/api/auth/password-reset/confirm',
     '/api/roles/overview',
     '/api/role-applications',
@@ -2873,6 +3925,13 @@ export const config: Config = {
     '/api/profiles',
     '/api/profiles/member',
     '/api/profiles/:role',
+    '/api/commerce/catalog',
+    '/api/commerce/buyer-dashboard',
+    '/api/commerce/seller-dashboard',
+    '/api/commerce/listings',
+    '/api/commerce/listings/:id',
+    '/api/commerce/purchase-requests',
+    '/api/commerce/purchase-requests/:id/status',
     '/api/workflow/bootstrap',
     '/api/service-requests',
     '/api/service-requests/:id',

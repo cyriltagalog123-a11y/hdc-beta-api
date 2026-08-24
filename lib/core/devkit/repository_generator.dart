@@ -1,0 +1,5 @@
+class RepositoryGenerator {
+
+  const RepositoryGenerator();
+
+}

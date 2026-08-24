@@ -1,0 +1,28 @@
+
+
+2026-08-20 — Sprint 6.4 Appwrite Session Timestamp Analyzer Fix
+
+Changed:
+- lib/core/auth/appwrite_auth_gateway.dart
+
+Fix:
+- Removed use of Session.createdAt because the Appwrite Flutter Session model
+  used by the current SDK does not expose a createdAt getter.
+- HDC now records the local session-wrapper creation time with DateTime.now()
+  when hydrating an Appwrite session.
+
+Impact:
+- Authentication, logout, session restore, role gating, marketplace access,
+  proposals, transactions, and chat authorization are unchanged.
+- This is a compatibility/analyzer fix only.
+
+Portability:
+- No provider-specific timestamp is promoted into HDC domain authority.
+- HDC continues to treat provider session metadata as adapter-level data.
+
+Validation:
+- Relative import scan completed.
+- Structural delimiter scan completed.
+- No new dependency added.
+- Run flutter analyze locally.
+

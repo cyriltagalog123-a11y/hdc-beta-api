@@ -1,0 +1,5 @@
+class ProviderGenerator {
+
+  const ProviderGenerator();
+
+}

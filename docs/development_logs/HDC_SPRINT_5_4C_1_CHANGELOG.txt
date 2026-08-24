@@ -1,0 +1,145 @@
+HDC SPRINT 5.4C.1 DEVELOPMENT LOG
+=================================
+
+Sprint
+------
+5.4C.1 - Proposal Visibility & Activity Sync
+
+Purpose
+-------
+Resolve the inconsistency where proposal state updated inside the proposal
+repository but customer request cards, request statistics, and technician
+marketplace views continued showing stale ServiceRequest.offerCount values.
+
+Architecture Decision
+---------------------
+The Proposal repository/provider is now the authoritative source for proposal
+counts and proposal lifecycle visibility. ServiceRequest.offerCount remains
+only for backward/sample-data compatibility and is no longer used as the
+primary source by live customer/technician workflow screens.
+
+Backend / Domain Changes
+------------------------
+ADDED:
+- lib/models/proposal_request_summary.dart
+  Aggregated request-level proposal statistics.
+- lib/models/proposal_activity_entry.dart
+  Typed activity record used by request timelines.
+- lib/core/proposals/proposal_activity_service.dart
+  Domain service responsible for proposal summaries, activity history, and
+  deterministic Nexus insight text.
+
+MODIFIED:
+- lib/models/proposal.dart
+  Added lifecycle timestamps:
+  viewedAt, shortlistedAt, acceptedAt, declinedAt, expiredAt, withdrawnAt.
+  Serialization remains backward compatible.
+  Legacy statuses infer missing lifecycle timestamps from updatedAt.
+- lib/providers/proposal_provider.dart
+  Added summary/activity APIs.
+  Proposal status transitions now record lifecycle timestamps.
+  Added request/customer and technician Nexus insight hooks.
+
+Frontend Changes
+----------------
+MODIFIED:
+- lib/features/service_requests/my_service_requests_screen.dart
+  Displays live received/viewed/shortlisted proposal values.
+- lib/features/service_requests/service_request_details_screen.dart
+  Displays synchronized proposal statistics, Nexus Request Insight, and
+  request activity timeline.
+- lib/features/customer_proposals/customer_proposal_inbox_screen.dart
+  Header now displays received/viewed/shortlisted statistics from the same
+  proposal source.
+- lib/features/customer_proposals/customer_proposal_details_screen.dart
+  Added a prominent Proposal Status card with visible lifecycle state/time.
+- lib/features/technician_marketplace/technician_marketplace_screen.dart
+  Marketplace opportunity cards now display synchronized proposal activity
+  and the current technician's proposal status.
+- lib/features/technician_marketplace/technician_request_details_screen.dart
+  Displays current competition, own proposal status, and Nexus Opportunity
+  Insight from synchronized proposal data.
+- lib/features/dashboard/dashboard_screen.dart
+  Dashboard offer totals now come from ProposalProvider instead of stale
+  ServiceRequest.offerCount values.
+- lib/providers/relationship_provider.dart
+  Corrected two pre-existing relative import paths discovered during the
+  mandatory full-project rescan.
+
+ADDED:
+- lib/widgets/proposals/request_proposal_activity_card.dart
+  Reusable customer-facing request activity timeline component.
+
+Security Impact
+---------------
+- No backend secrets, credentials, private keys, or storage tokens were added.
+- No private backend implementation details are exposed in the frontend.
+- Nexus insight in this sprint is deterministic local/domain logic and does
+  not expose private data or backend internals.
+- Exact customer contact details remain outside technician marketplace UI.
+
+Compatibility Impact
+--------------------
+- No new plugin/dependency was added.
+- Existing SharedPreferences proposal data remains readable.
+- Existing viewed/shortlisted/accepted proposal records are migrated
+  defensively using prior updatedAt timestamps when new lifecycle timestamps
+  do not exist.
+- Windows/Android Flutter compatibility preserved; no OS-specific API added.
+- Sample marketplace opportunity counts retain a demo-only fallback when
+  there are no real Proposal records.
+
+Known Limitation / Future Migration
+-----------------------------------
+- ServiceRequest.offerCount still exists for serialized backward compatibility
+  and sample marketplace fixtures. Live workflow UI no longer treats it as the
+  authoritative count. A later schema migration may remove the field entirely
+  after backend/API versioning is introduced.
+- Nexus insights are rule-based hooks in this sprint, not the future Nexus AI
+  inference layer.
+- Activity sync is local/provider-driven during beta. A production backend
+  should eventually emit durable versioned domain events.
+
+Recommended Manual Test
+-----------------------
+1. Create a customer service request.
+2. Open Technician Marketplace and submit a proposal.
+3. Return to My Service Requests:
+   - proposal count should increase.
+4. Open Request Details:
+   - Received should match the proposal count.
+   - Nexus Request Insight should mention the proposal.
+   - Activity should show Proposal received.
+5. Open Review Proposals and open the submitted proposal.
+6. Confirm Proposal Status visibly changes to Viewed.
+7. Return to Request Details:
+   - Viewed should increase.
+   - Activity should show Proposal viewed.
+8. Return to Technician Marketplace:
+   - the same request should show Your proposal: Viewed.
+9. Shortlist the proposal.
+10. Confirm customer request statistics and technician marketplace show
+    Shortlisted.
+11. Restart HDC and confirm lifecycle state remains.
+12. Run flutter analyze and verify No issues found.
+
+Rollback
+--------
+Restore the pre-5.4C.1 versions of the modified files. Existing persisted
+proposal JSON remains compatible because all newly introduced fields are
+optional during deserialization.
+
+Post-Change Rescan
+------------------
+Performed before packaging:
+- Reviewed all modified proposal/request/marketplace integrations.
+- Searched live UI for remaining request.offerCount dependencies.
+- Confirmed dashboard live offer total uses ProposalProvider.
+- Confirmed relative imports for newly added files resolve.
+- Full-project relative-import scan found two pre-existing incorrect imports in
+  RelationshipProvider; both were corrected before packaging.
+- Confirmed no new package/plugin dependency.
+- Confirmed no platform-specific API introduced.
+- Confirmed no credentials/secrets inserted.
+- Flutter/Dart executables are not available in the build environment, so
+  flutter analyze/runtime execution must be performed on the user's machine.

@@ -24,7 +24,13 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Provider portability boundaries
+        run: npm run check:portability
+
+      - name: Immutable migration checksums
+        run: npm run check:migrations
 
       - name: Typecheck
         run: npm run typecheck

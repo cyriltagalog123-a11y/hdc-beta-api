@@ -1,0 +1,43 @@
+HDC SPRINT 6.4G - ONE ACCOUNT / ROLE PROFILES BACKEND
+Date: 2026-08-21
+API version: 0.4.0
+
+Goal
+----
+Persist one shared member profile and independent platform-role profiles under
+one authenticated HDC user ID. A role profile is a workspace presentation, not
+an account, credential, or authorization claim.
+
+Implemented
+-----------
+- Added migration 0004 for hdc_member_profiles and
+  hdc_platform_role_profiles.
+- Backfilled one member profile per existing HDC user and one role profile per
+  active platform-role assignment.
+- Enforced unique (user_id, role), allowed-role, length, JSON-object, timestamp,
+  version, and direct-public-access constraints.
+- Added authenticated GET /api/profiles.
+- Added authenticated PUT /api/profiles/member.
+- Added authenticated PUT /api/profiles/:role with active-role enforcement.
+- Added strict common and per-role input normalization.
+- Returned internal staff roles and department/section assignments as a single
+  private staff view without creating public internal-role profiles.
+- Added security audit events for member and role-profile updates.
+
+Validation coverage
+-------------------
+- Shared member identity normalization.
+- Typed Technician data and de-duplicated profile lists.
+- Rejection of fields belonging to another role.
+- Rejection of invalid public contact data and numeric limits.
+
+Local result
+------------
+- npm run typecheck: passed.
+- npm test: 23/23 tests passed across four test files.
+
+Release boundary
+----------------
+Migration 0004, API 0.4.0, and Flutter 0.6.4+8 are prepared together. No
+production database, Netlify deployment, or GitHub remote was changed. Test the
+migration on an isolated database branch before any promotion.

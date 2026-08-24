@@ -1,0 +1,59 @@
+
+
+2026-08-20 — Sprint 6.1–6.3 — Identity, Authentication & Permission Foundation
+
+Project Review:
+- Existing HDC project already contains UserAccount, Session, UserRole,
+  RolePermission, AuthenticationService, PermissionResolver and related
+  repositories/providers.
+- Those modules are prototype/in-memory foundations and are not sufficient for
+  real beta authentication.
+- Current LoginScreen still uses prototype-user and simulated sign-in.
+- No secure password authentication is present in the Flutter project.
+
+Decision:
+- Preserve existing prototype modules for compatibility while introducing a
+  production-oriented identity/auth contract alongside them.
+- Do not redesign Login UI yet; final unique HDC UI remains deferred until
+  beta-critical functional sprints are complete.
+- Supabase/PostgreSQL is the recommended beta backend because HDC's data model
+  is highly relational and Supabase provides Auth, PostgreSQL, RLS and Flutter
+  support while remaining comparatively portable.
+
+Added:
+- AccountIdentity and typed HDC account roles/status.
+- AuthenticatedSession model.
+- AuthGateway abstraction.
+- AuthService validation layer.
+- Typed HDC permission model.
+- RolePermissionPolicy.
+- AuthorizationService with owner/participant checks.
+- Additive Supabase SQL migration for profiles, roles, RLS and security audit.
+- Backend identity foundation documentation.
+
+Security:
+- Password hashing is intentionally NOT implemented in Flutter.
+- Real passwords must be handled by Supabase Auth/server-side identity.
+- Privileged role assignment is not client writable.
+- Audit table is not client writable/readable.
+- No service-role key/private backend secret belongs in the frontend.
+
+Compatibility:
+- No Flutter dependency added in this sprint.
+- No OS-specific API added.
+- Windows and Android remain primary beta targets.
+- Linux/macOS portability preserved.
+
+External Backend:
+- A connected Supabase account has one INACTIVE generic project.
+- It was NOT modified because it has not been confirmed as the dedicated HDC
+  beta project.
+- Sprint 6.4 will deploy the migration only after the correct project is
+  confirmed.
+
+Validation:
+- Full relative-import scan.
+- Structural Dart delimiter scan.
+- No new secret or credential added.
+- No existing UI/navigation replaced.
+- Existing app should remain visually unchanged.
