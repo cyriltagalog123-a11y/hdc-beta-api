@@ -154,17 +154,24 @@ class TechnicianMarketplaceProvider extends ChangeNotifier {
   }) {
     final filtered = source
         .where((request) {
-          if (!request.status.acceptsProposals) return false;
+          if (!request.status.acceptsProposals) {
+            return false;
+          }
           if (technicianId != null && request.customerId == technicianId) {
             return false;
           }
           if (_savedOnly && !isSaved(request.id)) {
             return false;
           }
-          if (_category != null && request.categoryName != _category)
+          if (_category != null && request.categoryName != _category) {
             return false;
-          if (_urgency != null && request.urgency != _urgency) return false;
-          if (_query.isEmpty) return true;
+          }
+          if (_urgency != null && request.urgency != _urgency) {
+            return false;
+          }
+          if (_query.isEmpty) {
+            return true;
+          }
 
           final haystack = <String>[
             request.title,
