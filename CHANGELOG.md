@@ -16,6 +16,8 @@
   Build 18 and adds automated release-marker and generated-web consistency
   gates plus a pinned hosted Flutter analysis/test/build job that synchronizes
   only its verified bundle back to the same first-party review branch.
+- Normalizes Flutter's generated service-worker marker to the HDC release ID so
+  identical release builds do not create meaningless generated-file changes.
 
 ## 0.6.4+17 — 2026-08-24
 

@@ -44,6 +44,13 @@ try {
     buildNumber,
     'generated Flutter web build number is stale',
   );
+  const generatedBootstrap = await read('build/web/flutter_bootstrap.js');
+  assert.ok(
+    generatedBootstrap.includes(
+      `serviceWorkerVersion: "${packageJson.version}"`,
+    ),
+    'generated Flutter web service-worker marker is not release-stable',
+  );
 } catch (error) {
   if (error?.code !== 'ENOENT') throw error;
 }

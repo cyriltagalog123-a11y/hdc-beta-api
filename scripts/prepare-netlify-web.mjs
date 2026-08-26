@@ -6,6 +6,7 @@ const resetDestination = new URL('../build/web/reset-password/', import.meta.url
 const packageFile = new URL('../package.json', import.meta.url);
 
 await stat(new URL('index.html', buildDirectory));
+const packageJson = JSON.parse(await readFile(packageFile, 'utf8'));
 
 const flutterBootstrap = await readFile(
   new URL('flutter_bootstrap.js', buildDirectory),
@@ -16,6 +17,18 @@ if (!flutterBootstrap.includes('"useLocalCanvasKit":true')) {
     'Flutter web renderer resources must be self-hosted. Build with --no-web-resources-cdn.',
   );
 }
+const normalizedBootstrap = flutterBootstrap.replace(
+  /serviceWorkerVersion: "[^"]+"/,
+  `serviceWorkerVersion: "${packageJson.version}"`,
+);
+if (normalizedBootstrap === flutterBootstrap) {
+  throw new Error('Flutter service-worker version marker could not be normalized.');
+}
+await writeFile(
+  new URL('flutter_bootstrap.js', buildDirectory),
+  normalizedBootstrap,
+  'utf8',
+);
 
 const fontManifest = JSON.parse(
   await readFile(new URL('assets/FontManifest.json', buildDirectory), 'utf8'),
@@ -32,7 +45,6 @@ await stat(
 
 await cp(resetSource, resetDestination, { recursive: true, force: true });
 
-const packageJson = JSON.parse(await readFile(packageFile, 'utf8'));
 await writeFile(
   new URL('hdc-release.json', buildDirectory),
   `${JSON.stringify({ service: 'hdc-web', version: packageJson.version })}\n`,
