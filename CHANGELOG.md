@@ -1,5 +1,23 @@
 # HDC Change Log
 
+## 0.6.4+19 — 2026-08-26
+
+- Added a dedicated Technician opportunity endpoint so an active Technician
+  receives open requests from other accounts without depending on the broad
+  workflow bootstrap cache. The server still enforces role and row-level
+  authorization and excludes the Technician's own Customer requests.
+- Replaced the Find a Technician placeholder with an authenticated live
+  directory, manual name/skill/specialty search, service-area prioritization,
+  public contact cards, and zero-cost OpenStreetMap area links.
+- Preserved profile privacy: only active, approved Technician roles whose
+  owners enabled `Publicly discoverable profile` are returned. Account UUIDs
+  and internal-role information are never exposed by the directory.
+- Added an obvious Browse Technician Jobs action to Technician dashboards,
+  account-switch-safe discovery state, and provider tests for both discovery
+  routes and area/search behavior.
+- Synchronized Flutter, dashboard, API health, package, CI artifact, and live
+  integration release markers at Build 19.
+
 ## 0.6.4+18 — 2026-08-25
 
 - Refreshes authenticated workflow data whenever a technician opens or pulls

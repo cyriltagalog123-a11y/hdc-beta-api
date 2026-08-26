@@ -1,6 +1,18 @@
 HDC BETA API CHANGELOG
 ======================
 
+2026-08-26 - Build 19 live technician directory and explicit opportunities
+- Gives active Technicians a dedicated opportunity feed containing open
+  requests posted by other accounts, independent of the general workflow
+  bootstrap cache.
+- Replaces the Find a Technician placeholder with manual profile search,
+  service-area ordering, public contact cards, and OpenStreetMap area links.
+- Lists only active, approved Technician profiles that explicitly enabled
+  public discovery; private profiles, account UUIDs, and internal roles stay
+  private.
+- Adds a visible Technician Jobs dashboard action and clears in-flight
+  discovery state safely whenever the signed-in account changes.
+
 2026-08-25 - Build 18 live technician request discovery
 - Refreshes the technician opportunity feed on entry, pull-to-refresh, and the
   explicit refresh action so separately logged-in accounts receive new posts.

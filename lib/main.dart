@@ -22,6 +22,7 @@ import 'providers/proposal_acceptance_provider.dart';
 import 'providers/proposal_provider.dart';
 import 'providers/service_request_provider.dart';
 import 'providers/service_transaction_provider.dart';
+import 'providers/technician_discovery_provider.dart';
 import 'providers/technician_marketplace_provider.dart';
 import 'providers/ticket_provider.dart';
 import 'repositories/hdc_api_workflow_repositories.dart';
@@ -47,9 +48,7 @@ Future<void> main() async {
 
   try {
     if (baseUri == null) {
-      throw StateError(
-        'HDC authentication API configuration is invalid.',
-      );
+      throw StateError('HDC authentication API configuration is invalid.');
     }
 
     authGateway = HdcApiAuthGateway(
@@ -78,12 +77,11 @@ Future<void> main() async {
     roleApiClient = workflowClient;
     final workflowStore = HdcApiWorkflowStore(client: workflowClient);
     proposalRepository = HdcApiProposalRepository(workflowStore);
-    serviceRequestRepository =
-        HdcApiServiceRequestRepository(workflowStore);
-    serviceTransactionRepository =
-        HdcApiServiceTransactionRepository(workflowStore);
-    transactionSeedRepository =
-        HdcApiTransactionSeedRepository(workflowStore);
+    serviceRequestRepository = HdcApiServiceRequestRepository(workflowStore);
+    serviceTransactionRepository = HdcApiServiceTransactionRepository(
+      workflowStore,
+    );
+    transactionSeedRepository = HdcApiTransactionSeedRepository(workflowStore);
     proposalAcceptanceGateway = workflowStore;
     transactionTransitionGateway = workflowStore;
     workflowSyncProvider = HdcWorkflowSyncProvider(store: workflowStore);
@@ -92,8 +90,7 @@ Future<void> main() async {
     serviceRequestRepository = SharedPreferencesServiceRequestRepository();
     serviceTransactionRepository =
         SharedPreferencesServiceTransactionRepository();
-    transactionSeedRepository =
-        SharedPreferencesTransactionSeedRepository();
+    transactionSeedRepository = SharedPreferencesTransactionSeedRepository();
   }
 
   runApp(
@@ -145,8 +142,8 @@ class HDCApp extends StatelessWidget {
         ChangeNotifierProxyProvider<HDCAuthProvider, HdcRoleCenterProvider>(
           create: (_) => HdcRoleCenterProvider(client: roleApiClient),
           update: (_, auth, roleCenter) {
-            final provider = roleCenter ??
-                HdcRoleCenterProvider(client: roleApiClient);
+            final provider =
+                roleCenter ?? HdcRoleCenterProvider(client: roleApiClient);
             provider.bindIdentity(
               auth.authenticated && !auth.guestMode ? auth.identity : null,
             );
@@ -154,11 +151,13 @@ class HDCApp extends StatelessWidget {
           },
         ),
         ChangeNotifierProxyProvider<
-            HDCAuthProvider,
-            HdcInternalDashboardProvider>(
+          HDCAuthProvider,
+          HdcInternalDashboardProvider
+        >(
           create: (_) => HdcInternalDashboardProvider(client: roleApiClient),
           update: (_, auth, internalDashboard) {
-            final provider = internalDashboard ??
+            final provider =
+                internalDashboard ??
                 HdcInternalDashboardProvider(client: roleApiClient);
             provider.bindIdentity(
               auth.authenticated && !auth.guestMode ? auth.identity : null,
@@ -169,8 +168,8 @@ class HDCApp extends StatelessWidget {
         ChangeNotifierProxyProvider<HDCAuthProvider, HdcProfileProvider>(
           create: (_) => HdcProfileProvider(client: roleApiClient),
           update: (_, auth, profileProvider) {
-            final provider = profileProvider ??
-                HdcProfileProvider(client: roleApiClient);
+            final provider =
+                profileProvider ?? HdcProfileProvider(client: roleApiClient);
             provider.bindIdentity(
               auth.authenticated && !auth.guestMode ? auth.identity : null,
             );
@@ -180,8 +179,8 @@ class HDCApp extends StatelessWidget {
         ChangeNotifierProxyProvider<HDCAuthProvider, HdcSalesCenterProvider>(
           create: (_) => HdcSalesCenterProvider(client: roleApiClient),
           update: (_, auth, salesCenter) {
-            final provider = salesCenter ??
-                HdcSalesCenterProvider(client: roleApiClient);
+            final provider =
+                salesCenter ?? HdcSalesCenterProvider(client: roleApiClient);
             provider.bindIdentity(
               auth.authenticated && !auth.guestMode ? auth.identity : null,
             );
@@ -191,8 +190,8 @@ class HDCApp extends StatelessWidget {
         ChangeNotifierProxyProvider<HDCAuthProvider, HdcMarketplaceProvider>(
           create: (_) => HdcMarketplaceProvider(client: roleApiClient),
           update: (_, auth, marketplace) {
-            final provider = marketplace ??
-                HdcMarketplaceProvider(client: roleApiClient);
+            final provider =
+                marketplace ?? HdcMarketplaceProvider(client: roleApiClient);
             provider.bindIdentity(
               auth.authenticated && !auth.guestMode ? auth.identity : null,
             );
@@ -200,15 +199,11 @@ class HDCApp extends StatelessWidget {
           },
         ),
         if (workflowSyncProvider != null)
-          ChangeNotifierProxyProvider<
-              HDCAuthProvider,
-              HdcWorkflowSyncProvider>(
+          ChangeNotifierProxyProvider<HDCAuthProvider, HdcWorkflowSyncProvider>(
             create: (_) => workflowSyncProvider!,
             update: (_, auth, syncProvider) {
               final provider = syncProvider ?? workflowSyncProvider!;
-              provider.bindUser(
-                auth.authenticated ? auth.identity?.id : null,
-              );
+              provider.bindUser(auth.authenticated ? auth.identity?.id : null);
               return provider;
             },
           ),
@@ -217,9 +212,7 @@ class HDCApp extends StatelessWidget {
           update: (_, auth, ticketProvider) {
             final provider = ticketProvider ?? TicketProvider();
             provider.bindUser(
-              auth.authenticated && !auth.guestMode
-                  ? auth.identity?.id
-                  : null,
+              auth.authenticated && !auth.guestMode ? auth.identity?.id : null,
             );
             return provider;
           },
@@ -230,28 +223,38 @@ class HDCApp extends StatelessWidget {
           ),
         ),
         ChangeNotifierProxyProvider<
-            HDCAuthProvider,
-            TechnicianMarketplaceProvider>(
+          HDCAuthProvider,
+          TechnicianMarketplaceProvider
+        >(
           create: (_) => TechnicianMarketplaceProvider(),
           update: (_, auth, marketplaceProvider) {
             final provider =
                 marketplaceProvider ?? TechnicianMarketplaceProvider();
             provider.bindUser(
-              auth.authenticated && !auth.guestMode
-                  ? auth.identity?.id
-                  : null,
+              auth.authenticated && !auth.guestMode ? auth.identity?.id : null,
+            );
+            return provider;
+          },
+        ),
+        ChangeNotifierProxyProvider<
+          HDCAuthProvider,
+          TechnicianDiscoveryProvider
+        >(
+          create: (_) => TechnicianDiscoveryProvider(client: roleApiClient),
+          update: (_, auth, discoveryProvider) {
+            final provider =
+                discoveryProvider ??
+                TechnicianDiscoveryProvider(client: roleApiClient);
+            provider.bindIdentity(
+              auth.authenticated && !auth.guestMode ? auth.identity : null,
             );
             return provider;
           },
         ),
         ChangeNotifierProvider(
           create: (_) {
-            final provider = ProposalProvider(
-              repository: proposalRepository,
-            );
-            workflowSyncProvider?.addListener(
-              provider.refreshFromRepository,
-            );
+            final provider = ProposalProvider(repository: proposalRepository);
+            workflowSyncProvider?.addListener(provider.refreshFromRepository);
             provider.initialize();
             return provider;
           },
@@ -261,72 +264,74 @@ class HDCApp extends StatelessWidget {
             final provider = ServiceRequestProvider(
               repository: serviceRequestRepository,
             );
-            workflowSyncProvider?.addListener(
-              provider.refreshFromRepository,
-            );
+            workflowSyncProvider?.addListener(provider.refreshFromRepository);
             provider.initialize();
             return provider;
           },
         ),
         ChangeNotifierProxyProvider2<
-            ProposalProvider,
-            ServiceRequestProvider,
-            ProposalAcceptanceProvider>(
+          ProposalProvider,
+          ServiceRequestProvider,
+          ProposalAcceptanceProvider
+        >(
           create: (_) => ProposalAcceptanceProvider(
             transactionSeedRepository: transactionSeedRepository,
             acceptanceGateway: proposalAcceptanceGateway,
           )..initialize(),
-          update: (
-            _,
-            proposalProvider,
-            serviceRequestProvider,
-            acceptanceProvider,
-          ) {
-            final provider = acceptanceProvider ??
-                ProposalAcceptanceProvider(
-                  transactionSeedRepository: transactionSeedRepository,
-                  acceptanceGateway: proposalAcceptanceGateway,
+          update:
+              (
+                _,
+                proposalProvider,
+                serviceRequestProvider,
+                acceptanceProvider,
+              ) {
+                final provider =
+                    acceptanceProvider ??
+                    ProposalAcceptanceProvider(
+                      transactionSeedRepository: transactionSeedRepository,
+                      acceptanceGateway: proposalAcceptanceGateway,
+                    );
+                provider.bind(
+                  proposalProvider: proposalProvider,
+                  serviceRequestProvider: serviceRequestProvider,
                 );
-            provider.bind(
-              proposalProvider: proposalProvider,
-              serviceRequestProvider: serviceRequestProvider,
-            );
-            return provider;
-          },
+                return provider;
+              },
         ),
         ChangeNotifierProxyProvider2<
-            ProposalProvider,
-            ServiceRequestProvider,
-            ServiceTransactionProvider>(
+          ProposalProvider,
+          ServiceRequestProvider,
+          ServiceTransactionProvider
+        >(
           create: (_) {
             final provider = ServiceTransactionProvider(
               repository: serviceTransactionRepository,
               seedRepository: transactionSeedRepository,
               transitionGateway: transactionTransitionGateway,
             );
-            workflowSyncProvider?.addListener(
-              provider.refreshFromRepository,
-            );
+            workflowSyncProvider?.addListener(provider.refreshFromRepository);
             return provider;
           },
-          update: (
-            _,
-            proposalProvider,
-            serviceRequestProvider,
-            transactionProvider,
-          ) {
-            final provider = transactionProvider ??
-                ServiceTransactionProvider(
-                  repository: serviceTransactionRepository,
-                  seedRepository: transactionSeedRepository,
-                  transitionGateway: transactionTransitionGateway,
+          update:
+              (
+                _,
+                proposalProvider,
+                serviceRequestProvider,
+                transactionProvider,
+              ) {
+                final provider =
+                    transactionProvider ??
+                    ServiceTransactionProvider(
+                      repository: serviceTransactionRepository,
+                      seedRepository: transactionSeedRepository,
+                      transitionGateway: transactionTransitionGateway,
+                    );
+                provider.bindAndInitialize(
+                  proposalProvider: proposalProvider,
+                  serviceRequestProvider: serviceRequestProvider,
                 );
-            provider.bindAndInitialize(
-              proposalProvider: proposalProvider,
-              serviceRequestProvider: serviceRequestProvider,
-            );
-            return provider;
-          },
+                return provider;
+              },
         ),
         ChangeNotifierProvider(
           create: (_) => PrivateMessagingProvider(

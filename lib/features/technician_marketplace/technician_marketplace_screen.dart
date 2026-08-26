@@ -14,7 +14,7 @@ import '../../models/service_transaction.dart';
 import '../../providers/hdc_auth_provider.dart';
 import '../../providers/hdc_profile_provider.dart';
 import '../../providers/proposal_provider.dart';
-import '../../providers/service_request_provider.dart';
+import '../../providers/technician_discovery_provider.dart';
 import '../../providers/technician_marketplace_provider.dart';
 import '../profiles/profile_center_screen.dart';
 import '../transactions/my_transactions_screen.dart';
@@ -46,18 +46,14 @@ class _TechnicianMarketplaceScreenState
     super.dispose();
   }
 
-  List<ServiceRequest> _allRequests(ServiceRequestProvider provider) {
-    final liveRequests = provider.requests
-        .where((request) => request.status.acceptsProposals)
-        .toList(growable: false);
-    return liveRequests;
-  }
-
   Future<void> _refreshMarketplace() async {
-    final requests = context.read<ServiceRequestProvider>();
+    final discovery = context.read<TechnicianDiscoveryProvider>();
     final profiles = context.read<HdcProfileProvider>();
-    await Future.wait<void>([requests.refresh(), profiles.refresh()]);
-    if (!mounted || requests.lastError == null) return;
+    await Future.wait<void>([
+      discovery.refreshOpportunities(),
+      profiles.refresh(),
+    ]);
+    if (!mounted || discovery.opportunitiesError == null) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('HDC could not refresh opportunities. Try again.'),
@@ -224,10 +220,10 @@ class _TechnicianMarketplaceScreenState
     final technicianId = identity.id;
     final marketplace = context.watch<TechnicianMarketplaceProvider>();
     final proposalProvider = context.watch<ProposalProvider>();
-    final serviceRequests = context.watch<ServiceRequestProvider>();
+    final discovery = context.watch<TechnicianDiscoveryProvider>();
     final profiles = context.watch<HdcProfileProvider>();
     final technicianLocation = _technicianLocation(profiles);
-    final allRequests = _allRequests(serviceRequests);
+    final allRequests = discovery.opportunities;
     final requests = marketplace.applyFilters(
       allRequests,
       technicianId: technicianId,
@@ -245,7 +241,7 @@ class _TechnicianMarketplaceScreenState
       appBar: AppBar(
         title: const Text('Technician Marketplace'),
         actions: [
-          if (serviceRequests.isLoading)
+          if (discovery.isLoadingOpportunities)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 14),
               child: Center(
@@ -293,7 +289,7 @@ class _TechnicianMarketplaceScreenState
       body: SafeArea(
         child:
             marketplace.isLoading ||
-                (serviceRequests.isLoading && allRequests.isEmpty)
+                (discovery.isLoadingOpportunities && allRequests.isEmpty)
             ? const Center(child: CircularProgressIndicator())
             : LayoutBuilder(
                 builder: (context, constraints) {
@@ -354,7 +350,8 @@ class _TechnicianMarketplaceScreenState
                                       ),
                                     ),
                                     const SizedBox(height: 18),
-                                    if (serviceRequests.lastError != null) ...[
+                                    if (discovery.opportunitiesError !=
+                                        null) ...[
                                       _MarketplaceRefreshError(
                                         onRetry: _refreshMarketplace,
                                       ),
@@ -485,7 +482,7 @@ class _TechnicianMarketplaceScreenState
                                     const SizedBox(height: 4),
                                     Text(
                                       _lastUpdatedLabel(
-                                        serviceRequests.lastUpdated,
+                                        discovery.opportunitiesUpdatedAt,
                                       ),
                                       style: const TextStyle(
                                         color: HDCColors.textSecondary,
