@@ -3,6 +3,7 @@ set -euo pipefail
 
 HDC_FLUTTER_BIN="${HDC_FLUTTER_BIN:-flutter}"
 HDC_EXPECTED_FLUTTER_VERSION="$(tr -d '[:space:]' < .flutter-version)"
+HDC_MAP_SEARCH_URL_TEMPLATE="${HDC_MAP_SEARCH_URL_TEMPLATE:-https://www.openstreetmap.org/search?query={query}}"
 export CI="${CI:-true}"
 export FLUTTER_SUPPRESS_ANALYTICS="${FLUTTER_SUPPRESS_ANALYTICS:-true}"
 export PUB_ENVIRONMENT="${PUB_ENVIRONMENT:-bot}"
@@ -23,6 +24,7 @@ fi
   --no-web-resources-cdn \
   --base-href=/ \
   --dart-define=HDC_BACKEND_PROVIDER=api \
-  --dart-define=HDC_API_BASE_URL=same-origin
+  --dart-define=HDC_API_BASE_URL=same-origin \
+  --dart-define="HDC_MAP_SEARCH_URL_TEMPLATE=$HDC_MAP_SEARCH_URL_TEMPLATE"
 
 node scripts/prepare-netlify-web.mjs

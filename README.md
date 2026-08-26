@@ -25,6 +25,12 @@ payment, receipt issuance, delivery, or fulfillment. Build 15 also adds a
 restricted browser-origin policy and OPTIONS preflight handling so Flutter web
 can reach HDC authentication and workflow routes.
 
+Build 18 refreshes technician opportunities when the marketplace opens and on
+manual/pull refresh, then ranks matching textual service areas from the active
+Technician profile. Each request can open its service area in an external map.
+Exact radius or kilometer ranking is intentionally deferred until HDC collects
+consented coordinates for both request and technician locations.
+
 ## Endpoints
 
 - `GET /api/health`
@@ -144,6 +150,11 @@ The preferred production layout serves Flutter and `/api/*` from one HTTPS
 origin. Build it with `HDC_API_BASE_URL=same-origin`; no hosted cross-origin
 allow-list entry is then required. See `docs/NETLIFY_DEPLOYMENT.md`.
 
+Map search defaults to OpenStreetMap and requires no API key. Hosting can swap
+providers at build time with `HDC_MAP_SEARCH_URL_TEMPLATE`; include `{query}`
+where the encoded service area belongs. This is public client configuration,
+never a credential.
+
 Never commit real values. Store them in the hosting provider's secret/environment-variable system.
 
 ## Active Neon auth-contract migration
@@ -157,7 +168,7 @@ check, and converts `hdc_user_roles.role` without replacing users or role rows.
 This migration is intentionally separate from the historical Supabase adapter
 under `backend/supabase/migrations`. Do not apply that historical migration to
 the active Neon schema. Test 0001 on an isolated branch, then apply root
-migrations 0001 through 0008 in order.
+migrations 0001 through 0009 in order.
 
 ## Workflow migration
 

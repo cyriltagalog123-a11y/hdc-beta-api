@@ -3,6 +3,8 @@ import '../models/service_request.dart';
 abstract class ServiceRequestRepository {
   Future<void> initialize();
 
+  Future<void> refresh();
+
   List<ServiceRequest> getAll();
 
   ServiceRequest? byId(String id);

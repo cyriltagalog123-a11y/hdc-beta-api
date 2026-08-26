@@ -2949,7 +2949,7 @@ async function handleCreateProposal(
 
   const created = await withWorkflowAuthority(sql, user, async (tx) => {
     const requestRows = await tx`
-      SELECT id, status
+      SELECT id, customer_id, status
       FROM public.hdc_service_requests
       WHERE id = ${input.requestId}
       FOR UPDATE
@@ -2962,6 +2962,13 @@ async function handleCreateProposal(
         'request_not_accepting_proposals',
         409,
         'This request is no longer accepting proposals.',
+      );
+    }
+    if (String(requestRows[0].customer_id) === user.id) {
+      throw new WorkflowHttpError(
+        'self_proposal_not_allowed',
+        409,
+        'You cannot submit a technician proposal to your own service request.',
       );
     }
 
@@ -3645,7 +3652,7 @@ async function handleHdcApiRequestCore(
     return json({
       service: 'hdc-beta-api',
       status: 'ok',
-      build: '0.6.4-build17',
+      build: '0.6.4-build18',
     });
   }
   if (path === '/api/health/ready') return await handleReadiness(req);

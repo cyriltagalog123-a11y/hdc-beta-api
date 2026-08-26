@@ -1,6 +1,6 @@
 {
   "name": "hdc-beta-api",
-  "version": "0.6.4-build.17",
+  "version": "0.6.4-build.18",
   "private": true,
   "type": "module",
   "engines": {
@@ -12,9 +12,10 @@
     "verify:backup": "node scripts/postgres/verify-backup.mjs",
     "check:migrations": "node scripts/check-migration-checksums.mjs",
     "check:portability": "node scripts/check-portability.mjs",
+    "check:release": "node scripts/check-release-sync.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "verify": "npm run check:migrations && npm run check:portability && npm run typecheck && npm test"
+    "verify": "npm run check:migrations && npm run check:portability && npm run check:release && npm run typecheck && npm test"
   },
   "dependencies": {
     "@netlify/functions": "^4.2.5",

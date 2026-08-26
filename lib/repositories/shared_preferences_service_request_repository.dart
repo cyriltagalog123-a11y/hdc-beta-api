@@ -16,25 +16,31 @@ class SharedPreferencesServiceRequestRepository
   Future<void> initialize() async {
     if (_initialized) return;
 
+    await _load();
+    _initialized = true;
+  }
+
+  @override
+  Future<void> refresh() async {
+    await _load();
+    _initialized = true;
+  }
+
+  Future<void> _load() async {
     final preferences = await SharedPreferences.getInstance();
     final stored = preferences.getString(_storageKey);
 
+    _requests.clear();
     if (stored != null && stored.trim().isNotEmpty) {
       final decoded = jsonDecode(stored);
       if (decoded is List) {
-        _requests
-          ..clear()
-          ..addAll(
-            decoded.whereType<Map>().map(
-              (item) => ServiceRequest.fromJson(
-                Map<String, dynamic>.from(item),
-              ),
-            ),
-          );
+        _requests.addAll(
+          decoded.whereType<Map>().map(
+            (item) => ServiceRequest.fromJson(Map<String, dynamic>.from(item)),
+          ),
+        );
       }
     }
-
-    _initialized = true;
   }
 
   @override

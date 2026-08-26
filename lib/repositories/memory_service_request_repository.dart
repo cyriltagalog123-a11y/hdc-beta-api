@@ -5,6 +5,9 @@ class MemoryServiceRequestRepository implements ServiceRequestRepository {
   @override
   Future<void> initialize() async {}
 
+  @override
+  Future<void> refresh() async {}
+
   final List<ServiceRequest> _requests = [];
 
   @override

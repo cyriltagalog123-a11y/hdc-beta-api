@@ -14,10 +14,13 @@ class ServiceRequestProvider extends ChangeNotifier {
   Object? _lastError;
   Future<ServiceRequest>? _publishInFlight;
   String? _publishRequestId;
+  Future<void>? _refreshInFlight;
+  DateTime? _lastUpdated;
 
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
   Object? get lastError => _lastError;
+  DateTime? get lastUpdated => _lastUpdated;
 
   List<ServiceRequest> get requests => repository.getAll();
 
@@ -36,6 +39,35 @@ class ServiceRequestProvider extends ChangeNotifier {
     try {
       await repository.initialize();
       _lastError = null;
+      _lastUpdated = DateTime.now();
+    } on Object catch (error) {
+      _lastError = error;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> refresh() {
+    final active = _refreshInFlight;
+    if (active != null) return active;
+
+    final pending = _refresh();
+    _refreshInFlight = pending;
+    return pending.whenComplete(() {
+      if (identical(_refreshInFlight, pending)) {
+        _refreshInFlight = null;
+      }
+    });
+  }
+
+  Future<void> _refresh() async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await repository.refresh();
+      _lastError = null;
+      _lastUpdated = DateTime.now();
     } on Object catch (error) {
       _lastError = error;
     } finally {

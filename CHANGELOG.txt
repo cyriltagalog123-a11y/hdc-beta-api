@@ -1,6 +1,17 @@
 HDC BETA API CHANGELOG
 ======================
 
+2026-08-25 - Build 18 live technician request discovery
+- Refreshes the technician opportunity feed on entry, pull-to-refresh, and the
+  explicit refresh action so separately logged-in accounts receive new posts.
+- Adds location/service/keyword search, sort controls, Technician-profile area
+  matching, and configurable external map search without pretending textual
+  areas are exact GPS distances.
+- Prevents customer records from leaking into another account's My Requests
+  view and blocks an account from proposing to its own request.
+- Synchronizes Flutter, web, API health, dashboard, and package release markers
+  and verifies them automatically before deployment.
+
 2026-08-24 - Build 17 service-request reliability hotfix
 - Repaired the Neon/PostgreSQL role membership that prevented the API from
   entering HDC's restricted RLS role for service requests and proposals.
