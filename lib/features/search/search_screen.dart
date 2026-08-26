@@ -659,12 +659,12 @@ class _DirectorySignInRequired extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Find a Technician')),
-      body: const Center(
+      body: Center(
         child: Padding(
-          padding: EdgeInsets.all(28),
+          padding: const EdgeInsets.all(28),
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: 520),
-            child: Column(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: const Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.lock_person_outlined, size: 58),

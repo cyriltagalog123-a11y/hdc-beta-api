@@ -177,7 +177,6 @@ class TechnicianDiscoveryProvider extends ChangeNotifier {
     return values;
   }
 
-  @visibleForTesting
   static int areaMatchRank(String candidateLocation, String serviceArea) {
     final candidate = _normalizeLocation(candidateLocation);
     final requested = _normalizeLocation(serviceArea);
