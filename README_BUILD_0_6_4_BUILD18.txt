@@ -18,7 +18,9 @@ IMPLEMENTED
 - A Map action opens the request's textual service area using a replaceable URL
   template. OpenStreetMap is the zero-cost default and no map key is stored.
 - A release check prevents package, Flutter, dashboard, and API build markers
-  from drifting apart again.
+  from drifting apart again, including a stale generated web bundle.
+- Hosted CI uses the pinned Flutter version to analyze, test, and produce the
+  candidate web bundle before production promotion.
 
 LOCATION LIMIT
 - Build 18 does not calculate exact kilometers or expose a live home address.

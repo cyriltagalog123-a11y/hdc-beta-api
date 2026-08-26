@@ -32,4 +32,20 @@ for (const [target, marker] of Object.entries(expected)) {
   );
 }
 
+try {
+  const generatedVersion = JSON.parse(await read('build/web/version.json'));
+  assert.equal(
+    String(generatedVersion.version),
+    semanticVersion,
+    'generated Flutter web version is stale',
+  );
+  assert.equal(
+    String(generatedVersion.build_number),
+    buildNumber,
+    'generated Flutter web build number is stale',
+  );
+} catch (error) {
+  if (error?.code !== 'ENOENT') throw error;
+}
+
 console.log(`HDC release markers synchronized at ${semanticVersion}+${buildNumber}.`);

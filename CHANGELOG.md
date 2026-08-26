@@ -13,7 +13,8 @@
   This release does not claim exact distance because coordinates are not yet
   collected with user consent.
 - Synchronizes Flutter, dashboard, API health, web package, and release tests at
-  Build 18 and adds an automated release-marker consistency gate.
+  Build 18 and adds automated release-marker and generated-web consistency
+  gates plus a pinned hosted Flutter analysis/test/build job.
 
 ## 0.6.4+17 — 2026-08-24
 

@@ -1,4 +1,4 @@
-name: HDC Backend CI
+name: HDC CI
 
 on:
   push:
@@ -52,3 +52,33 @@ jobs:
             exit 1
           fi
           echo 'No known HDC secret patterns found.'
+
+  flutter-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: .flutter-version
+          channel: stable
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Analyze, test, and build Flutter web
+        run: npm run build:web
+
+      - name: Upload verified Flutter web bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: hdc-web-build18
+          path: build/web
+          if-no-files-found: error
+          retention-days: 3
