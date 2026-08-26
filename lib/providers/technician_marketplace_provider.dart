@@ -158,7 +158,9 @@ class TechnicianMarketplaceProvider extends ChangeNotifier {
           if (technicianId != null && request.customerId == technicianId) {
             return false;
           }
-          if (_savedOnly && !isSaved(request.id)) return false;
+          if (_savedOnly && !isSaved(request.id)) {
+            return false;
+          }
           if (_category != null && request.categoryName != _category)
             return false;
           if (_urgency != null && request.urgency != _urgency) return false;

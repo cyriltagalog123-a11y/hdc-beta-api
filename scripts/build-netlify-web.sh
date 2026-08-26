@@ -28,3 +28,4 @@ fi
   --dart-define="HDC_MAP_SEARCH_URL_TEMPLATE=$HDC_MAP_SEARCH_URL_TEMPLATE"
 
 node scripts/prepare-netlify-web.mjs
+node scripts/check-release-sync.mjs

@@ -32,6 +32,9 @@ jobs:
       - name: Immutable migration checksums
         run: npm run check:migrations
 
+      - name: Release synchronization
+        run: npm run check:release
+
       - name: Typecheck
         run: npm run typecheck
 
