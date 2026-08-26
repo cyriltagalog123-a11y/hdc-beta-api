@@ -14,7 +14,8 @@
   collected with user consent.
 - Synchronizes Flutter, dashboard, API health, web package, and release tests at
   Build 18 and adds automated release-marker and generated-web consistency
-  gates plus a pinned hosted Flutter analysis/test/build job.
+  gates plus a pinned hosted Flutter analysis/test/build job that synchronizes
+  only its verified bundle back to the same first-party review branch.
 
 ## 0.6.4+17 — 2026-08-24
 

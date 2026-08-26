@@ -20,7 +20,8 @@ IMPLEMENTED
 - A release check prevents package, Flutter, dashboard, and API build markers
   from drifting apart again, including a stale generated web bundle.
 - Hosted CI uses the pinned Flutter version to analyze, test, and produce the
-  candidate web bundle before production promotion.
+  candidate web bundle, then synchronizes that verified output to the same HDC
+  review branch before production promotion.
 
 LOCATION LIMIT
 - Build 18 does not calculate exact kilometers or expose a live home address.
