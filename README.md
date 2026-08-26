@@ -25,10 +25,12 @@ payment, receipt issuance, delivery, or fulfillment. Build 15 also adds a
 restricted browser-origin policy and OPTIONS preflight handling so Flutter web
 can reach HDC authentication and workflow routes.
 
-Build 18 refreshes technician opportunities when the marketplace opens and on
-manual/pull refresh, then ranks matching textual service areas from the active
-Technician profile. Each request can open its service area in an external map.
-Exact radius or kilometer ranking is intentionally deferred until HDC collects
+Build 19 gives technician discovery its own API boundary. Approved Technicians
+receive open requests posted by other accounts through an explicit opportunity
+feed, while Customers can manually search public Technician profiles by name,
+skill, specialty, or service area and open a listed area in a map. Technician
+profiles remain private until their owner enables public discovery. Exact
+radius or kilometer ranking is intentionally deferred until HDC collects
 consented coordinates for both request and technician locations.
 
 ## Endpoints
@@ -54,6 +56,8 @@ consented coordinates for both request and technician locations.
 - `GET /api/profiles`
 - `PUT /api/profiles/member`
 - `PUT /api/profiles/:role`
+- `GET /api/discovery/technicians` (authenticated, public profiles only)
+- `GET /api/discovery/opportunities` (active Technician role required)
 - `GET /api/commerce/catalog` (public active-listing catalog)
 - `GET /api/commerce/buyer-dashboard`
 - `GET /api/commerce/seller-dashboard`

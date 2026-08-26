@@ -1198,6 +1198,28 @@ function platformRoleProfileView(
   };
 }
 
+function technicianDirectoryEntryView(
+  row: Record<string, unknown>,
+): Record<string, unknown> {
+  const details = row.details && typeof row.details === 'object' &&
+      !Array.isArray(row.details)
+    ? row.details
+    : {};
+  return {
+    profileId: String(row.id),
+    publicMemberId: String(row.public_member_id),
+    publicName: String(row.public_name),
+    headline: String(row.headline ?? ''),
+    description: String(row.description ?? ''),
+    location: String(row.location ?? ''),
+    contactEmail: String(row.contact_email ?? ''),
+    contactPhone: String(row.contact_phone ?? ''),
+    website: String(row.website ?? ''),
+    details,
+    updatedAt: new Date(String(row.updated_at)).toISOString(),
+  };
+}
+
 function internalStaffAssignmentView(
   row: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -1291,6 +1313,40 @@ async function handleProfilesOverview(
     memberProfile: memberProfileView(rowObject(memberRows[0])),
     roleProfiles: roleRows.map((row) =>
       platformRoleProfileView(rowObject(row))),
+  });
+}
+
+async function handleTechnicianDirectory(
+  req: Request,
+  sql: DbClient,
+): Promise<Response> {
+  if (req.method !== 'GET') return methodNotAllowed();
+
+  const rows = await sql`
+    SELECT
+      profile.*,
+      member.public_member_id
+    FROM public.hdc_platform_role_profiles profile
+    JOIN public.hdc_users member
+      ON member.id = profile.user_id
+      AND member.status = 'active'
+    JOIN public.hdc_user_roles assignment
+      ON assignment.user_id = profile.user_id
+      AND assignment.role::text = 'technician'
+      AND assignment.is_active = true
+      AND assignment.status = 'active'
+    WHERE profile.role = 'technician'
+      AND profile.is_public = true
+    ORDER BY
+      CASE WHEN profile.location = '' THEN 1 ELSE 0 END,
+      profile.updated_at DESC,
+      profile.public_name ASC
+  `;
+
+  return json({
+    technicians: rows.map((row) =>
+      technicianDirectoryEntryView(rowObject(row))),
+    updatedAt: new Date().toISOString(),
   });
 }
 
@@ -2710,6 +2766,31 @@ async function handleWorkflowBootstrap(
   return json(result);
 }
 
+async function handleTechnicianOpportunities(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+): Promise<Response> {
+  if (req.method !== 'GET') return methodNotAllowed();
+  requireWorkflowRole(user, 'technician');
+
+  const requests = await withWorkflowAuthority(sql, user, async (tx) => {
+    return await tx`
+      SELECT *
+      FROM public.hdc_service_requests
+      WHERE status IN ('open', 'receivingOffers')
+        AND customer_id <> ${user.id}
+      ORDER BY created_at DESC
+    `;
+  });
+
+  return json({
+    serviceRequests: requests.map((row) =>
+      serviceRequestView(rowObject(row))),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 async function handleCreateServiceRequest(
   req: Request,
   sql: DbClient,
@@ -3652,7 +3733,7 @@ async function handleHdcApiRequestCore(
     return json({
       service: 'hdc-beta-api',
       status: 'ok',
-      build: '0.6.4-build18',
+      build: '0.6.4-build19',
     });
   }
   if (path === '/api/health/ready') return await handleReadiness(req);
@@ -3685,6 +3766,10 @@ async function handleHdcApiRequestCore(
     path === '/api/profiles' ||
     path === '/api/profiles/member' ||
     path.startsWith('/api/profiles/');
+
+  const isDiscoveryPath =
+    path === '/api/discovery/technicians' ||
+    path === '/api/discovery/opportunities';
 
   const isCommercePath =
     path === '/api/commerce/catalog' ||
@@ -3752,6 +3837,18 @@ async function handleHdcApiRequestCore(
           session.user,
           profileMatch[1],
         );
+      }
+    }
+
+    if (isDiscoveryPath) {
+      const session = await activeSession(req, sql);
+      if (!session) return json({ error: 'unauthorized' }, 401);
+
+      if (path === '/api/discovery/technicians') {
+        return await handleTechnicianDirectory(req, sql);
+      }
+      if (path === '/api/discovery/opportunities') {
+        return await handleTechnicianOpportunities(req, sql, session.user);
       }
     }
 
@@ -3930,7 +4027,7 @@ async function handleHdcApiRequestCore(
       : '';
     if (databaseCode === '23505') {
       return json({
-        error: isProfilePath
+        error: isProfilePath || isDiscoveryPath
           ? 'profile_conflict'
           : isCommercePath
             ? 'commerce_conflict'
@@ -3940,7 +4037,7 @@ async function handleHdcApiRequestCore(
     }
     if (databaseCode === '23503' || databaseCode === '23514') {
       return json({
-        error: isProfilePath
+        error: isProfilePath || isDiscoveryPath
           ? 'invalid_profile_relationship'
           : isCommercePath
             ? 'invalid_commerce_relationship'
@@ -3952,7 +4049,7 @@ async function handleHdcApiRequestCore(
     }
     if (databaseCode === '42P01' || databaseCode === '42704') {
       return json({
-        error: isProfilePath
+        error: isProfilePath || isDiscoveryPath
           ? 'profile_backend_not_ready'
           : isCommercePath
             ? 'commerce_backend_not_ready'
@@ -3965,7 +4062,7 @@ async function handleHdcApiRequestCore(
       }, 503);
     }
 
-    if (databaseCode === '42501' && isWorkflowPath) {
+    if (databaseCode === '42501' && (isWorkflowPath || isDiscoveryPath)) {
       console.error('HDC workflow authority unavailable', {
         referenceId: requestReference,
         method: req.method,
@@ -4053,6 +4150,8 @@ export const config: Config = {
     '/api/profiles',
     '/api/profiles/member',
     '/api/profiles/:role',
+    '/api/discovery/technicians',
+    '/api/discovery/opportunities',
     '/api/commerce/catalog',
     '/api/commerce/buyer-dashboard',
     '/api/commerce/seller-dashboard',

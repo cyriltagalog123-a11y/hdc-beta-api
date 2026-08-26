@@ -41,19 +41,14 @@ class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
   Future<void> _openRoleCenter(BuildContext context) async {
-    if (!await requireRegisteredUser(
-      context,
-      action: 'manage account roles',
-    )) {
+    if (!await requireRegisteredUser(context, action: 'manage account roles')) {
       return;
     }
     if (!context.mounted) return;
 
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const RoleCenterScreen(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const RoleCenterScreen()));
   }
 
   Future<void> _openProfiles(BuildContext context) async {
@@ -66,17 +61,13 @@ class DashboardScreen extends StatelessWidget {
     if (!context.mounted) return;
 
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const ProfileCenterScreen(),
-      ),
+      MaterialPageRoute<void>(builder: (_) => const ProfileCenterScreen()),
     );
   }
 
   void _openPrivateDashboard(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const InternalDashboardScreen(),
-      ),
+      MaterialPageRoute<void>(builder: (_) => const InternalDashboardScreen()),
     );
   }
 
@@ -89,9 +80,8 @@ class DashboardScreen extends StatelessWidget {
     }
     if (!context.mounted) return;
 
-    Navigator.of(context).push(
-      HDCPageRoute<void>(page: const CreateServiceRequestScreen()),
-    );
+    Navigator.of(context)
+        .push(HDCPageRoute<void>(page: const CreateServiceRequestScreen()));
   }
 
   Future<void> _openMyRequests(BuildContext context) async {
@@ -103,9 +93,8 @@ class DashboardScreen extends StatelessWidget {
     }
     if (!context.mounted) return;
 
-    Navigator.of(context).push(
-      HDCPageRoute<void>(page: const MyServiceRequestsScreen()),
-    );
+    Navigator.of(context)
+        .push(HDCPageRoute<void>(page: const MyServiceRequestsScreen()));
   }
 
   Future<void> _openTransactions(BuildContext context, String actorId) async {
@@ -129,11 +118,7 @@ class DashboardScreen extends StatelessWidget {
 
   void _openTechnicianSearch(BuildContext context) {
     Navigator.of(context).push(
-      HDCPageRoute<void>(
-        page: SearchScreen(
-          draft: ServiceRequestDraft(),
-        ),
-      ),
+      HDCPageRoute<void>(page: SearchScreen(draft: ServiceRequestDraft())),
     );
   }
 
@@ -150,7 +135,8 @@ class DashboardScreen extends StatelessWidget {
     if (!context.mounted) return;
 
     final identity = auth.identity;
-    final allowed = auth.authenticated &&
+    final allowed =
+        auth.authenticated &&
         identity != null &&
         identity.hasPlatformRole(HDCPlatformRole.technician);
 
@@ -166,27 +152,18 @@ class DashboardScreen extends StatelessWidget {
       return;
     }
 
-    Navigator.of(context).push(
-      HDCPageRoute<void>(
-        page: const TechnicianMarketplaceScreen(),
-      ),
-    );
+    Navigator.of(context)
+        .push(HDCPageRoute<void>(page: const TechnicianMarketplaceScreen()));
   }
 
   Future<void> _openTickets(BuildContext context) async {
-    if (!await requireRegisteredUser(
-      context,
-      action: 'view your tickets',
-    )) {
+    if (!await requireRegisteredUser(context, action: 'view your tickets')) {
       return;
     }
     if (!context.mounted) return;
 
-    Navigator.of(context).push(
-      HDCPageRoute<void>(
-        page: const MyTicketsScreen(),
-      ),
-    );
+    Navigator.of(context)
+        .push(HDCPageRoute<void>(page: const MyTicketsScreen()));
   }
 
   Future<void> _openSalesCenter(BuildContext context) async {
@@ -198,15 +175,13 @@ class DashboardScreen extends StatelessWidget {
     }
     if (!context.mounted) return;
 
-    Navigator.of(context).push(
-      HDCPageRoute<void>(page: const SalesCenterScreen()),
-    );
+    Navigator.of(context)
+        .push(HDCPageRoute<void>(page: const SalesCenterScreen()));
   }
 
   void _openProductMarketplace(BuildContext context) {
-    Navigator.of(context).push(
-      HDCPageRoute<void>(page: const MarketplaceCatalogScreen()),
-    );
+    Navigator.of(context)
+        .push(HDCPageRoute<void>(page: const MarketplaceCatalogScreen()));
   }
 
   void _showComingSoon(BuildContext context, String feature) {
@@ -300,10 +275,7 @@ class DashboardScreen extends StatelessWidget {
     return entries.take(5).toList(growable: false);
   }
 
-  Future<void> _signOut(
-    BuildContext context,
-    HDCAuthProvider auth,
-  ) async {
+  Future<void> _signOut(BuildContext context, HDCAuthProvider auth) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -313,7 +285,7 @@ class DashboardScreen extends StatelessWidget {
             auth.guestMode
                 ? 'You will return to the HDC sign-in screen.'
                 : 'You will need to sign in again to access your account, '
-                    'service requests, transactions, and private conversations.',
+                      'service requests, transactions, and private conversations.',
           ),
           actions: [
             TextButton(
@@ -342,9 +314,7 @@ class DashboardScreen extends StatelessWidget {
       }
 
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(
-          builder: (_) => const LoginScreen(),
-        ),
+        MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
         (route) => false,
       );
     } on Object catch (error) {
@@ -352,11 +322,8 @@ class DashboardScreen extends StatelessWidget {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not sign out: $error'),
-        ),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Could not sign out: $error')));
     }
   }
 
@@ -380,38 +347,39 @@ class DashboardScreen extends StatelessWidget {
 
     final ownedRequests = isRegisteredUser
         ? requestProvider.requests
-            .where((request) => request.customerId == actorId)
-            .toList(growable: false)
+              .where((request) => request.customerId == actorId)
+              .toList(growable: false)
         : const <ServiceRequest>[];
     final ownedRequestIds = ownedRequests.map((request) => request.id).toSet();
     final receivedProposals = isRegisteredUser
         ? proposalProvider.proposals
-            .where((proposal) => ownedRequestIds.contains(proposal.requestId))
-            .where((proposal) => proposal.status != ProposalStatus.draft)
-            .where((proposal) => proposal.status != ProposalStatus.withdrawn)
-            .toList(growable: false)
+              .where((proposal) => ownedRequestIds.contains(proposal.requestId))
+              .where((proposal) => proposal.status != ProposalStatus.draft)
+              .where((proposal) => proposal.status != ProposalStatus.withdrawn)
+              .toList(growable: false)
         : const <Proposal>[];
     final relevantProposals = isRegisteredUser
         ? proposalProvider.proposals
-            .where(
-              (proposal) =>
-                  ownedRequestIds.contains(proposal.requestId) ||
-                  proposal.technicianId == actorId,
-            )
-            .where((proposal) => proposal.status != ProposalStatus.draft)
-            .where((proposal) => proposal.status != ProposalStatus.withdrawn)
-            .toList(growable: false)
+              .where(
+                (proposal) =>
+                    ownedRequestIds.contains(proposal.requestId) ||
+                    proposal.technicianId == actorId,
+              )
+              .where((proposal) => proposal.status != ProposalStatus.draft)
+              .where((proposal) => proposal.status != ProposalStatus.withdrawn)
+              .toList(growable: false)
         : const <Proposal>[];
     final accountTransactions = isRegisteredUser
         ? transactionProvider.transactions
-            .where((transaction) => transaction.isParticipant(actorId))
-            .toList(growable: false)
+              .where((transaction) => transaction.isParticipant(actorId))
+              .toList(growable: false)
         : const <ServiceTransaction>[];
     final accountTickets = isRegisteredUser
         ? ticketProvider.tickets
         : const <Ticket>[];
-    final activeRequests =
-        ownedRequests.where((request) => request.status.isActive).length;
+    final activeRequests = ownedRequests
+        .where((request) => request.status.isActive)
+        .length;
     final totalOffers = receivedProposals.length;
     final activeTransactions = accountTransactions
         .where((transaction) => transaction.status.isActive)
@@ -423,7 +391,8 @@ class DashboardScreen extends StatelessWidget {
               ticket.status != TicketStatus.cancelled,
         )
         .length;
-    final completedJobCount = accountTransactions
+    final completedJobCount =
+        accountTransactions
             .where(
               (transaction) =>
                   transaction.status == ServiceTransactionStatus.completed,
@@ -452,6 +421,14 @@ class DashboardScreen extends StatelessWidget {
               tooltip: 'Switch to Private Dashboard',
               icon: const Icon(Icons.swap_horizontal_circle_outlined),
               onPressed: () => _openPrivateDashboard(context),
+            ),
+          if (auth.authenticated &&
+              auth.identity?.hasPlatformRole(HDCPlatformRole.technician) ==
+                  true)
+            IconButton(
+              tooltip: 'Browse Technician Jobs',
+              icon: const Icon(Icons.engineering_outlined),
+              onPressed: () => _openTechnicianMarketplace(context, auth),
             ),
           IconButton(
             tooltip: 'Active Services',
@@ -486,12 +463,7 @@ class DashboardScreen extends StatelessWidget {
           IconButton(
             tooltip: auth.guestMode ? 'Exit Guest Session' : 'Sign Out',
             icon: const Icon(Icons.logout),
-            onPressed: auth.isBusy
-                ? null
-                : () => _signOut(
-                      context,
-                      auth,
-                    ),
+            onPressed: auth.isBusy ? null : () => _signOut(context, auth),
           ),
         ],
       ),
@@ -524,8 +496,7 @@ class DashboardScreen extends StatelessWidget {
                       const SizedBox(height: 24),
                       DashboardPrimaryActions(
                         onPostRequest: () => _openPostRequest(context),
-                        onFindTechnician: () =>
-                            _openTechnicianSearch(context),
+                        onFindTechnician: () => _openTechnicianSearch(context),
                         onShopTechnology: () =>
                             _openProductMarketplace(context),
                       ),
@@ -560,10 +531,11 @@ class DashboardScreen extends StatelessWidget {
                                     isLoading: salesProvider.isLoading,
                                     isCatalogLoading:
                                         marketplaceProvider.isLoadingCatalog,
-                                    availableProductCount:
-                                        marketplaceProvider.availableProductCount,
+                                    availableProductCount: marketplaceProvider
+                                        .availableProductCount,
                                     pendingBuyerPurchaseCount:
-                                        marketplaceProvider.pendingPurchaseCount,
+                                        marketplaceProvider
+                                            .pendingPurchaseCount,
                                     activeListingCount:
                                         salesProvider.activeListingCount,
                                     soldListingCount:
@@ -606,7 +578,8 @@ class DashboardScreen extends StatelessWidget {
                                     _openTechnicianMarketplace(context, auth),
                                 onPassport: () => _openPassport(context),
                                 onRoleCenter: () => _openRoleCenter(context),
-                                canAccessMarketplace: auth.authenticated &&
+                                canAccessMarketplace:
+                                    auth.authenticated &&
                                     auth.identity?.hasPlatformRole(
                                           HDCPlatformRole.technician,
                                         ) ==
@@ -631,8 +604,7 @@ class DashboardScreen extends StatelessWidget {
                         DashboardMarketplaceOverview(
                           guestMode: auth.guestMode,
                           canSell: salesProvider.canSell,
-                          hasListingHistory:
-                              salesProvider.hasListingHistory,
+                          hasListingHistory: salesProvider.hasListingHistory,
                           isLoading: salesProvider.isLoading,
                           isCatalogLoading:
                               marketplaceProvider.isLoadingCatalog,
@@ -640,8 +612,7 @@ class DashboardScreen extends StatelessWidget {
                               marketplaceProvider.availableProductCount,
                           pendingBuyerPurchaseCount:
                               marketplaceProvider.pendingPurchaseCount,
-                          activeListingCount:
-                              salesProvider.activeListingCount,
+                          activeListingCount: salesProvider.activeListingCount,
                           soldListingCount: salesProvider.soldListingCount,
                           lowStockListingCount:
                               salesProvider.lowStockListingCount,
@@ -662,13 +633,15 @@ class DashboardScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 24),
                         DashboardQuickAccess(
-                          onTransactions: () => _openTransactions(context, actorId),
+                          onTransactions: () =>
+                              _openTransactions(context, actorId),
                           onTickets: () => _openTickets(context),
                           onMarketplace: () =>
                               _openTechnicianMarketplace(context, auth),
                           onPassport: () => _openPassport(context),
                           onRoleCenter: () => _openRoleCenter(context),
-                          canAccessMarketplace: auth.authenticated &&
+                          canAccessMarketplace:
+                              auth.authenticated &&
                               auth.identity?.hasPlatformRole(
                                     HDCPlatformRole.technician,
                                   ) ==
@@ -683,7 +656,7 @@ class DashboardScreen extends StatelessWidget {
                       const SizedBox(height: 32),
                       const Center(
                         child: Text(
-                          'HelpDesk Connect Beta v0.6.4 Build 18',
+                          'HelpDesk Connect Beta v0.6.4 Build 19',
                           style: TextStyle(color: HDCColors.textSecondary),
                         ),
                       ),

@@ -85,7 +85,7 @@ jobs:
       - name: Upload verified Flutter web bundle
         uses: actions/upload-artifact@v4
         with:
-          name: hdc-web-build18
+          name: hdc-web-build19
           path: build/web
           if-no-files-found: error
           retention-days: 3
@@ -105,5 +105,5 @@ jobs:
             echo "Verified Flutter web bundle is already synchronized."
             exit 0
           fi
-          git commit -m "Synchronize verified Build 18 web bundle"
+          git commit -m "Synchronize verified Build 19 web bundle"
           git push origin "HEAD:${HDC_REVIEW_BRANCH}"
