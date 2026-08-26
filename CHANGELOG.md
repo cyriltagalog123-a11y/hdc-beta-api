@@ -1,5 +1,24 @@
 # HDC Change Log
 
+## 0.6.4+18 — 2026-08-25
+
+- Refreshes authenticated workflow data whenever a technician opens or pulls
+  down the marketplace, with a refresh action, error state, and last-updated
+  time so requests posted in another active session appear without relogging.
+- Keeps the customer and technician workspaces isolated: My Service Requests
+  shows only the signed-in customer's records, the opportunity feed excludes
+  that same account's posts, and the API rejects self-proposals.
+- Adds searchable technician opportunities, selectable sorting, area-text
+  matching from the Technician profile, and a configurable external map search.
+  This release does not claim exact distance because coordinates are not yet
+  collected with user consent.
+- Synchronizes Flutter, dashboard, API health, web package, and release tests at
+  Build 18 and adds automated release-marker and generated-web consistency
+  gates plus a pinned hosted Flutter analysis/test/build job that synchronizes
+  only its verified bundle back to the same first-party review branch.
+- Normalizes Flutter's generated service-worker marker to the HDC release ID so
+  identical release builds do not create meaningless generated-file changes.
+
 ## 0.6.4+17 — 2026-08-24
 
 - Fixed authenticated workflow writes on Neon/PostgreSQL by adding migration

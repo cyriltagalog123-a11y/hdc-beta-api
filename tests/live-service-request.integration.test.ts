@@ -9,7 +9,7 @@ async function api(
   init: RequestInit = {},
 ): Promise<{ response: Response; body: Record<string, unknown> }> {
   const response = await handleHdcApiRequest(
-    new Request(`https://hdc-build17.test${path}`, {
+    new Request(`https://hdc-build18.test${path}`, {
       ...init,
       headers: {
         accept: 'application/json',
@@ -25,15 +25,15 @@ async function api(
 describe.skipIf(!runLiveIntegration)('isolated service-request integration', () => {
   it('registers, signs in, and publishes a request through the production handler', async () => {
     const unique = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const email = `hdc-build17-${unique}@example.invalid`;
-    const password = 'Build17!Isolated-Test-4829';
+    const email = `hdc-build18-${unique}@example.invalid`;
+    const password = 'Build18!Isolated-Test-4829';
 
     const registration = await api('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({
         email,
         password,
-        displayName: 'Build 17 Integration Tester',
+        displayName: 'Build 18 Integration Tester',
         recoveryAnswers: [
           { questionCode: 'first_meal', answer: 'ginger rice porridge' },
           { questionCode: 'childhood_nickname', answer: 'quiet comet' },

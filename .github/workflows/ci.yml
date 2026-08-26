@@ -1,4 +1,4 @@
-name: HDC Backend CI
+name: HDC CI
 
 on:
   push:
@@ -32,6 +32,9 @@ jobs:
       - name: Immutable migration checksums
         run: npm run check:migrations
 
+      - name: Release synchronization
+        run: npm run check:release
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -52,3 +55,55 @@ jobs:
             exit 1
           fi
           echo 'No known HDC secret patterns found.'
+
+  flutter-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: .flutter-version
+          channel: stable
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Analyze, test, and build Flutter web
+        run: npm run build:web
+
+      - name: Upload verified Flutter web bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: hdc-web-build18
+          path: build/web
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Synchronize verified web bundle with review branch
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          HDC_REVIEW_BRANCH: ${{ github.head_ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f build/web/.last_build_id
+          git add -A -f build/web
+          if git diff --cached --quiet; then
+            echo "Verified Flutter web bundle is already synchronized."
+            exit 0
+          fi
+          git commit -m "Synchronize verified Build 18 web bundle"
+          git push origin "HEAD:${HDC_REVIEW_BRANCH}"

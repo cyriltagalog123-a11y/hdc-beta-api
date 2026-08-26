@@ -13,11 +13,8 @@ import 'service_transaction_repository.dart';
 import 'service_transaction_transition_gateway.dart';
 import 'transaction_seed_repository.dart';
 
-class HdcApiWorkflowStore
-    extends ChangeNotifier
-    implements
-        ProposalAcceptanceGateway,
-        ServiceTransactionTransitionGateway {
+class HdcApiWorkflowStore extends ChangeNotifier
+    implements ProposalAcceptanceGateway, ServiceTransactionTransitionGateway {
   final HdcWorkflowApiClient client;
 
   final List<ServiceRequest> _serviceRequests = [];
@@ -82,10 +79,7 @@ class HdcApiWorkflowStore
     }
   }
 
-  Future<void> _performRefresh(
-    String? userId,
-    int bindingVersion,
-  ) async {
+  Future<void> _performRefresh(String? userId, int bindingVersion) async {
     if (userId == null) {
       if (_bindingVersion == bindingVersion && _boundUserId == null) {
         clear();
@@ -104,18 +98,22 @@ class HdcApiWorkflowStore
 
     final response = await client.get('/api/workflow/bootstrap');
     if (_bindingVersion != bindingVersion || _boundUserId != userId) return;
-    final requests = _list(response, 'serviceRequests')
-        .map(ServiceRequest.fromJson)
-        .toList(growable: false);
-    final proposals = _list(response, 'proposals')
-        .map(Proposal.fromJson)
-        .toList(growable: false);
-    final seeds = _list(response, 'transactionSeeds')
-        .map(TransactionSeed.fromJson)
-        .toList(growable: false);
-    final transactions = _list(response, 'serviceTransactions')
-        .map(ServiceTransaction.fromJson)
-        .toList(growable: false);
+    final requests = _list(
+      response,
+      'serviceRequests',
+    ).map(ServiceRequest.fromJson).toList(growable: false);
+    final proposals = _list(
+      response,
+      'proposals',
+    ).map(Proposal.fromJson).toList(growable: false);
+    final seeds = _list(
+      response,
+      'transactionSeeds',
+    ).map(TransactionSeed.fromJson).toList(growable: false);
+    final transactions = _list(
+      response,
+      'serviceTransactions',
+    ).map(ServiceTransaction.fromJson).toList(growable: false);
 
     _serviceRequests
       ..clear()
@@ -264,15 +262,11 @@ class HdcApiWorkflowStore
     final response = await client.post(
       '/api/proposals/${Uri.encodeComponent(proposalId)}/accept',
     );
-    final accepted = Proposal.fromJson(
-      _object(response, 'acceptedProposal'),
-    );
+    final accepted = Proposal.fromJson(_object(response, 'acceptedProposal'));
     final request = ServiceRequest.fromJson(
       _object(response, 'updatedRequest'),
     );
-    final seed = TransactionSeed.fromJson(
-      _object(response, 'transactionSeed'),
-    );
+    final seed = TransactionSeed.fromJson(_object(response, 'transactionSeed'));
     final transaction = ServiceTransaction.fromJson(
       _object(response, 'serviceTransaction'),
     );
@@ -386,10 +380,7 @@ class HdcApiWorkflowStore
     return updated;
   }
 
-  Map<String, dynamic> _object(
-    Map<String, dynamic> parent,
-    String key,
-  ) {
+  Map<String, dynamic> _object(Map<String, dynamic> parent, String key) {
     final value = parent[key];
     if (value is Map<String, dynamic>) return value;
     if (value is Map) {
@@ -401,10 +392,7 @@ class HdcApiWorkflowStore
     );
   }
 
-  List<Map<String, dynamic>> _list(
-    Map<String, dynamic> parent,
-    String key,
-  ) {
+  List<Map<String, dynamic>> _list(Map<String, dynamic> parent, String key) {
     final value = parent[key];
     if (value is! List) {
       throw const HdcWorkflowException(
@@ -452,6 +440,9 @@ class HdcApiServiceRequestRepository implements ServiceRequestRepository {
 
   @override
   Future<void> initialize() => store.ensureInitialized();
+
+  @override
+  Future<void> refresh() => store.refresh();
 
   @override
   List<ServiceRequest> getAll() {
@@ -558,17 +549,23 @@ class HdcApiTransactionSeedRepository implements TransactionSeedRepository {
 
   @override
   Future<void> create(TransactionSeed seed) {
-    throw UnsupportedError('Transaction handoffs are created by the HDC backend.');
+    throw UnsupportedError(
+      'Transaction handoffs are created by the HDC backend.',
+    );
   }
 
   @override
   Future<void> update(TransactionSeed seed) {
-    throw UnsupportedError('Transaction handoffs are updated by the HDC backend.');
+    throw UnsupportedError(
+      'Transaction handoffs are updated by the HDC backend.',
+    );
   }
 
   @override
   Future<void> delete(String id) {
-    throw UnsupportedError('Transaction handoffs are retained by the HDC backend.');
+    throw UnsupportedError(
+      'Transaction handoffs are retained by the HDC backend.',
+    );
   }
 }
 
@@ -624,7 +621,9 @@ class HdcApiServiceTransactionRepository
 
   @override
   Future<void> create(ServiceTransaction transaction) {
-    throw UnsupportedError('Service transactions are created by the HDC backend.');
+    throw UnsupportedError(
+      'Service transactions are created by the HDC backend.',
+    );
   }
 
   @override
@@ -634,6 +633,8 @@ class HdcApiServiceTransactionRepository
 
   @override
   Future<void> delete(String id) {
-    throw UnsupportedError('Service transactions are retained by the HDC backend.');
+    throw UnsupportedError(
+      'Service transactions are retained by the HDC backend.',
+    );
   }
 }
