@@ -6,6 +6,7 @@ import {
   parseProposalWrite,
   parseServiceRequestWrite,
   proposalQualityScore,
+  proposalWriteMatchesRow,
   serviceRequestWriteMatchesRow,
   technicianReputation,
   transactionTransition,
@@ -116,6 +117,54 @@ describe('workflow input validation', () => {
     const proposal = parseProposalWrite(validProposal);
     expect(proposalQualityScore(proposal, new Date('2026-08-21T00:00:00.000Z')))
       .toBeGreaterThanOrEqual(40);
+  });
+
+  it('recognizes an exact proposal retry across a regenerated client id', () => {
+    const parsed = parseProposalWrite(validProposal);
+    const score = proposalQualityScore(parsed);
+    expect(proposalWriteMatchesRow({
+      id: 'PR-first-attempt',
+      request_id: parsed.requestId,
+      technician_id: 'technician-uuid',
+      status: parsed.status,
+      service_fee: '1200.00',
+      parts_arrangement: parsed.partsArrangement,
+      estimated_parts_cost: '350.00',
+      earliest_arrival: parsed.earliestArrival,
+      estimated_duration_minutes: parsed.estimatedDurationMinutes,
+      warranty_type: parsed.warrantyType,
+      custom_warranty_days: null,
+      diagnosis: parsed.diagnosis,
+      repair_approach: parsed.repairApproach,
+      professional_notes: parsed.professionalNotes,
+      quality_score: score,
+      attachment_ids: [],
+    }, {
+      ...parsed,
+      id: 'PR-retry-after-lost-response',
+    }, 'technician-uuid', score)).toBe(true);
+  });
+
+  it('does not replay a conflicting proposal write', () => {
+    const parsed = parseProposalWrite(validProposal);
+    const score = proposalQualityScore(parsed);
+    expect(proposalWriteMatchesRow({
+      request_id: parsed.requestId,
+      technician_id: 'technician-uuid',
+      status: parsed.status,
+      service_fee: '999.00',
+      parts_arrangement: parsed.partsArrangement,
+      estimated_parts_cost: parsed.estimatedPartsCost,
+      earliest_arrival: parsed.earliestArrival,
+      estimated_duration_minutes: parsed.estimatedDurationMinutes,
+      warranty_type: parsed.warrantyType,
+      custom_warranty_days: parsed.customWarrantyDays,
+      diagnosis: parsed.diagnosis,
+      repair_approach: parsed.repairApproach,
+      professional_notes: parsed.professionalNotes,
+      quality_score: score,
+      attachment_ids: parsed.attachmentIds,
+    }, parsed, 'technician-uuid', score)).toBe(false);
   });
 });
 

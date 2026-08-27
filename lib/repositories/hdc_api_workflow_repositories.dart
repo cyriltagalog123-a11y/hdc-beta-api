@@ -211,7 +211,8 @@ class HdcApiWorkflowStore extends ChangeNotifier
     final request = ServiceRequest.fromJson(
       _object(response, 'updatedRequest'),
     );
-    if (created.id != proposal.id ||
+    final idempotentReplay = response['idempotentReplay'] == true;
+    if ((!idempotentReplay && created.id != proposal.id) ||
         created.requestId != proposal.requestId ||
         request.id != proposal.requestId) {
       throw const HdcWorkflowException(

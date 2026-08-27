@@ -1,27 +1,48 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/navigation/hdc_page_route.dart';
 import '../../core/ui/hdc_colors.dart';
+import '../../core/workflow/hdc_workflow_refresh.dart';
 import '../../models/service_request.dart';
 import '../../models/service_transaction.dart';
 import '../../providers/hdc_auth_provider.dart';
+import '../../providers/hdc_workflow_sync_provider.dart';
 import '../../providers/proposal_provider.dart';
 import '../../providers/service_request_provider.dart';
 import '../../providers/service_transaction_provider.dart';
 import 'create_service_request_screen.dart';
 import 'service_request_details_screen.dart';
 
-class MyServiceRequestsScreen extends StatelessWidget {
+class MyServiceRequestsScreen extends StatefulWidget {
   const MyServiceRequestsScreen({super.key});
+
+  @override
+  State<MyServiceRequestsScreen> createState() =>
+      _MyServiceRequestsScreenState();
+}
+
+class _MyServiceRequestsScreenState extends State<MyServiceRequestsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(refreshHdcWorkflow(context));
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ServiceRequestProvider>();
+    final sync = context.watch<HdcWorkflowSyncProvider?>();
     final customerId = context.watch<HDCAuthProvider>().currentUserId;
     final requests = provider.requests
         .where((request) => request.customerId == customerId)
         .toList(growable: false);
+    final isRefreshing = provider.isLoading || (sync?.isSyncing ?? false);
+    final loadError = provider.lastError ?? sync?.lastError;
 
     return Scaffold(
       appBar: AppBar(
@@ -29,8 +50,16 @@ class MyServiceRequestsScreen extends StatelessWidget {
         actions: [
           IconButton(
             tooltip: 'Refresh requests',
-            onPressed: provider.isLoading ? null : provider.refresh,
-            icon: const Icon(Icons.refresh),
+            onPressed: isRefreshing
+                ? null
+                : () => refreshHdcWorkflow(context),
+            icon: isRefreshing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
           ),
         ],
       ),
@@ -43,10 +72,10 @@ class MyServiceRequestsScreen extends StatelessWidget {
         icon: const Icon(Icons.add),
         label: const Text('New Request'),
       ),
-      body: provider.isLoading
+      body: isRefreshing && requests.isEmpty
           ? const Center(child: CircularProgressIndicator())
-          : provider.lastError != null && requests.isEmpty
-          ? _LoadError(onRetry: provider.refresh)
+          : loadError != null && requests.isEmpty
+          ? _LoadError(onRetry: () => refreshHdcWorkflow(context))
           : requests.isEmpty
           ? const _EmptyRequests()
           : ListView.separated(

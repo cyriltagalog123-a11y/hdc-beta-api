@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -28,7 +30,9 @@ class _PrivateTransactionChatScreenState
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _opening = true;
+  bool _refreshing = false;
   Object? _openError;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
@@ -40,6 +44,7 @@ class _PrivateTransactionChatScreenState
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -66,12 +71,55 @@ class _PrivateTransactionChatScreenState
         await _showInitialStorageChoice();
       }
       _scrollToBottom();
+      _startRefreshTimer();
     } on Object catch (error) {
       if (!mounted) return;
       setState(() {
         _opening = false;
         _openError = error;
       });
+    }
+  }
+
+  Future<void> _retryOpenConversation() async {
+    setState(() {
+      _opening = true;
+      _openError = null;
+    });
+    await _openConversation();
+  }
+
+  void _startRefreshTimer() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+      if (mounted) unawaited(_refreshConversation());
+    });
+  }
+
+  Future<void> _refreshConversation({bool showError = false}) async {
+    if (_refreshing || _opening) return;
+    final messaging = context.read<PrivateMessagingProvider>();
+    if (messaging.isSaving) return;
+
+    setState(() => _refreshing = true);
+    try {
+      await messaging.refreshConversation(
+        transactionId: widget.transactionId,
+        actorId: widget.actorId,
+      );
+      if (!mounted) return;
+      await messaging.markConversationRead(
+        transactionId: widget.transactionId,
+        readerId: widget.actorId,
+      );
+      if (mounted) _scrollToBottom();
+    } on Object catch (error) {
+      if (!mounted || !showError) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Chat could not be refreshed: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
     }
   }
 
@@ -139,11 +187,11 @@ class _PrivateTransactionChatScreenState
                 ),
                 child: const Text(
                   'Beta Chat Storage Notice: During the HDC Beta, chat history '
-                  'is stored locally on this device. If HDC is uninstalled, its '
-                  'app data is cleared, or this device becomes unavailable, your '
-                  'chat history may not be recoverable. Cloud backup and '
-                  'user-owned storage restore options are planned for future '
-                  'versions.',
+                  'uses protected HDC-managed storage with a limited quota. '
+                  'Uninstalling the app clears the local cache, but authorized '
+                  'transaction participants can restore the authoritative '
+                  'history after signing in again. User-owned storage remains '
+                  'planned for a later build.',
                   style: TextStyle(
                     fontSize: 12,
                     color: HDCColors.textSecondary,
@@ -157,14 +205,8 @@ class _PrivateTransactionChatScreenState
         actions: [
           FilledButton.icon(
             onPressed: () async {
-              await context
-                  .read<PrivateMessagingProvider>()
-                  .updateStorageMode(
-                    transactionId: widget.transactionId,
-                    actorId: widget.actorId,
-                    mode: ConversationStorageMode.hdcManaged,
-                  );
-              if (dialogContext.mounted) {
+              final updated = await _useHdcStorage();
+              if (updated && dialogContext.mounted) {
                 Navigator.of(dialogContext).pop();
               }
             },
@@ -174,6 +216,24 @@ class _PrivateTransactionChatScreenState
         ],
       ),
     );
+  }
+
+  Future<bool> _useHdcStorage() async {
+    try {
+      await context.read<PrivateMessagingProvider>().updateStorageMode(
+            transactionId: widget.transactionId,
+            actorId: widget.actorId,
+            mode: ConversationStorageMode.hdcManaged,
+          );
+      return true;
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Chat storage could not be updated: $error')),
+        );
+      }
+      return false;
+    }
   }
 
   Future<void> _send({
@@ -271,9 +331,20 @@ class _PrivateTransactionChatScreenState
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Text(
-              'Private chat could not be opened.\n\n$_openError',
-              textAlign: TextAlign.center,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Private chat could not be opened.\n\n$_openError',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _retryOpenConversation,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Try Again'),
+                ),
+              ],
             ),
           ),
         ),
@@ -281,9 +352,14 @@ class _PrivateTransactionChatScreenState
     }
 
     if (conversation == null) {
-      return const Scaffold(
+      return Scaffold(
+        appBar: AppBar(title: const Text('Private Chat')),
         body: Center(
-          child: Text('Conversation is unavailable.'),
+          child: FilledButton.icon(
+            onPressed: _retryOpenConversation,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Reload Conversation'),
+          ),
         ),
       );
     }
@@ -309,6 +385,22 @@ class _PrivateTransactionChatScreenState
           ],
         ),
         actions: [
+          if (_refreshing)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14),
+              child: Center(
+                child: SizedBox.square(
+                  dimension: 19,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else
+            IconButton(
+              tooltip: 'Refresh messages',
+              onPressed: () => _refreshConversation(showError: true),
+              icon: const Icon(Icons.refresh),
+            ),
           IconButton(
             tooltip: 'Chat storage',
             onPressed: () => _showStorageSheet(
@@ -396,13 +488,7 @@ class _PrivateTransactionChatScreenState
                 enabled: true,
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
-                  await context
-                      .read<PrivateMessagingProvider>()
-                      .updateStorageMode(
-                        transactionId: widget.transactionId,
-                        actorId: widget.actorId,
-                        mode: ConversationStorageMode.hdcManaged,
-                      );
+                  await _useHdcStorage();
                 },
               ),
               const SizedBox(height: 10),
@@ -419,12 +505,11 @@ class _PrivateTransactionChatScreenState
               ),
               const SizedBox(height: 18),
               const Text(
-                'Beta Chat Storage Notice: Chat history is stored locally in '
-                'this beta. If HDC is uninstalled, app data is cleared, or the '
-                'device becomes unavailable, the history may not be recoverable. '
-                'True uninstall-safe restore requires the protected HDC backend '
-                'or an authorized user-owned storage provider. The storage '
-                'contracts are already separated for that migration.',
+                'Beta Chat Storage Notice: HDC-managed history is retained by '
+                'the protected backend within the displayed quota. Local app '
+                'data may be cleared on uninstall, but the authorized history '
+                'can be restored after sign-in. User-owned storage remains '
+                'disabled until a provider is explicitly connected.',
                 style: TextStyle(
                   color: HDCColors.textSecondary,
                   fontSize: 12,

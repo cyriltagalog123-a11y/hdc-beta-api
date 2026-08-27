@@ -115,6 +115,39 @@ export type ProposalWrite = {
   withdrawnAt: string | null;
 };
 
+export function proposalWriteMatchesRow(
+  row: Record<string, unknown>,
+  input: ProposalWrite,
+  technicianId: string,
+  qualityScore: number,
+): boolean {
+  const sameOptionalNumber = (value: unknown, expected: number | null) =>
+    expected === null
+      ? value === null || value === undefined
+      : value !== null && value !== undefined && Number(value) === expected;
+  const storedAttachments = Array.isArray(row.attachment_ids)
+    ? row.attachment_ids.map(String)
+    : [];
+
+  return String(row.request_id) === input.requestId &&
+    String(row.technician_id) === technicianId &&
+    String(row.status) === input.status &&
+    Number(row.service_fee) === input.serviceFee &&
+    String(row.parts_arrangement) === input.partsArrangement &&
+    sameOptionalNumber(row.estimated_parts_cost, input.estimatedPartsCost) &&
+    new Date(String(row.earliest_arrival)).getTime() ===
+      new Date(input.earliestArrival).getTime() &&
+    Number(row.estimated_duration_minutes) ===
+      input.estimatedDurationMinutes &&
+    String(row.warranty_type) === input.warrantyType &&
+    sameOptionalNumber(row.custom_warranty_days, input.customWarrantyDays) &&
+    String(row.diagnosis) === input.diagnosis &&
+    String(row.repair_approach) === input.repairApproach &&
+    String(row.professional_notes) === input.professionalNotes &&
+    Number(row.quality_score) === qualityScore &&
+    JSON.stringify(storedAttachments) === JSON.stringify(input.attachmentIds);
+}
+
 export class WorkflowHttpError extends Error {
   readonly code: string;
   readonly statusCode: number;

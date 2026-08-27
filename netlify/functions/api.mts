@@ -38,6 +38,14 @@ import {
   normalizeMemberProfileWrite,
   normalizePlatformRoleProfileWrite,
 } from './_lib/profiles.mjs';
+import {
+  PRIVATE_CONVERSATION_BETA_QUOTA_BYTES,
+  assessPrivateMessage,
+  parseConversationStorageMode,
+  parsePrivateMessageWrite,
+  privateConversationView,
+  privateMessageStorageBytes,
+} from './_lib/private-messaging.mjs';
 import { internalDashboardPermissions } from './_lib/internal-dashboard.mjs';
 import {
   canApprovePlatformRoles,
@@ -63,6 +71,7 @@ import {
   parseProposalWrite,
   parseServiceRequestWrite,
   proposalQualityScore,
+  proposalWriteMatchesRow,
   proposalView,
   serviceRequestWriteMatchesRow,
   serviceRequestView,
@@ -2726,6 +2735,277 @@ function rowObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+async function messagingTransaction(
+  tx: DbClient,
+  user: UserView,
+  transactionId: string,
+): Promise<Record<string, unknown>> {
+  const rows = await tx`
+    SELECT *
+    FROM public.hdc_service_transactions
+    WHERE id = ${transactionId}
+    FOR UPDATE
+  `;
+  if (rows.length === 0) {
+    throw new WorkflowHttpError(
+      'service_transaction_not_found',
+      404,
+      'The service transaction was not found.',
+    );
+  }
+  const transaction = rowObject(rows[0]);
+  if (
+    user.id !== String(transaction.customer_id) &&
+    user.id !== String(transaction.technician_id)
+  ) {
+    throw new WorkflowHttpError(
+      'forbidden',
+      403,
+      'Only transaction participants can access private chat.',
+    );
+  }
+  return transaction;
+}
+
+async function ensurePrivateConversation(
+  tx: DbClient,
+  transaction: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const transactionId = String(transaction.id);
+  const existing = await tx`
+    SELECT *
+    FROM public.hdc_private_conversations
+    WHERE transaction_id = ${transactionId}
+    LIMIT 1
+  `;
+  if (existing.length > 0) return rowObject(existing[0]);
+
+  if (String(transaction.status) === 'cancelled') {
+    throw new WorkflowHttpError(
+      'private_messaging_unavailable',
+      409,
+      'Private messaging is not available for this transaction.',
+    );
+  }
+
+  const conversationId = newWorkflowId('CONV');
+  const created = await tx`
+    INSERT INTO public.hdc_private_conversations (
+      id, transaction_id, customer_id, technician_id, storage_mode,
+      quota_bytes, external_provider_connected, storage_choice_confirmed
+    ) VALUES (
+      ${conversationId}, ${transactionId},
+      ${String(transaction.customer_id)}, ${String(transaction.technician_id)},
+      'hdcManaged', ${PRIVATE_CONVERSATION_BETA_QUOTA_BYTES}, false, false
+    )
+    RETURNING *
+  `;
+  return rowObject(created[0]);
+}
+
+async function privateConversationPayload(
+  tx: DbClient,
+  transactionId: string,
+): Promise<Record<string, unknown>> {
+  const conversations = await tx`
+    SELECT *
+    FROM public.hdc_private_conversations
+    WHERE transaction_id = ${transactionId}
+    LIMIT 1
+  `;
+  if (conversations.length === 0) {
+    throw new WorkflowHttpError(
+      'private_conversation_not_found',
+      404,
+      'The private conversation has not been started yet.',
+    );
+  }
+  const conversation = rowObject(conversations[0]);
+  const messages = await tx`
+    SELECT *
+    FROM public.hdc_private_messages
+    WHERE conversation_id = ${String(conversation.id)}
+    ORDER BY created_at, id
+  `;
+  return privateConversationView(
+    conversation,
+    messages.map((row) => rowObject(row)),
+  );
+}
+
+async function handlePrivateConversation(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  transactionId: string,
+): Promise<Response> {
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    return methodNotAllowed();
+  }
+
+  const conversation = await withWorkflowAuthority(sql, user, async (tx) => {
+    const transaction = await messagingTransaction(tx, user, transactionId);
+    if (req.method === 'POST') {
+      await ensurePrivateConversation(tx, transaction);
+    }
+    return await privateConversationPayload(tx, transactionId);
+  });
+
+  if (req.method === 'POST') {
+    await audit(sql, user.id, 'messaging.conversation.ensure', 'success', {
+      transaction_id: transactionId,
+    });
+  }
+  return json({ conversation });
+}
+
+async function handleSendPrivateMessage(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  transactionId: string,
+): Promise<Response> {
+  if (req.method !== 'POST') return methodNotAllowed();
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const input = parsePrivateMessageWrite(body);
+  const moderation = assessPrivateMessage(input.text);
+  if (moderation.action === 'block') {
+    throw new WorkflowHttpError(
+      'private_message_blocked',
+      422,
+      moderation.reason ?? 'HDC cannot send this message.',
+    );
+  }
+  if (
+    moderation.action === 'warn' &&
+    !input.acknowledgeLanguageWarning
+  ) {
+    throw new WorkflowHttpError(
+      'private_message_warning_required',
+      409,
+      moderation.reason ??
+        'This message contains language that may be offensive.',
+    );
+  }
+
+  const result = await withWorkflowAuthority(sql, user, async (tx) => {
+    const transaction = await messagingTransaction(tx, user, transactionId);
+    if (String(transaction.status) === 'cancelled') {
+      throw new WorkflowHttpError(
+        'private_messaging_unavailable',
+        409,
+        'Private messaging is not available for this transaction.',
+      );
+    }
+    const conversation = await ensurePrivateConversation(tx, transaction);
+    if (
+      String(conversation.storage_mode) === 'userOwned' &&
+      conversation.external_provider_connected !== true
+    ) {
+      throw new WorkflowHttpError(
+        'user_storage_not_connected',
+        409,
+        'User-owned chat storage is not connected yet.',
+      );
+    }
+
+    const usageRows = await tx`
+      SELECT COALESCE(sum(octet_length(body) + 160), 0)::bigint AS used_bytes
+      FROM public.hdc_private_messages
+      WHERE conversation_id = ${String(conversation.id)}
+        AND status <> 'deleted'
+    `;
+    const usedBytes = Number(usageRows[0]?.used_bytes ?? 0);
+    const projectedBytes = usedBytes + privateMessageStorageBytes(input.text);
+    if (
+      String(conversation.storage_mode) === 'hdcManaged' &&
+      projectedBytes > Number(conversation.quota_bytes)
+    ) {
+      throw new WorkflowHttpError(
+        'private_message_quota_exceeded',
+        409,
+        'HDC chat storage is full for this conversation.',
+      );
+    }
+
+    const messageId = newWorkflowId('MSG');
+    await tx`
+      INSERT INTO public.hdc_private_messages (
+        id, conversation_id, sender_id, body, status,
+        language_warning_acknowledged
+      ) VALUES (
+        ${messageId}, ${String(conversation.id)}, ${user.id}, ${input.text},
+        'sent', ${moderation.action === 'warn' &&
+          input.acknowledgeLanguageWarning}
+      )
+    `;
+    return {
+      conversation: await privateConversationPayload(tx, transactionId),
+      messageId,
+    };
+  });
+
+  await audit(sql, user.id, 'messaging.message.send', 'success', {
+    transaction_id: transactionId,
+    message_id: result.messageId,
+  });
+  return json({ conversation: result.conversation }, 201);
+}
+
+async function handleMarkPrivateConversationRead(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  transactionId: string,
+): Promise<Response> {
+  if (req.method !== 'PUT') return methodNotAllowed();
+
+  const conversation = await withWorkflowAuthority(sql, user, async (tx) => {
+    const transaction = await messagingTransaction(tx, user, transactionId);
+    const existing = await ensurePrivateConversation(tx, transaction);
+    await tx`
+      UPDATE public.hdc_private_messages
+      SET status = 'read', read_at = COALESCE(read_at, now())
+      WHERE conversation_id = ${String(existing.id)}
+        AND sender_id <> ${user.id}
+        AND status IN ('sent', 'delivered')
+    `;
+    return await privateConversationPayload(tx, transactionId);
+  });
+
+  return json({ conversation });
+}
+
+async function handlePrivateConversationStorage(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  transactionId: string,
+): Promise<Response> {
+  if (req.method !== 'PUT') return methodNotAllowed();
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const mode = parseConversationStorageMode(body);
+
+  const conversation = await withWorkflowAuthority(sql, user, async (tx) => {
+    const transaction = await messagingTransaction(tx, user, transactionId);
+    const existing = await ensurePrivateConversation(tx, transaction);
+    await tx`
+      UPDATE public.hdc_private_conversations
+      SET storage_mode = ${mode}, storage_choice_confirmed = true
+      WHERE id = ${String(existing.id)}
+    `;
+    return await privateConversationPayload(tx, transactionId);
+  });
+
+  await audit(sql, user.id, 'messaging.storage.update', 'success', {
+    transaction_id: transactionId,
+    storage_mode: mode,
+  });
+  return json({ conversation });
+}
+
 async function handleWorkflowBootstrap(
   req: Request,
   sql: DbClient,
@@ -3053,6 +3333,44 @@ async function handleCreateProposal(
       );
     }
 
+    const existingProposalRows = await tx`
+      SELECT *
+      FROM public.hdc_proposals
+      WHERE request_id = ${input.requestId}
+        AND technician_id = ${user.id}
+      FOR UPDATE
+    `;
+    if (existingProposalRows.length > 0) {
+      const existingProposal = rowObject(existingProposalRows[0]);
+      if (
+        proposalWriteMatchesRow(
+          existingProposal,
+          input,
+          user.id,
+          score,
+        )
+      ) {
+        const existingRequestRows = await tx`
+          SELECT *
+          FROM public.hdc_service_requests
+          WHERE id = ${input.requestId}
+          LIMIT 1
+        `;
+        return {
+          proposal: proposalView(existingProposal),
+          updatedRequest: serviceRequestView(
+            rowObject(existingRequestRows[0]),
+          ),
+          replayed: true,
+        };
+      }
+      throw new WorkflowHttpError(
+        'proposal_already_exists',
+        409,
+        'You already have a proposal for this request. Refresh it before editing.',
+      );
+    }
+
     const rows = await tx`
       INSERT INTO public.hdc_proposals (
         id, request_id, technician_id, status, service_fee,
@@ -3081,15 +3399,22 @@ async function handleCreateProposal(
     return {
       proposal: proposalView(rowObject(rows[0])),
       updatedRequest: serviceRequestView(rowObject(updatedRequestRows[0])),
+      replayed: false,
     };
   });
 
   await audit(sql, user.id, 'workflow.proposal.create', 'success', {
-    proposal_id: input.id,
+    proposal_id: String(created.proposal.id),
+    client_proposal_id: input.id,
     request_id: input.requestId,
     status: input.status,
+    idempotent_replay: created.replayed,
   });
-  return json(created, 201);
+  return json({
+    proposal: created.proposal,
+    updatedRequest: created.updatedRequest,
+    idempotentReplay: created.replayed,
+  }, created.replayed ? 200 : 201);
 }
 
 async function handleUpdateProposal(
@@ -3681,6 +4006,10 @@ async function handleReadiness(req: Request): Promise<Response> {
       SELECT
         to_regclass('public.hdc_service_requests') IS NOT NULL
           AS workflow_table_ready,
+        (
+          to_regclass('public.hdc_private_conversations') IS NOT NULL AND
+          to_regclass('public.hdc_private_messages') IS NOT NULL
+        ) AS private_messaging_tables_ready,
         EXISTS (
           SELECT 1
           FROM pg_roles
@@ -3691,19 +4020,31 @@ async function handleReadiness(req: Request): Promise<Response> {
     const authority = rowObject(authorityRows[0]);
     const workflowAuthorityReady =
       authority.workflow_table_ready === true &&
+      authority.private_messaging_tables_ready === true &&
       authority.workflow_role_ready === true;
     if (!workflowAuthorityReady) {
       return json({
         service: 'hdc-beta-api',
         status: 'not_ready',
         error: 'workflow_authority_unavailable',
-        checks: { database: 'ok', workflowAuthority: 'not_ready' },
+        checks: {
+          database: 'ok',
+          workflowAuthority: 'not_ready',
+          privateMessaging:
+            authority.private_messaging_tables_ready === true
+              ? 'ok'
+              : 'not_ready',
+        },
       }, 503);
     }
     return json({
       service: 'hdc-beta-api',
       status: 'ready',
-      checks: { database: 'ok', workflowAuthority: 'ok' },
+      checks: {
+        database: 'ok',
+        workflowAuthority: 'ok',
+        privateMessaging: 'ok',
+      },
       latencyMs: database.latencyMs,
     });
   } catch (error) {
@@ -3733,7 +4074,7 @@ async function handleHdcApiRequestCore(
     return json({
       service: 'hdc-beta-api',
       status: 'ok',
-      build: '0.6.4-build19',
+      build: '0.6.4-build20',
     });
   }
   if (path === '/api/health/ready') return await handleReadiness(req);
@@ -3993,6 +4334,56 @@ async function handleHdcApiRequestCore(
         return methodNotAllowed();
       }
 
+      const privateMessageMatch =
+        /^\/api\/service-transactions\/([^/]+)\/conversation\/messages$/.exec(
+          path,
+        );
+      if (privateMessageMatch) {
+        return await handleSendPrivateMessage(
+          req,
+          sql,
+          session.user,
+          requirePathId(privateMessageMatch[1]),
+        );
+      }
+
+      const privateReadMatch =
+        /^\/api\/service-transactions\/([^/]+)\/conversation\/read$/.exec(
+          path,
+        );
+      if (privateReadMatch) {
+        return await handleMarkPrivateConversationRead(
+          req,
+          sql,
+          session.user,
+          requirePathId(privateReadMatch[1]),
+        );
+      }
+
+      const privateStorageMatch =
+        /^\/api\/service-transactions\/([^/]+)\/conversation\/storage$/.exec(
+          path,
+        );
+      if (privateStorageMatch) {
+        return await handlePrivateConversationStorage(
+          req,
+          sql,
+          session.user,
+          requirePathId(privateStorageMatch[1]),
+        );
+      }
+
+      const privateConversationMatch =
+        /^\/api\/service-transactions\/([^/]+)\/conversation$/.exec(path);
+      if (privateConversationMatch) {
+        return await handlePrivateConversation(
+          req,
+          sql,
+          session.user,
+          requirePathId(privateConversationMatch[1]),
+        );
+      }
+
       const transactionStatusMatch =
         /^\/api\/service-transactions\/([^/]+)\/status$/.exec(path);
       if (transactionStatusMatch) {
@@ -4166,5 +4557,9 @@ export const config: Config = {
     '/api/proposals/:id',
     '/api/proposals/:id/accept',
     '/api/service-transactions/:id/status',
+    '/api/service-transactions/:id/conversation',
+    '/api/service-transactions/:id/conversation/messages',
+    '/api/service-transactions/:id/conversation/read',
+    '/api/service-transactions/:id/conversation/storage',
   ],
 };

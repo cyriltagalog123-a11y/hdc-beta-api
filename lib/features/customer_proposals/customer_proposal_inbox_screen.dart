@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/navigation/hdc_page_route.dart';
 import '../../core/ui/hdc_colors.dart';
+import '../../core/workflow/hdc_workflow_refresh.dart';
 import '../../models/proposal.dart';
 import '../../models/proposal_request_summary.dart';
 import '../../models/service_request.dart';
+import '../../providers/hdc_workflow_sync_provider.dart';
 import '../../providers/proposal_provider.dart';
 import 'customer_proposal_comparison_screen.dart';
 import 'customer_proposal_details_screen.dart';
@@ -56,6 +60,14 @@ class _CustomerProposalInboxScreenState
   ProposalInboxSort _sort = ProposalInboxSort.recommended;
   bool _shortlistedOnly = false;
   final Set<String> _selectedProposalIds = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(refreshHdcWorkflow(context));
+    });
+  }
 
   List<Proposal> _visible(List<Proposal> source) {
     final proposals = source
@@ -156,15 +168,35 @@ class _CustomerProposalInboxScreenState
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ProposalProvider>();
+    final sync = context.watch<HdcWorkflowSyncProvider?>();
     final all = provider.forRequest(widget.request.id);
     final proposals = _visible(all);
     final summary = provider.summaryForRequest(widget.request.id);
     final shortlistedCount = summary.shortlisted;
+    final isRefreshing = provider.isLoading || (sync?.isSyncing ?? false);
+    final loadError = provider.lastError ?? sync?.lastError;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Professional Service Proposals')),
+      appBar: AppBar(
+        title: const Text('Professional Service Proposals'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh proposals',
+            onPressed: isRefreshing
+                ? null
+                : () => refreshHdcWorkflow(context),
+            icon: isRefreshing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+          ),
+        ],
+      ),
       body: SafeArea(
-        child: provider.isLoading
+        child: isRefreshing && all.isEmpty
             ? const Center(child: CircularProgressIndicator())
             : SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
@@ -199,8 +231,10 @@ class _CustomerProposalInboxScreenState
                           ),
                         ],
                         const SizedBox(height: 18),
-                        if (provider.lastError != null && all.isEmpty)
-                          _ErrorState(onRetry: provider.initialize)
+                        if (loadError != null && all.isEmpty)
+                          _ErrorState(
+                            onRetry: () => refreshHdcWorkflow(context),
+                          )
                         else if (proposals.isEmpty)
                           _EmptyState(shortlistedOnly: _shortlistedOnly)
                         else

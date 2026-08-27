@@ -79,6 +79,9 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
   bool _isSubmitting = false;
   DateTime? _lastSavedAt;
   Timer? _saveDebounce;
+  Future<Proposal>? _saveInFlight;
+  int _editRevision = 0;
+  int _lastPersistedRevision = -1;
 
   @override
   void didChangeDependencies() {
@@ -135,18 +138,24 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
     _arrivalTime = TimeOfDay.fromDateTime(proposal.earliestArrival);
     _durationMinutes = proposal.estimatedDurationMinutes;
     _lastSavedAt = proposal.updatedAt;
+    _lastPersistedRevision = _editRevision;
+  }
+
+  void _recordEdit() {
+    _editRevision += 1;
+    _hasUnsavedChanges = true;
   }
 
   void _onChanged() {
     if (!mounted) return;
-    setState(() => _hasUnsavedChanges = true);
+    setState(_recordEdit);
     _scheduleAutoSave();
   }
 
   void _scheduleAutoSave() {
     _saveDebounce?.cancel();
     _saveDebounce = Timer(const Duration(milliseconds: 1200), () {
-      if (mounted) _saveDraft(showMessage: false);
+      if (mounted) unawaited(_saveDraft(showMessage: false));
     });
   }
 
@@ -185,30 +194,69 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
     );
   }
 
-  Future<Proposal?> _saveDraft({required bool showMessage}) async {
+  Future<Proposal> _saveCurrentRevision() {
+    final active = _saveInFlight;
+    if (active != null) return active;
+
     if (!_hasUnsavedChanges && _proposalId != null) {
-      if (showMessage && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Your proposal draft is already saved.')),
+      final saved = context.read<ProposalProvider>().byId(_proposalId!);
+      if (saved == null) {
+        return Future<Proposal>.error(
+          StateError('The saved proposal is no longer available.'),
         );
       }
-      return context.read<ProposalProvider>().byId(_proposalId!);
+      return Future<Proposal>.value(saved);
     }
 
+    final revision = _editRevision;
+    final draft = _buildDraft();
+    late final Future<Proposal> pending;
+    pending = _persistRevision(
+      draft: draft,
+      revision: revision,
+    ).whenComplete(() {
+      if (identical(_saveInFlight, pending)) {
+        _saveInFlight = null;
+      }
+    });
+    _saveInFlight = pending;
+    return pending;
+  }
+
+  Future<Proposal> _persistRevision({
+    required ProposalDraft draft,
+    required int revision,
+  }) async {
+    final proposal = await context.read<ProposalProvider>().saveDraft(
+          draft: draft,
+          reputation: _reputation,
+        );
+    if (!mounted) return proposal;
+
+    setState(() {
+      _proposalId = proposal.id;
+      _lastPersistedRevision = revision;
+      _hasUnsavedChanges = _editRevision != revision;
+      _lastSavedAt = proposal.updatedAt;
+    });
+    if (_editRevision != revision) _scheduleAutoSave();
+    return proposal;
+  }
+
+  Future<Proposal?> _saveDraft({required bool showMessage}) async {
     try {
-      final proposal = await context.read<ProposalProvider>().saveDraft(
-            draft: _buildDraft(),
-            reputation: _reputation,
-          );
+      final alreadySaved = !_hasUnsavedChanges && _proposalId != null;
+      final proposal = await _saveCurrentRevision();
       if (!mounted) return proposal;
-      setState(() {
-        _proposalId = proposal.id;
-        _hasUnsavedChanges = false;
-        _lastSavedAt = proposal.updatedAt;
-      });
       if (showMessage) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Proposal draft saved.')),
+          SnackBar(
+            content: Text(
+              alreadySaved
+                  ? 'Your proposal draft is already saved.'
+                  : 'Proposal draft saved.',
+            ),
+          ),
         );
       }
       return proposal;
@@ -225,10 +273,21 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
+    _saveDebounce?.cancel();
     setState(() => _isSubmitting = true);
     try {
-      final saved = await _saveDraft(showMessage: false);
-      if (saved == null || !mounted) return;
+      Proposal? saved;
+      while (mounted &&
+          (_proposalId == null ||
+              _lastPersistedRevision != _editRevision)) {
+        saved = await _saveCurrentRevision();
+      }
+      if (!mounted) return;
+      saved ??= context.read<ProposalProvider>().byId(_proposalId!);
+      if (saved == null) {
+        throw StateError('The proposal draft could not be loaded.');
+      }
+      _saveDebounce?.cancel();
       final submitted = await context.read<ProposalProvider>().submit(saved.id);
       if (!mounted) return;
       await showDialog<void>(
@@ -269,7 +328,7 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
     if (date == null || !mounted) return;
     setState(() {
       _earliestArrival = date;
-      _hasUnsavedChanges = true;
+      _recordEdit();
     });
     _scheduleAutoSave();
   }
@@ -282,7 +341,7 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
     if (time == null || !mounted) return;
     setState(() {
       _arrivalTime = time;
-      _hasUnsavedChanges = true;
+      _recordEdit();
     });
     _scheduleAutoSave();
   }
@@ -511,7 +570,7 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
                     if (value == null) return;
                     setState(() {
                       _partsArrangement = value;
-                      _hasUnsavedChanges = true;
+                      _recordEdit();
                     });
                     _scheduleAutoSave();
                   },
@@ -580,7 +639,7 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
                     if (value == null) return;
                     setState(() {
                       _durationMinutes = value;
-                      _hasUnsavedChanges = true;
+                      _recordEdit();
                     });
                     _scheduleAutoSave();
                   },
@@ -601,7 +660,7 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
                     if (value == null) return;
                     setState(() {
                       _warrantyType = value;
-                      _hasUnsavedChanges = true;
+                      _recordEdit();
                     });
                     _scheduleAutoSave();
                   },
