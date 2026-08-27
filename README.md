@@ -183,7 +183,7 @@ check, and converts `hdc_user_roles.role` without replacing users or role rows.
 This migration is intentionally separate from the historical Supabase adapter
 under `backend/supabase/migrations`. Do not apply that historical migration to
 the active Neon schema. Test 0001 on an isolated branch, then apply root
-migrations 0001 through 0010 in order.
+migrations 0001 through 0011 in order.
 
 ## Workflow migration
 
@@ -278,6 +278,10 @@ permission to enter the restricted workflow role. Apply it after migration
 accepted-transaction conversations and messages, participant-only row-level
 security, immutable message content, read state, storage choice, and the beta
 quota. Rehearse 0010 on an isolated branch and deploy it with Build 20.
+`migrations/0011_technician_proposal_lock.sql` lets an approved Technician
+take the request row lock required for atomic proposal submission while its
+false write check continues to prohibit Technician edits to customer-owned
+open requests. Deploy it as the Build 20 proposal hotfix after migration 0010.
 
 ## Local checks
 
