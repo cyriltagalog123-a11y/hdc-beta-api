@@ -25,7 +25,9 @@ import 'providers/service_transaction_provider.dart';
 import 'providers/technician_discovery_provider.dart';
 import 'providers/technician_marketplace_provider.dart';
 import 'providers/ticket_provider.dart';
+import 'repositories/hdc_api_private_messaging_gateway.dart';
 import 'repositories/hdc_api_workflow_repositories.dart';
+import 'repositories/private_messaging_gateway.dart';
 import 'repositories/proposal_acceptance_gateway.dart';
 import 'repositories/proposal_repository.dart';
 import 'repositories/service_request_repository.dart';
@@ -67,6 +69,7 @@ Future<void> main() async {
   ServiceTransactionTransitionGateway? transactionTransitionGateway;
   HdcWorkflowSyncProvider? workflowSyncProvider;
   HdcWorkflowApiClient? roleApiClient;
+  PrivateMessagingGateway? privateMessagingGateway;
 
   if (HDCBackendConfig.provider == HDCBackendProvider.hdcApi &&
       baseUri != null) {
@@ -85,6 +88,7 @@ Future<void> main() async {
     proposalAcceptanceGateway = workflowStore;
     transactionTransitionGateway = workflowStore;
     workflowSyncProvider = HdcWorkflowSyncProvider(store: workflowStore);
+    privateMessagingGateway = HdcApiPrivateMessagingGateway(workflowClient);
   } else {
     proposalRepository = SharedPreferencesProposalRepository();
     serviceRequestRepository = SharedPreferencesServiceRequestRepository();
@@ -104,6 +108,7 @@ Future<void> main() async {
       transactionTransitionGateway: transactionTransitionGateway,
       workflowSyncProvider: workflowSyncProvider,
       roleApiClient: roleApiClient,
+      privateMessagingGateway: privateMessagingGateway,
     ),
   );
 }
@@ -118,6 +123,7 @@ class HDCApp extends StatelessWidget {
   final ServiceTransactionTransitionGateway? transactionTransitionGateway;
   final HdcWorkflowSyncProvider? workflowSyncProvider;
   final HdcWorkflowApiClient? roleApiClient;
+  final PrivateMessagingGateway? privateMessagingGateway;
 
   const HDCApp({
     required this.authGateway,
@@ -129,6 +135,7 @@ class HDCApp extends StatelessWidget {
     this.transactionTransitionGateway,
     this.workflowSyncProvider,
     this.roleApiClient,
+    this.privateMessagingGateway,
     super.key,
   });
 
@@ -333,11 +340,27 @@ class HDCApp extends StatelessWidget {
                 return provider;
               },
         ),
-        ChangeNotifierProvider(
+        ChangeNotifierProxyProvider<HDCAuthProvider, PrivateMessagingProvider>(
           create: (_) => PrivateMessagingProvider(
             repository: SharedPreferencesPrivateConversationRepository(),
             transactionRepository: serviceTransactionRepository,
+            gateway: privateMessagingGateway,
           )..initialize(),
+          update: (_, auth, messagingProvider) {
+            final provider = messagingProvider ??
+                PrivateMessagingProvider(
+                  repository:
+                      SharedPreferencesPrivateConversationRepository(),
+                  transactionRepository: serviceTransactionRepository,
+                  gateway: privateMessagingGateway,
+                )..initialize();
+            provider.bindUser(
+              auth.authenticated && !auth.guestMode
+                  ? auth.identity?.id
+                  : null,
+            );
+            return provider;
+          },
         ),
       ],
       child: MaterialApp(

@@ -1,6 +1,16 @@
 HDC BETA API CHANGELOG
 ======================
 
+2026-08-27 - Build 20 workflow refresh, proposal reliability, and private chat
+- Refreshes all account-authorized requests, proposals, and transactions when
+  Customers open their request list, request details, or proposal inbox.
+- Prevents proposal autosave from racing submission, surfaces failures, and
+  safely replays a canonical proposal after a lost response.
+- Moves accepted-transaction chat from device-local preferences to protected
+  backend storage visible only to the authenticated Customer and Technician.
+- Adds message moderation, read state, a bounded beta quota, cross-account
+  cache guards, polling/manual refresh, migration 0010, and contract tests.
+
 2026-08-26 - Build 19 live technician directory and explicit opportunities
 - Gives active Technicians a dedicated opportunity feed containing open
   requests posted by other accounts, independent of the general workflow

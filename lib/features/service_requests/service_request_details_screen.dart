@@ -1,19 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/navigation/hdc_page_route.dart';
 import '../../core/ui/hdc_colors.dart';
+import '../../core/workflow/hdc_workflow_refresh.dart';
 import '../../models/service_request.dart';
+import '../../models/service_transaction.dart';
+import '../../providers/hdc_workflow_sync_provider.dart';
 import '../../providers/proposal_provider.dart';
 import '../../providers/service_request_provider.dart';
 import '../../providers/service_transaction_provider.dart';
 import '../../widgets/proposals/request_proposal_activity_card.dart';
 import '../customer_proposals/customer_proposal_inbox_screen.dart';
 import '../transactions/service_transaction_workspace_screen.dart';
-import '../../models/service_transaction.dart';
 import 'create_service_request_screen.dart';
 
-class ServiceRequestDetailsScreen extends StatelessWidget {
+class ServiceRequestDetailsScreen extends StatefulWidget {
   final String requestId;
   final bool justPublished;
 
@@ -22,6 +26,21 @@ class ServiceRequestDetailsScreen extends StatelessWidget {
     this.justPublished = false,
     super.key,
   });
+
+  @override
+  State<ServiceRequestDetailsScreen> createState() =>
+      _ServiceRequestDetailsScreenState();
+}
+
+class _ServiceRequestDetailsScreenState
+    extends State<ServiceRequestDetailsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(refreshHdcWorkflow(context));
+    });
+  }
 
   Future<void> _cancel(
     BuildContext context,
@@ -75,16 +94,46 @@ class ServiceRequestDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sync = context.watch<HdcWorkflowSyncProvider?>();
+    final isRefreshing = sync?.isSyncing ?? false;
     final request = context.select<ServiceRequestProvider, ServiceRequest?>(
-      (provider) => provider.byId(requestId),
+      (provider) => provider.byId(widget.requestId),
     );
     final proposalProvider = context.watch<ProposalProvider>();
-    final proposalSummary = proposalProvider.summaryForRequest(requestId);
+    final proposalSummary = proposalProvider.summaryForRequest(
+      widget.requestId,
+    );
 
     if (request == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Request Details')),
-        body: const Center(child: Text('This service request was not found.')),
+        appBar: AppBar(
+          title: const Text('Request Details'),
+          actions: [
+            IconButton(
+              tooltip: 'Refresh request',
+              onPressed: isRefreshing
+                  ? null
+                  : () => refreshHdcWorkflow(context),
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+        body: isRefreshing
+            ? const Center(child: CircularProgressIndicator())
+            : Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('This service request was not found.'),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: () => refreshHdcWorkflow(context),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Try Again'),
+                    ),
+                  ],
+                ),
+              ),
       );
     }
 
@@ -97,6 +146,19 @@ class ServiceRequestDetailsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Request Details'),
         actions: [
+          IconButton(
+            tooltip: 'Refresh request',
+            onPressed: isRefreshing
+                ? null
+                : () => refreshHdcWorkflow(context),
+            icon: isRefreshing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+          ),
           if (request.status.canEdit)
             IconButton(
               tooltip: 'Edit request',
@@ -122,7 +184,7 @@ class ServiceRequestDetailsScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (justPublished) ...[
+                  if (widget.justPublished) ...[
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(18),

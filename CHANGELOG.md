@@ -1,5 +1,22 @@
 # HDC Change Log
 
+## 0.6.4+20 — 2026-08-27
+
+- Refreshes the complete account-authorized workflow on entry to My Service
+  Requests, request details, and the Customer proposal inbox so older requests
+  and proposals created in another session do not remain hidden in stale state.
+- Serializes proposal autosave and submission, reports validation or network
+  failures visibly, and makes canonical proposal retries idempotent even when a
+  lost response causes the client to regenerate its proposal identifier.
+- Replaces device-local transaction chat with authenticated, transaction-
+  participant-only backend conversations and messages that remain available
+  across account sessions and devices.
+- Adds server moderation, read state, a bounded HDC-managed beta quota,
+  account-switch-safe client caches, manual/polling refresh, row-level security,
+  migration 0010, and backend/client contract tests.
+- Synchronizes Flutter, dashboard, API health, package, CI artifact, and live
+  integration release markers at Build 20.
+
 ## 0.6.4+19 — 2026-08-26
 
 - Added a dedicated Technician opportunity endpoint so an active Technician

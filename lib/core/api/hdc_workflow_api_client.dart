@@ -235,6 +235,8 @@ class HdcWorkflowApiClient {
       'service_request_not_found' =>
         'The service request is no longer available.',
       'proposal_not_found' => 'The proposal is no longer available.',
+      'proposal_already_exists' =>
+        'You already have a proposal for this request. Refresh it before editing.',
       'technician_already_selected' =>
         'A technician has already been selected for this request.',
       'request_not_accepting_proposals' =>
@@ -247,6 +249,18 @@ class HdcWorkflowApiClient {
         'That status change is no longer allowed. Refresh and try again.',
       'workflow_conflict' =>
         'That HDC record already exists or was changed elsewhere.',
+      'private_conversation_not_found' =>
+        'This private transaction conversation has not been started yet.',
+      'private_messaging_unavailable' =>
+        'Private messaging is not available for this transaction.',
+      'private_message_blocked' =>
+        'This message contains content HDC will not send in private chat.',
+      'private_message_warning_required' =>
+        'This message contains language that may be offensive.',
+      'private_message_quota_exceeded' =>
+        'HDC chat storage is full for this conversation.',
+      'user_storage_not_connected' =>
+        'User-owned chat storage is not connected yet.',
       'service_read_only' || 'service_maintenance' || 'service_incident' =>
         'HDC is temporarily limiting changes. Please try again later.',
       _ when statusCode >= 500 =>

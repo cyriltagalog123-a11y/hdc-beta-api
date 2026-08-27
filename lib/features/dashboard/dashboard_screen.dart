@@ -656,7 +656,7 @@ class DashboardScreen extends StatelessWidget {
                       const SizedBox(height: 32),
                       const Center(
                         child: Text(
-                          'HelpDesk Connect Beta v0.6.4 Build 19',
+                          'HelpDesk Connect Beta v0.6.4 Build 20',
                           style: TextStyle(color: HDCColors.textSecondary),
                         ),
                       ),

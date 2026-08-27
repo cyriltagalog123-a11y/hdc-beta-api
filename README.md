@@ -33,6 +33,13 @@ profiles remain private until their owner enables public discovery. Exact
 radius or kilometer ranking is intentionally deferred until HDC collects
 consented coordinates for both request and technician locations.
 
+Build 20 makes the service workflow refresh as one authoritative account-
+scoped unit when Customers open requests or proposals. It serializes proposal
+autosave and submission, makes canonical retries safe, and replaces local-only
+transaction chat with backend-authoritative conversations protected by session
+authentication, participant checks, PostgreSQL row-level security, moderation,
+read state, and a bounded HDC-managed beta quota.
+
 ## Endpoints
 
 - `GET /api/health`
@@ -74,6 +81,10 @@ consented coordinates for both request and technician locations.
 - `DELETE /api/proposals/:id`
 - `POST /api/proposals/:id/accept`
 - `PUT /api/service-transactions/:id/status`
+- `GET|POST /api/service-transactions/:id/conversation`
+- `POST /api/service-transactions/:id/conversation/messages`
+- `PUT /api/service-transactions/:id/conversation/read`
+- `PUT /api/service-transactions/:id/conversation/storage`
 
 Public registration always creates the `customer` platform role only.
 Technician, business, seller, supplier, and store roles require an application
@@ -172,7 +183,7 @@ check, and converts `hdc_user_roles.role` without replacing users or role rows.
 This migration is intentionally separate from the historical Supabase adapter
 under `backend/supabase/migrations`. Do not apply that historical migration to
 the active Neon schema. Test 0001 on an isolated branch, then apply root
-migrations 0001 through 0009 in order.
+migrations 0001 through 0010 in order.
 
 ## Workflow migration
 
@@ -259,6 +270,15 @@ deactivating its selling role automatically declines still-pending requests;
 accepted historical allocations remain preserved. Apply it after migration
 0007 and deploy it together with the Build 15 API and Flutter client.
 
+## Workflow role and private-messaging migrations
+
+`migrations/0009_workflow_role_set_authority.sql` repairs the database owner's
+permission to enter the restricted workflow role. Apply it after migration
+0008. `migrations/0010_private_transaction_messaging.sql` adds authoritative
+accepted-transaction conversations and messages, participant-only row-level
+security, immutable message content, read state, storage choice, and the beta
+quota. Rehearse 0010 on an isolated branch and deploy it with Build 20.
+
 ## Local checks
 
 ```bash
@@ -283,6 +303,9 @@ For local Netlify execution, use Netlify's development command with local enviro
 - Only backend-hydrated approval authority can approve a platform role.
 - Workflow identity, timestamps, offer counts, proposal quality, technician reputation, transaction relationships, and activity history are derived or verified on the server.
 - Proposal acceptance closes competing offers and creates the transaction handoff/workspace in one database transaction.
+- Private chat is limited to the accepted transaction's authenticated Customer
+  and Technician; message authority, moderation, read state, and quota checks
+  are enforced again on the server.
 - Workflow queries execute as the restricted `hdc_app` role with request-local user and role context enforced by PostgreSQL row-level security.
 - Failed login attempts are rate-limited by a keyed identity fingerprint and recorded in the security audit log.
 - Recovery answers are normalized, server-peppered, and bcrypt-hashed; plaintext
@@ -312,9 +335,9 @@ For local Netlify execution, use Netlify's development command with local enviro
 
 Email verification, the outbound email delivery worker/provider, stronger
 device/session controls, self-service internal-authority management, internal
-department mutation endpoints, public profile discovery endpoints, server-side
-catalog pagination/advanced search, payment-confirmed checkout and sales,
-receipts, fulfillment/disputes, listing images, buyer/seller commerce messaging,
-private-message authority/realtime delivery, and broader platform authorization
+department mutation endpoints, server-side catalog pagination/advanced search,
+payment-confirmed checkout and sales, receipts, fulfillment/disputes, listing
+images, buyer/seller commerce messaging, realtime push delivery for private
+chat, user-owned chat-storage connectors, and broader platform authorization
 checks belong to later HDC backend work. Until email delivery is configured,
 manual recovery cases remain available in the private operations dashboard.
