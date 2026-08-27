@@ -27,7 +27,18 @@ class TechnicianRequestDetailsScreen extends StatelessWidget {
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
-  void _openProposalStudio(BuildContext context) {
+  void _openProposalStudio(BuildContext context, Proposal? existing) {
+    if (existing != null && !existing.status.canEdit) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'You already submitted an offer for this issue. '
+            'Only one offer is allowed per technician.',
+          ),
+        ),
+      );
+      return;
+    }
     Navigator.of(context).push(
       HDCPageRoute<void>(
         page: ProposalStudioScreen(request: request),
@@ -81,10 +92,46 @@ class TechnicianRequestDetailsScreen extends StatelessWidget {
       ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.all(16),
-        child: FilledButton.icon(
-          onPressed: () => _openProposalStudio(context),
-          icon: const Icon(Icons.send_outlined),
-          label: const Text('Prepare Offer'),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (ownProposal != null) ...[
+              Text(
+                ownProposal.status.canEdit
+                    ? 'Resume this draft. HDC keeps one offer per issue.'
+                    : 'Your offer is already recorded. A second offer cannot '
+                        'be created for the same issue.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: HDCColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 9),
+            ],
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: ownProposal == null || ownProposal.status.canEdit
+                    ? () => _openProposalStudio(context, ownProposal)
+                    : null,
+                icon: Icon(
+                  ownProposal?.status.canEdit == true
+                      ? Icons.edit_outlined
+                      : ownProposal == null
+                          ? Icons.send_outlined
+                          : Icons.check_circle_outline,
+                ),
+                label: Text(
+                  ownProposal == null
+                      ? 'Prepare Offer'
+                      : ownProposal.status.canEdit
+                          ? 'Resume Offer Draft'
+                          : 'Offer ${ownProposal.status.label}',
+                ),
+              ),
+            ),
+          ],
         ),
       ),
       body: SafeArea(

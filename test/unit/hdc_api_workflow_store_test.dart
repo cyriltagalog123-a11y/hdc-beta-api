@@ -74,6 +74,50 @@ Map<String, Object?> _proposal(String status) {
   };
 }
 
+Map<String, Object?> _transactionSeed() {
+  return {
+    'id': 'SEED-1720000000000',
+    'requestId': 'SR-1720000000000',
+    'proposalId': 'PR-1720000000000',
+    'customerId': 'customer-123',
+    'technicianId': 'technician-123',
+    'acceptedEstimate': 1550,
+    'status': 'consumed',
+    'createdAt': '2026-08-21T10:00:00.000Z',
+  };
+}
+
+Map<String, Object?> _serviceTransaction() {
+  return {
+    'id': 'TXN-1720000000000',
+    'seedId': 'SEED-1720000000000',
+    'requestId': 'SR-1720000000000',
+    'proposalId': 'PR-1720000000000',
+    'customerId': 'customer-123',
+    'customerName': 'HDC Customer',
+    'technicianId': 'technician-123',
+    'technicianName': 'HDC Technician',
+    'requestTitle': 'Repair a laptop charging port',
+    'categoryName': 'Laptop Repair',
+    'serviceLocation': 'Cebu City',
+    'status': 'confirmed',
+    'acceptedTerms': {
+      'serviceFee': 1200,
+      'estimatedPartsCost': 350,
+      'totalEstimate': 1550,
+      'earliestArrival': '2026-08-25T10:00:00.000Z',
+      'estimatedDurationMinutes': 120,
+      'warrantyDays': 30,
+      'diagnosis': 'The charging port may have cracked solder joints.',
+      'repairApproach': 'Inspect and repair or replace the USB-C connector.',
+      'professionalNotes': 'Final parts cost depends on inspection.',
+    },
+    'activity': <Object?>[],
+    'createdAt': '2026-08-21T10:00:00.000Z',
+    'updatedAt': '2026-08-21T10:00:00.000Z',
+  };
+}
+
 void main() {
   test('request cancellation applies canonical related proposal state', () async {
     final sessionStore = MemoryAuthSessionStore();
@@ -204,6 +248,75 @@ void main() {
 
     expect(store.serviceRequests.single.id, 'SR-ACCOUNT-B');
     expect(callCount, 2);
+    store.dispose();
+  });
+
+  test('late bootstrap response cannot erase an accepted service', () async {
+    final sessionStore = MemoryAuthSessionStore();
+    await sessionStore.write(
+      StoredAuthSession(
+        token: 'opaque-workflow-token',
+        expiresAt: DateTime.now().add(const Duration(hours: 1)),
+      ),
+    );
+    final bootstrapResponse = Completer<http.Response>();
+    final httpClient = MockClient((request) async {
+      if (request.method == 'GET' &&
+          request.url.path == '/api/workflow/bootstrap') {
+        return bootstrapResponse.future;
+      }
+      if (request.method == 'POST' &&
+          request.url.path ==
+              '/api/proposals/PR-1720000000000/accept') {
+        return http.Response(
+          jsonEncode({
+            'acceptedProposal': {
+              ..._proposal('accepted'),
+              'acceptedAt': '2026-08-21T10:00:00.000Z',
+            },
+            'updatedRequest': _request('technicianSelected'),
+            'transactionSeed': _transactionSeed(),
+            'serviceTransaction': _serviceTransaction(),
+            'competingProposalsClosed': 0,
+            'competingProposals': <Object?>[],
+          }),
+          200,
+        );
+      }
+      return http.Response('{}', 404);
+    });
+    final store = HdcApiWorkflowStore(
+      client: HdcWorkflowApiClient(
+        baseUri: Uri.parse('https://example.test'),
+        sessionStore: sessionStore,
+        client: httpClient,
+      ),
+    );
+    store.bindUser('customer-123');
+
+    final refresh = store.refresh();
+    await Future<void>.delayed(Duration.zero);
+    await store.accept(
+      proposalId: 'PR-1720000000000',
+      actingCustomerId: 'customer-123',
+    );
+
+    bootstrapResponse.complete(
+      http.Response(
+        jsonEncode({
+          'serviceRequests': <Object?>[],
+          'proposals': <Object?>[],
+          'transactionSeeds': <Object?>[],
+          'serviceTransactions': <Object?>[],
+        }),
+        200,
+      ),
+    );
+    await refresh;
+
+    expect(store.proposals.single.status, ProposalStatus.accepted);
+    expect(store.transactionSeeds.single.id, 'SEED-1720000000000');
+    expect(store.serviceTransactions.single.id, 'TXN-1720000000000');
     store.dispose();
   });
 }

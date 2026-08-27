@@ -9,6 +9,7 @@ class DashboardServiceOverview extends StatelessWidget {
   final VoidCallback onViewTransactions;
   final VoidCallback onPostRequest;
   final VoidCallback onFindTechnician;
+  final VoidCallback onViewOffers;
   final VoidCallback onViewRequests;
 
   const DashboardServiceOverview({
@@ -18,6 +19,7 @@ class DashboardServiceOverview extends StatelessWidget {
     required this.onViewTransactions,
     required this.onPostRequest,
     required this.onFindTechnician,
+    required this.onViewOffers,
     required this.onViewRequests,
     super.key,
   });
@@ -66,7 +68,7 @@ class DashboardServiceOverview extends StatelessWidget {
               ? 'Technician proposals appear here after a request is published.'
               : 'Compare professional technician proposals and choose the right match.',
           actionLabel: offerCount == 0 ? 'Find Technician' : 'Review Offers',
-          onAction: onFindTechnician,
+          onAction: offerCount == 0 ? onFindTechnician : onViewOffers,
         ),
       ],
     );

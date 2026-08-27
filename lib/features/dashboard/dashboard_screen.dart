@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/navigation/hdc_page_route.dart';
+import '../../core/proposals/customer_offer_catalog.dart';
 import '../../core/ui/hdc_colors.dart';
 import '../../models/account_identity.dart';
 import '../../models/proposal.dart';
@@ -18,6 +19,7 @@ import '../../providers/service_transaction_provider.dart';
 import '../../providers/ticket_provider.dart';
 import '../authentication/login_screen.dart';
 import '../authentication/registered_user_gate.dart';
+import '../customer_proposals/customer_offers_screen.dart';
 import '../internal/internal_dashboard_screen.dart';
 import '../marketplace/marketplace_catalog_screen.dart';
 import '../marketplace/sales_center_screen.dart';
@@ -113,6 +115,20 @@ class DashboardScreen extends StatelessWidget {
           actorId: actorId,
         ),
       ),
+    );
+  }
+
+  Future<void> _openOffers(BuildContext context) async {
+    if (!await requireRegisteredUser(
+      context,
+      action: 'review technician offers',
+    )) {
+      return;
+    }
+    if (!context.mounted) return;
+
+    Navigator.of(context).push(
+      HDCPageRoute<void>(page: const CustomerOffersScreen()),
     );
   }
 
@@ -352,10 +368,13 @@ class DashboardScreen extends StatelessWidget {
         : const <ServiceRequest>[];
     final ownedRequestIds = ownedRequests.map((request) => request.id).toSet();
     final receivedProposals = isRegisteredUser
-        ? proposalProvider.proposals
-              .where((proposal) => ownedRequestIds.contains(proposal.requestId))
-              .where((proposal) => proposal.status != ProposalStatus.draft)
-              .where((proposal) => proposal.status != ProposalStatus.withdrawn)
+        ? const CustomerOfferCatalog()
+              .entriesFor(
+                customerId: actorId,
+                requests: requestProvider.requests,
+                proposals: proposalProvider.proposals,
+              )
+              .map((entry) => entry.proposal)
               .toList(growable: false)
         : const <Proposal>[];
     final relevantProposals = isRegisteredUser
@@ -519,6 +538,7 @@ class DashboardScreen extends StatelessWidget {
                                         _openPostRequest(context),
                                     onFindTechnician: () =>
                                         _openTechnicianSearch(context),
+                                    onViewOffers: () => _openOffers(context),
                                     onViewRequests: () =>
                                         _openMyRequests(context),
                                   ),
@@ -598,6 +618,7 @@ class DashboardScreen extends StatelessWidget {
                           onPostRequest: () => _openPostRequest(context),
                           onFindTechnician: () =>
                               _openTechnicianSearch(context),
+                          onViewOffers: () => _openOffers(context),
                           onViewRequests: () => _openMyRequests(context),
                         ),
                         const SizedBox(height: 24),

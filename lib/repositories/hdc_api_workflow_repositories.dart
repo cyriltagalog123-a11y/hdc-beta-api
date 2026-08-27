@@ -27,6 +27,7 @@ class HdcApiWorkflowStore extends ChangeNotifier
   int? _refreshingBindingVersion;
   String? _boundUserId;
   int _bindingVersion = 0;
+  int _mutationVersion = 0;
   bool _disposed = false;
 
   HdcApiWorkflowStore({required this.client});
@@ -96,8 +97,13 @@ class HdcApiWorkflowStore extends ChangeNotifier
       return;
     }
 
+    final mutationVersion = _mutationVersion;
     final response = await client.get('/api/workflow/bootstrap');
-    if (_bindingVersion != bindingVersion || _boundUserId != userId) return;
+    if (_bindingVersion != bindingVersion ||
+        _boundUserId != userId ||
+        _mutationVersion != mutationVersion) {
+      return;
+    }
     final requests = _list(
       response,
       'serviceRequests',
@@ -158,6 +164,7 @@ class HdcApiWorkflowStore extends ChangeNotifier
         message: 'HDC returned an invalid service request identifier.',
       );
     }
+    _markMutation();
     _upsert(_serviceRequests, created, (item) => item.id);
     _announceChange();
     return created;
@@ -188,6 +195,7 @@ class HdcApiWorkflowStore extends ChangeNotifier
       }
       updatedProposals.add(proposal);
     }
+    _markMutation();
     _upsert(_serviceRequests, updated, (item) => item.id);
     for (final proposal in updatedProposals) {
       _upsert(_proposals, proposal, (item) => item.id);
@@ -198,6 +206,7 @@ class HdcApiWorkflowStore extends ChangeNotifier
 
   Future<void> deleteServiceRequest(String id) async {
     await client.delete('/api/service-requests/${Uri.encodeComponent(id)}');
+    _markMutation();
     _serviceRequests.removeWhere((item) => item.id == id);
     _announceChange();
   }
@@ -220,6 +229,7 @@ class HdcApiWorkflowStore extends ChangeNotifier
         message: 'HDC returned an invalid proposal relationship.',
       );
     }
+    _markMutation();
     _upsert(_proposals, created, (item) => item.id);
     _upsert(_serviceRequests, request, (item) => item.id);
     _announceChange();
@@ -243,6 +253,7 @@ class HdcApiWorkflowStore extends ChangeNotifier
         message: 'HDC returned an invalid proposal relationship.',
       );
     }
+    _markMutation();
     _upsert(_proposals, updated, (item) => item.id);
     _upsert(_serviceRequests, request, (item) => item.id);
     _announceChange();
@@ -251,6 +262,7 @@ class HdcApiWorkflowStore extends ChangeNotifier
 
   Future<void> deleteProposal(String id) async {
     await client.delete('/api/proposals/${Uri.encodeComponent(id)}');
+    _markMutation();
     _proposals.removeWhere((item) => item.id == id);
     _announceChange();
   }
@@ -310,6 +322,7 @@ class HdcApiWorkflowStore extends ChangeNotifier
       );
     }
 
+    _markMutation();
     _upsert(_serviceRequests, request, (item) => item.id);
     _upsert(_proposals, accepted, (item) => item.id);
     for (final item in competing) {
@@ -375,6 +388,7 @@ class HdcApiWorkflowStore extends ChangeNotifier
         message: 'HDC returned an invalid transaction relationship.',
       );
     }
+    _markMutation();
     _upsert(_serviceTransactions, updated, (item) => item.id);
     _upsert(_serviceRequests, request, (item) => item.id);
     _announceChange();
@@ -421,6 +435,10 @@ class HdcApiWorkflowStore extends ChangeNotifier
     } else {
       values[index] = value;
     }
+  }
+
+  void _markMutation() {
+    _mutationVersion += 1;
   }
 
   void _announceChange() {
