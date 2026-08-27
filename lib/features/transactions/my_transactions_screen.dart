@@ -1,13 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/navigation/hdc_page_route.dart';
 import '../../core/ui/hdc_colors.dart';
+import '../../core/workflow/hdc_workflow_refresh.dart';
 import '../../models/service_transaction.dart';
+import '../../providers/hdc_workflow_sync_provider.dart';
 import '../../providers/service_transaction_provider.dart';
 import 'service_transaction_workspace_screen.dart';
 
-class MyTransactionsScreen extends StatelessWidget {
+class MyTransactionsScreen extends StatefulWidget {
   final ServiceTransactionParticipantRole role;
   final String actorId;
 
@@ -18,39 +22,77 @@ class MyTransactionsScreen extends StatelessWidget {
   });
 
   @override
+  State<MyTransactionsScreen> createState() => _MyTransactionsScreenState();
+}
+
+class _MyTransactionsScreenState extends State<MyTransactionsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(refreshHdcWorkflow(context));
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final provider = context.watch<ServiceTransactionProvider>();
-    final transactions = role == ServiceTransactionParticipantRole.customer
-        ? provider.forCustomer(actorId)
-        : provider.forTechnician(actorId);
+    final sync = context.watch<HdcWorkflowSyncProvider?>();
+    final transactions =
+        widget.role == ServiceTransactionParticipantRole.customer
+            ? provider.forCustomer(widget.actorId)
+            : provider.forTechnician(widget.actorId);
+    final isRefreshing = provider.isLoading || (sync?.isSyncing ?? false);
+    final loadError = provider.lastError ?? sync?.lastError;
 
     return Scaffold(
       backgroundColor: HDCColors.background,
       appBar: AppBar(
         title: Text(
-          role == ServiceTransactionParticipantRole.customer
+          widget.role == ServiceTransactionParticipantRole.customer
               ? 'My Active Services'
               : 'My Technician Jobs',
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh services',
+            onPressed: isRefreshing
+                ? null
+                : () => refreshHdcWorkflow(context),
+            icon: isRefreshing
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+          ),
+        ],
       ),
-      body: provider.isLoading
+      body: isRefreshing && transactions.isEmpty
           ? const Center(child: CircularProgressIndicator())
-          : provider.lastError != null && transactions.isEmpty
-              ? _LoadError(error: provider.lastError!)
+          : loadError != null && transactions.isEmpty
+              ? _LoadError(
+                  onRetry: () => refreshHdcWorkflow(context),
+                )
               : transactions.isEmpty
-                  ? _EmptyTransactions(role: role)
-                  : ListView.separated(
-                      padding: const EdgeInsets.all(20),
-                      itemCount: transactions.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 14),
-                      itemBuilder: (context, index) {
-                        final transaction = transactions[index];
-                        return _TransactionCard(
-                          transaction: transaction,
-                          role: role,
-                          actorId: actorId,
-                        );
-                      },
+                  ? _EmptyTransactions(role: widget.role)
+                  : RefreshIndicator(
+                      onRefresh: () => refreshHdcWorkflow(context),
+                      child: ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(20),
+                        itemCount: transactions.length,
+                        separatorBuilder: (_, _) =>
+                            const SizedBox(height: 14),
+                        itemBuilder: (context, index) {
+                          final transaction = transactions[index];
+                          return _TransactionCard(
+                            transaction: transaction,
+                            role: widget.role,
+                            actorId: widget.actorId,
+                          );
+                        },
+                      ),
                     ),
     );
   }
@@ -267,18 +309,36 @@ class _EmptyTransactions extends StatelessWidget {
 }
 
 class _LoadError extends StatelessWidget {
-  final Object error;
+  final Future<void> Function() onRetry;
 
-  const _LoadError({required this.error});
+  const _LoadError({required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(28),
-        child: Text(
-          'Transactions could not be loaded.\n$error',
-          textAlign: TextAlign.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.cloud_off_outlined,
+              size: 56,
+              color: HDCColors.danger,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Services could not be loaded.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try Again'),
+            ),
+          ],
         ),
       ),
     );
