@@ -4015,13 +4015,22 @@ async function handleReadiness(req: Request): Promise<Response> {
           FROM pg_roles
           WHERE rolname = 'hdc_app'
             AND pg_has_role(current_user, oid, 'SET')
-        ) AS workflow_role_ready
+        ) AS workflow_role_ready,
+        EXISTS (
+          SELECT 1
+          FROM pg_policies
+          WHERE schemaname = 'public'
+            AND tablename = 'hdc_service_requests'
+            AND policyname = 'hdc_service_requests_technician_lock'
+            AND cmd = 'UPDATE'
+        ) AS technician_proposal_lock_ready
     `;
     const authority = rowObject(authorityRows[0]);
     const workflowAuthorityReady =
       authority.workflow_table_ready === true &&
       authority.private_messaging_tables_ready === true &&
-      authority.workflow_role_ready === true;
+      authority.workflow_role_ready === true &&
+      authority.technician_proposal_lock_ready === true;
     if (!workflowAuthorityReady) {
       return json({
         service: 'hdc-beta-api',

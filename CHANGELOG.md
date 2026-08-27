@@ -2,6 +2,10 @@
 
 ## 0.6.4+20 — 2026-08-27
 
+- Production smoke testing exposed and fixed an RLS interaction that allowed
+  Technicians to discover open requests but hid the same row when proposal
+  creation requested a lock. Migration 0011 permits that lock while still
+  denying Technician updates to the customer-owned request.
 - Refreshes the complete account-authorized workflow on entry to My Service
   Requests, request details, and the Customer proposal inbox so older requests
   and proposals created in another session do not remain hidden in stale state.
