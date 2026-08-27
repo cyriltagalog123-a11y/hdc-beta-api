@@ -5,7 +5,18 @@ const resetSource = new URL('../public/reset-password/', import.meta.url);
 const resetDestination = new URL('../build/web/reset-password/', import.meta.url);
 const packageFile = new URL('../package.json', import.meta.url);
 
-await stat(new URL('index.html', buildDirectory));
+const generatedIndex = await readFile(
+  new URL('index.html', buildDirectory),
+  'utf8',
+);
+if (
+  !generatedIndex.includes('id="hdc-startup"') ||
+  !generatedIndex.includes('src="hdc_startup.js"')
+) {
+  throw new Error('The Flutter web startup recovery shell is missing.');
+}
+await stat(new URL('hdc_startup.css', buildDirectory));
+await stat(new URL('hdc_startup.js', buildDirectory));
 const packageJson = JSON.parse(await readFile(packageFile, 'utf8'));
 
 const flutterBootstrap = await readFile(

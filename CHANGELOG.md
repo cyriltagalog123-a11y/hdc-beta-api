@@ -1,5 +1,14 @@
 # HDC Change Log
 
+## Build 20 startup recovery hotfix — 2026-08-27
+
+- Added an immediate, accessible web startup screen so Flutter initialization
+  never presents users with an unexplained blank page.
+- Added a bounded recovery action that removes stale application caches and
+  service-worker registrations without deleting HDC account or server data.
+- Hardened Netlify cache headers for the root document and Flutter bootstrap
+  files to prevent mixed web bundles across deployments.
+
 ## 0.6.4+20 — 2026-08-27
 
 - Production smoke testing exposed and fixed an RLS interaction that allowed

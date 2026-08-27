@@ -19,6 +19,7 @@
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="HelpDesk Connect technology support platform.">
+  <meta name="theme-color" content="#0b1f3a">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -31,8 +32,28 @@
 
   <title>HelpDesk Connect</title>
   <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="hdc_startup.css">
 </head>
 <body>
+  <main id="hdc-startup" aria-live="polite" aria-busy="true">
+    <section class="hdc-startup-card" aria-labelledby="hdc-startup-title">
+      <div class="hdc-startup-mark" aria-hidden="true">HDC</div>
+      <h1 id="hdc-startup-title">HelpDesk Connect</h1>
+      <p id="hdc-startup-message">Loading Build 20…</p>
+      <div class="hdc-startup-spinner" aria-hidden="true"></div>
+      <button id="hdc-startup-recover" type="button" hidden>
+        Reload latest Build 20
+      </button>
+      <p id="hdc-startup-detail" class="hdc-startup-detail" hidden>
+        This refreshes application files only. Your HDC account and server data
+        are not deleted.
+      </p>
+    </section>
+  </main>
+  <noscript>
+    HelpDesk Connect requires JavaScript. Enable JavaScript, then reload this
+    page.
+  </noscript>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
@@ -41,6 +62,7 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <script src="hdc_startup.js"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
