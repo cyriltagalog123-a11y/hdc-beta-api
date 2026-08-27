@@ -48,6 +48,12 @@ class ServiceTransactionProvider extends ChangeNotifier {
     return repository.byTechnicianId(technicianId);
   }
 
+  List<ServiceTransaction> forParticipant(String userId) {
+    return transactions
+        .where((transaction) => transaction.isParticipant(userId))
+        .toList(growable: false);
+  }
+
   ServiceTransaction? byId(String id) => repository.byId(id);
 
   ServiceTransaction? forRequest(String requestId) {

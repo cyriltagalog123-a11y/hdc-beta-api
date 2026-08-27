@@ -12,12 +12,12 @@ import '../../providers/service_transaction_provider.dart';
 import 'service_transaction_workspace_screen.dart';
 
 class MyTransactionsScreen extends StatefulWidget {
-  final ServiceTransactionParticipantRole role;
+  final ServiceTransactionParticipantRole? role;
   final String actorId;
 
   const MyTransactionsScreen({
-    required this.role,
     required this.actorId,
+    this.role,
     super.key,
   });
 
@@ -38,21 +38,25 @@ class _MyTransactionsScreenState extends State<MyTransactionsScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<ServiceTransactionProvider>();
     final sync = context.watch<HdcWorkflowSyncProvider?>();
-    final transactions =
-        widget.role == ServiceTransactionParticipantRole.customer
-            ? provider.forCustomer(widget.actorId)
-            : provider.forTechnician(widget.actorId);
+    final transactions = switch (widget.role) {
+      ServiceTransactionParticipantRole.customer =>
+        provider.forCustomer(widget.actorId),
+      ServiceTransactionParticipantRole.technician =>
+        provider.forTechnician(widget.actorId),
+      null => provider.forParticipant(widget.actorId),
+    };
     final isRefreshing = provider.isLoading || (sync?.isSyncing ?? false);
     final loadError = provider.lastError ?? sync?.lastError;
 
     return Scaffold(
       backgroundColor: HDCColors.background,
       appBar: AppBar(
-        title: Text(
-          widget.role == ServiceTransactionParticipantRole.customer
-              ? 'My Active Services'
-              : 'My Technician Jobs',
-        ),
+        title: Text(switch (widget.role) {
+          ServiceTransactionParticipantRole.customer => 'My Active Services',
+          ServiceTransactionParticipantRole.technician =>
+            'My Technician Jobs',
+          null => 'My Service Workspaces',
+        }),
         actions: [
           IconButton(
             tooltip: 'Refresh services',
@@ -86,9 +90,14 @@ class _MyTransactionsScreenState extends State<MyTransactionsScreen> {
                             const SizedBox(height: 14),
                         itemBuilder: (context, index) {
                           final transaction = transactions[index];
+                          final participantRole = widget.role ??
+                              transaction.roleFor(widget.actorId);
+                          if (participantRole == null) {
+                            return const SizedBox.shrink();
+                          }
                           return _TransactionCard(
                             transaction: transaction,
-                            role: widget.role,
+                            role: participantRole,
                             actorId: widget.actorId,
                           );
                         },
@@ -184,6 +193,10 @@ class _TransactionCard extends StatelessWidget {
                           label: transaction.id,
                         ),
                         _Meta(
+                          icon: Icons.badge_outlined,
+                          label: 'As ${role.label}',
+                        ),
+                        _Meta(
                           icon: Icons.payments_outlined,
                           label:
                               'PHP ${transaction.acceptedTerms.totalEstimate.toStringAsFixed(0)}',
@@ -262,7 +275,7 @@ class _Meta extends StatelessWidget {
 }
 
 class _EmptyTransactions extends StatelessWidget {
-  final ServiceTransactionParticipantRole role;
+  final ServiceTransactionParticipantRole? role;
 
   const _EmptyTransactions({required this.role});
 
@@ -283,17 +296,29 @@ class _EmptyTransactions extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               Text(
-                role == ServiceTransactionParticipantRole.customer
-                    ? 'No active services yet'
-                    : 'No technician jobs yet',
+                switch (role) {
+                  ServiceTransactionParticipantRole.customer =>
+                    'No active services yet',
+                  ServiceTransactionParticipantRole.technician =>
+                    'No technician jobs yet',
+                  null => 'No service workspaces yet',
+                },
                 style: Theme.of(context).textTheme.headlineSmall,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
               Text(
-                role == ServiceTransactionParticipantRole.customer
-                    ? 'A service workspace appears here after you accept a technician proposal.'
-                    : 'Accepted customer proposals appear here as technician jobs.',
+                switch (role) {
+                  ServiceTransactionParticipantRole.customer =>
+                    'A service workspace appears here after you accept a '
+                        'technician proposal.',
+                  ServiceTransactionParticipantRole.technician =>
+                    'Accepted customer proposals appear here as technician '
+                        'jobs.',
+                  null =>
+                    'Accepted services appear here whether you joined as the '
+                        'customer or the technician.',
+                },
                 style: const TextStyle(
                   color: HDCColors.textSecondary,
                   height: 1.45,

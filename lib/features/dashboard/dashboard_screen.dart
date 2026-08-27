@@ -111,7 +111,6 @@ class DashboardScreen extends StatelessWidget {
     Navigator.of(context).push(
       HDCPageRoute<void>(
         page: MyTransactionsScreen(
-          role: ServiceTransactionParticipantRole.customer,
           actorId: actorId,
         ),
       ),
