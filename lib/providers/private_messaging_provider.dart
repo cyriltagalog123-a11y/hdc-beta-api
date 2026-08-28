@@ -11,6 +11,8 @@ import '../repositories/private_messaging_gateway.dart';
 import '../repositories/service_transaction_repository.dart';
 
 class PrivateMessagingProvider extends ChangeNotifier {
+  static const int maxMessageLength = 4000;
+
   final PrivateConversationRepository repository;
   final ServiceTransactionRepository transactionRepository;
   final PrivateMessagingGateway? gateway;
@@ -160,7 +162,13 @@ class PrivateMessagingProvider extends ChangeNotifier {
     required String text,
     bool acknowledgeLanguageWarning = false,
   }) async {
-    final moderation = moderationService.assess(text);
+    final normalizedText = text.trim();
+    if (normalizedText.isEmpty || normalizedText.length > maxMessageLength) {
+      throw StateError(
+        'Private messages must contain 1 to $maxMessageLength characters.',
+      );
+    }
+    final moderation = moderationService.assess(normalizedText);
     if (moderation.isBlocked) {
       throw StateError(moderation.reason ?? 'HDC cannot send this message.');
     }
@@ -169,6 +177,9 @@ class PrivateMessagingProvider extends ChangeNotifier {
         moderation.reason ??
             'This message contains language that may be offensive.',
       );
+    }
+    if (_isSaving) {
+      throw StateError('Another private message is still being sent.');
     }
 
     _isSaving = true;
@@ -180,14 +191,14 @@ class PrivateMessagingProvider extends ChangeNotifier {
           ? await _requireService().sendMessage(
               transactionId: transactionId,
               senderId: senderId,
-              text: text,
+              text: normalizedText,
               acknowledgeLanguageWarning: acknowledgeLanguageWarning,
             )
           : await _sendRemoteMessage(
               remote,
               transactionId: transactionId,
               senderId: senderId,
-              text: text,
+              text: normalizedText,
               acknowledgeLanguageWarning: acknowledgeLanguageWarning,
             );
       _lastError = null;
@@ -367,7 +378,20 @@ class PrivateMessagingProvider extends ChangeNotifier {
         !conversation.isParticipant(_boundUserId ?? '')) {
       throw StateError('HDC returned an invalid private conversation.');
     }
+    final cached = _remoteConversations[conversation.transactionId];
+    if (cached != null && _isOlderSnapshot(conversation, cached)) {
+      return;
+    }
     _remoteConversations[conversation.transactionId] = conversation;
+  }
+
+  bool _isOlderSnapshot(
+    PrivateConversation incoming,
+    PrivateConversation cached,
+  ) {
+    if (incoming.updatedAt.isBefore(cached.updatedAt)) return true;
+    if (!incoming.updatedAt.isAtSameMomentAs(cached.updatedAt)) return false;
+    return incoming.messages.length < cached.messages.length;
   }
 
   PrivateMessagingService _requireService() {
