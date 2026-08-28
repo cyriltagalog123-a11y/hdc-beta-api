@@ -742,6 +742,7 @@ class _Composer extends StatelessWidget {
               child: TextField(
                 controller: controller,
                 enabled: enabled,
+                maxLength: PrivateMessagingProvider.maxMessageLength,
                 minLines: 1,
                 maxLines: 5,
                 textCapitalization: TextCapitalization.sentences,
