@@ -40,6 +40,15 @@ transaction chat with backend-authoritative conversations protected by session
 authentication, participant checks, PostgreSQL row-level security, moderation,
 read state, and a bounded HDC-managed beta quota.
 
+Build 22 completes the approved post-Build-20 reliability sequence. Build
+20.1A adds account notifications and idempotent incremental chat sync; Build
+20.1B adds mutual schedule decisions, Technician price change orders, and
+service exceptions. Build 21 records externally completed payments, mutual
+confirmation, refunds, and immutable receipts without processing funds. Build
+22 adds structured-text transaction documents and participant disputes with an
+Owner/Super Admin resolution queue. Active disputes freeze mutable service and
+payment actions until an authorized resolution is recorded.
+
 ## Endpoints
 
 - `GET /api/health`
@@ -60,6 +69,11 @@ read state, and a bounded HDC-managed beta quota.
 - `PUT /api/internal/role-applications/:id`
 - `GET /api/internal/account-recovery`
 - `PUT /api/internal/account-recovery/:id`
+- `GET /api/internal/disputes`
+- `PUT /api/internal/disputes/:id`
+- `GET /api/notifications`
+- `PUT /api/notifications/read-all`
+- `PUT /api/notifications/:id/read`
 - `GET /api/profiles`
 - `PUT /api/profiles/member`
 - `PUT /api/profiles/:role`
@@ -81,10 +95,28 @@ read state, and a bounded HDC-managed beta quota.
 - `DELETE /api/proposals/:id`
 - `POST /api/proposals/:id/accept`
 - `PUT /api/service-transactions/:id/status`
+- `GET /api/service-transactions/:id/toolbox`
+- `POST /api/service-transactions/:id/schedule-changes`
+- `PUT /api/service-transactions/:id/schedule-changes/:itemId`
+- `POST /api/service-transactions/:id/change-orders`
+- `PUT /api/service-transactions/:id/change-orders/:itemId`
+- `POST /api/service-transactions/:id/exceptions`
+- `POST /api/service-transactions/:id/payments`
+- `PUT /api/service-transactions/:id/payments/:itemId`
+- `POST /api/service-transactions/:id/documents`
+- `DELETE /api/service-transactions/:id/documents/:itemId`
+- `POST /api/service-transactions/:id/disputes`
+- `PUT /api/service-transactions/:id/disputes/:itemId`
 - `GET|POST /api/service-transactions/:id/conversation`
 - `POST /api/service-transactions/:id/conversation/messages`
 - `PUT /api/service-transactions/:id/conversation/read`
 - `PUT /api/service-transactions/:id/conversation/storage`
+
+Payment endpoints store participant attestations about payments made through
+an external channel. They are not a payment gateway and never accept card,
+bank, wallet, or account credentials. Transaction documents are structured
+text in Build 22; binary uploads remain disabled until dedicated object storage
+and malware scanning are available.
 
 Public registration always creates the `customer` platform role only.
 Technician, business, seller, supplier, and store roles require an application

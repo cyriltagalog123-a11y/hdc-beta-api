@@ -17,6 +17,7 @@ export type InternalDashboardStatisticKey =
   | 'myAssignments'
   | 'pendingRoleApplications'
   | 'pendingRecoveryReviews'
+  | 'pendingDisputes'
   | 'activeDepartments'
   | 'activeSections'
   | 'activeStaffAssignments'
@@ -46,6 +47,9 @@ export function internalDashboardStatisticKeys(
   }
   if (permissions.canReviewAccountRecovery) {
     keys.push('pendingRecoveryReviews');
+  }
+  if (permissions.canApprovePlatformRoles) {
+    keys.push('pendingDisputes');
   }
   if (permissions.canManageInternalStructure) {
     keys.push(

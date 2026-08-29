@@ -1,7 +1,7 @@
 import type { Config, Context } from '@netlify/functions';
 import bcrypt from 'bcryptjs';
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
-import type { DbClient } from './_lib/db.mjs';
+import type { DbClient, DbJsonValue } from './_lib/db.mjs';
 import { checkDbReadiness, closeDb, openDb } from './_lib/db.mjs';
 import { corsPreflightResponse, withCors } from './_lib/cors.mjs';
 import { bearerToken, json, methodNotAllowed, readJson } from './_lib/http.mjs';
@@ -81,6 +81,30 @@ import {
   transactionTransition,
   type WorkflowUser,
 } from './_lib/workflow.mjs';
+import {
+  changeOrderView,
+  contentDigest,
+  disputeEventView,
+  disputeView,
+  documentView,
+  parseChangeOrderWrite,
+  parseDisputeParticipantActionWrite,
+  parseDisputeResolutionWrite,
+  parseDisputeWrite,
+  parseDocumentWrite,
+  parseParticipantDecisionWrite,
+  parsePaymentActionWrite,
+  parsePaymentWrite,
+  parseScheduleChangeWrite,
+  parseTransactionExceptionWrite,
+  paymentEventView,
+  paymentView,
+  receiptView,
+  scheduleChangeView,
+  targetStatusForDisputeOutcome,
+  transactionExceptionView,
+  utf8Bytes,
+} from './_lib/transaction-tools.mjs';
 
 const SESSION_DAYS = 7;
 const LOGIN_FAILURE_LIMIT = 5;
@@ -127,6 +151,60 @@ async function audit(
     `;
   } catch (error) {
     console.error('HDC security audit write failed', error instanceof Error ? error.message : 'unknown_error');
+  }
+}
+
+async function notifyUser(
+  sql: DbClient,
+  userId: string,
+  eventType: string,
+  title: string,
+  message: string,
+  metadata: Record<string, string | number | boolean | null> = {},
+  priority: 'normal' | 'high' | 'critical' = 'normal',
+): Promise<void> {
+  try {
+    await sql`
+      INSERT INTO public.hdc_notifications (
+        user_id, event_type, priority, title, message, metadata
+      ) VALUES (
+        ${userId}, ${eventType}, ${priority}, ${title}, ${message},
+        ${sql.json(metadata)}
+      )
+    `;
+  } catch (error) {
+    console.error(
+      'HDC notification write failed',
+      error instanceof Error ? error.message : 'unknown_error',
+    );
+  }
+}
+
+async function notifyTransactionCounterparty(
+  sql: DbClient,
+  transaction: Record<string, unknown>,
+  actorId: string,
+  eventType: string,
+  title: string,
+  message: string,
+  metadata: Record<string, string | number | boolean | null> = {},
+  priority: 'normal' | 'high' | 'critical' = 'normal',
+): Promise<void> {
+  const customerId = String(transaction.customer_id ?? transaction.customerId);
+  const technicianId = String(
+    transaction.technician_id ?? transaction.technicianId,
+  );
+  const recipientId = actorId === customerId ? technicianId : customerId;
+  if (recipientId && recipientId !== actorId) {
+    await notifyUser(
+      sql,
+      recipientId,
+      eventType,
+      title,
+      message,
+      metadata,
+      priority,
+    );
   }
 }
 
@@ -1166,6 +1244,72 @@ function roleNotificationView(row: Record<string, unknown>): Record<string, unkn
   };
 }
 
+async function handleNotificationCenter(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+): Promise<Response> {
+  if (req.method !== 'GET') return methodNotAllowed();
+  const rows = await sql`
+    SELECT *
+    FROM public.hdc_notifications
+    WHERE user_id = ${user.id}
+    ORDER BY created_at DESC
+    LIMIT 100
+  `;
+  const unreadRows = await sql`
+    SELECT count(*)::int AS unread_count
+    FROM public.hdc_notifications
+    WHERE user_id = ${user.id}
+      AND read_at IS NULL
+  `;
+  return json({
+    notifications: rows.map((row) => roleNotificationView(rowObject(row))),
+    unreadCount: Number(unreadRows[0]?.unread_count ?? 0),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+async function handleNotificationRead(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  notificationId: string,
+): Promise<Response> {
+  if (req.method !== 'PUT') return methodNotAllowed();
+  const rows = await sql`
+    UPDATE public.hdc_notifications
+    SET read_at = COALESCE(read_at, now())
+    WHERE id::text = ${notificationId}
+      AND user_id = ${user.id}
+    RETURNING *
+  `;
+  if (rows.length === 0) {
+    throw new WorkflowHttpError(
+      'notification_not_found',
+      404,
+      'That notification was not found.',
+    );
+  }
+  return json({ notification: roleNotificationView(rowObject(rows[0])) });
+}
+
+async function handleNotificationsReadAll(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+): Promise<Response> {
+  if (req.method !== 'PUT') return methodNotAllowed();
+  const rows = await sql`
+    UPDATE public.hdc_notifications
+    SET read_at = COALESCE(read_at, now())
+    WHERE user_id = ${user.id}
+      AND read_at IS NULL
+    RETURNING id
+  `;
+  return json({ updated: rows.length });
+}
+
 function memberProfileView(row: Record<string, unknown>): Record<string, unknown> {
   return {
     userId: String(row.user_id),
@@ -1429,6 +1573,15 @@ async function handleInternalDashboard(
       WHERE status = 'pending'
     `;
     statistics.pendingRecoveryReviews = Number(rows[0]?.pending_count ?? 0);
+  }
+
+  if (permissions.canApprovePlatformRoles) {
+    const rows = await sql`
+      SELECT count(*)::int AS pending_count
+      FROM public.hdc_service_disputes
+      WHERE status IN ('open', 'underReview')
+    `;
+    statistics.pendingDisputes = Number(rows[0]?.pending_count ?? 0);
   }
 
   if (permissions.canManageInternalStructure) {
@@ -2806,6 +2959,7 @@ async function ensurePrivateConversation(
 async function privateConversationPayload(
   tx: DbClient,
   transactionId: string,
+  changedSince: Date | null = null,
 ): Promise<Record<string, unknown>> {
   const conversations = await tx`
     SELECT *
@@ -2821,12 +2975,20 @@ async function privateConversationPayload(
     );
   }
   const conversation = rowObject(conversations[0]);
-  const messages = await tx`
-    SELECT *
-    FROM public.hdc_private_messages
-    WHERE conversation_id = ${String(conversation.id)}
-    ORDER BY created_at, id
-  `;
+  const messages = changedSince === null
+    ? await tx`
+        SELECT *
+        FROM public.hdc_private_messages
+        WHERE conversation_id = ${String(conversation.id)}
+        ORDER BY created_at, id
+      `
+    : await tx`
+        SELECT *
+        FROM public.hdc_private_messages
+        WHERE conversation_id = ${String(conversation.id)}
+          AND updated_at >= ${new Date(changedSince.getTime() - 5000)}
+        ORDER BY created_at, id
+      `;
   return privateConversationView(
     conversation,
     messages.map((row) => rowObject(row)),
@@ -2843,12 +3005,26 @@ async function handlePrivateConversation(
     return methodNotAllowed();
   }
 
+  const sinceValue = new URL(req.url).searchParams.get('since');
+  const changedSince = sinceValue === null ? null : new Date(sinceValue);
+  if (changedSince !== null && Number.isNaN(changedSince.getTime())) {
+    throw new WorkflowHttpError(
+      'invalid_private_message_cursor',
+      400,
+      'The private-message synchronization cursor is invalid.',
+    );
+  }
+
   const conversation = await withWorkflowAuthority(sql, user, async (tx) => {
     const transaction = await messagingTransaction(tx, user, transactionId);
     if (req.method === 'POST') {
       await ensurePrivateConversation(tx, transaction);
     }
-    return await privateConversationPayload(tx, transactionId);
+    return await privateConversationPayload(
+      tx,
+      transactionId,
+      req.method === 'GET' ? changedSince : null,
+    );
   });
 
   if (req.method === 'POST') {
@@ -2856,7 +3032,10 @@ async function handlePrivateConversation(
       transaction_id: transactionId,
     });
   }
-  return json({ conversation });
+  return json({
+    conversation,
+    incremental: req.method === 'GET' && changedSince !== null,
+  });
 }
 
 async function handleSendPrivateMessage(
@@ -2930,27 +3109,77 @@ async function handleSendPrivateMessage(
     }
 
     const messageId = newWorkflowId('MSG');
-    await tx`
+    const insertedRows = await tx`
       INSERT INTO public.hdc_private_messages (
-        id, conversation_id, sender_id, body, status,
+        id, conversation_id, sender_id, client_message_id, body, status,
         language_warning_acknowledged
       ) VALUES (
-        ${messageId}, ${String(conversation.id)}, ${user.id}, ${input.text},
-        'sent', ${moderation.action === 'warn' &&
+        ${messageId}, ${String(conversation.id)}, ${user.id},
+        ${input.clientMessageId}, ${input.text}, 'sent',
+        ${moderation.action === 'warn' &&
           input.acknowledgeLanguageWarning}
       )
+      ON CONFLICT (conversation_id, sender_id, client_message_id)
+      DO NOTHING
+      RETURNING *
     `;
+    let canonicalMessageId = messageId;
+    let replayed = false;
+    if (insertedRows.length === 0) {
+      const replayRows = await tx`
+        SELECT *
+        FROM public.hdc_private_messages
+        WHERE conversation_id = ${String(conversation.id)}
+          AND sender_id = ${user.id}
+          AND client_message_id = ${input.clientMessageId}
+        LIMIT 1
+      `;
+      if (
+        replayRows.length === 0 ||
+        String(replayRows[0].body) !== input.text ||
+        Boolean(replayRows[0].language_warning_acknowledged) !==
+          (moderation.action === 'warn' && input.acknowledgeLanguageWarning)
+      ) {
+        throw new WorkflowHttpError(
+          'private_message_identifier_conflict',
+          409,
+          'That private message reference is already in use.',
+        );
+      }
+      canonicalMessageId = String(replayRows[0].id);
+      replayed = true;
+    }
     return {
       conversation: await privateConversationPayload(tx, transactionId),
-      messageId,
+      messageId: canonicalMessageId,
+      replayed,
+      transaction,
     };
   });
 
   await audit(sql, user.id, 'messaging.message.send', 'success', {
     transaction_id: transactionId,
     message_id: result.messageId,
+    idempotent_replay: result.replayed,
   });
-  return json({ conversation: result.conversation }, 201);
+  if (!result.replayed) {
+    await notifyTransactionCounterparty(
+      sql,
+      result.transaction,
+      user.id,
+      'messaging.message_received',
+      'New private transaction message',
+      'A participant sent a new message in your service workspace.',
+      { transactionId, messageId: result.messageId },
+    );
+  }
+  return json(
+    {
+      conversation: result.conversation,
+      idempotentReplay: result.replayed,
+    },
+    result.replayed ? 200 : 201,
+  );
 }
 
 async function handleMarkPrivateConversationRead(
@@ -3004,6 +3233,1942 @@ async function handlePrivateConversationStorage(
     storage_mode: mode,
   });
   return json({ conversation });
+}
+
+async function transactionForParticipant(
+  tx: DbClient,
+  user: UserView,
+  transactionId: string,
+  lock = false,
+): Promise<Record<string, unknown>> {
+  const rows = lock
+    ? await tx`
+        SELECT *
+        FROM public.hdc_service_transactions
+        WHERE id = ${transactionId}
+        FOR UPDATE
+      `
+    : await tx`
+        SELECT *
+        FROM public.hdc_service_transactions
+        WHERE id = ${transactionId}
+      `;
+  if (rows.length === 0) {
+    throw new WorkflowHttpError(
+      'service_transaction_not_found',
+      404,
+      'The service transaction was not found.',
+    );
+  }
+  const transaction = rowObject(rows[0]);
+  if (
+    user.id !== String(transaction.customer_id) &&
+    user.id !== String(transaction.technician_id)
+  ) {
+    throw new WorkflowHttpError(
+      'forbidden',
+      403,
+      'Only transaction participants can use this service workspace.',
+    );
+  }
+  return transaction;
+}
+
+function transactionActivity(
+  transaction: Record<string, unknown>,
+  actorId: string,
+  type: string,
+  message: string,
+  toStatus: string | null = null,
+): DbJsonValue[] {
+  const currentActivity = Array.isArray(transaction.activity)
+    ? transaction.activity as DbJsonValue[]
+    : [];
+  return [
+    ...currentActivity,
+    {
+      id: newWorkflowId('TXN-ACT'),
+      type,
+      message,
+      createdAt: new Date().toISOString(),
+      fromStatus: String(transaction.status),
+      toStatus: toStatus ?? String(transaction.status),
+      actorId,
+    },
+  ];
+}
+
+async function authorizedTransactionTotalMinor(
+  tx: DbClient,
+  transaction: Record<string, unknown>,
+): Promise<number> {
+  const changeRows = await tx`
+    SELECT total_minor
+    FROM public.hdc_service_change_orders
+    WHERE transaction_id = ${String(transaction.id)}
+      AND status = 'accepted'
+    ORDER BY decided_at DESC, created_at DESC
+    LIMIT 1
+  `;
+  if (changeRows.length > 0) return Number(changeRows[0].total_minor);
+  const acceptedTerms = transaction.accepted_terms &&
+      typeof transaction.accepted_terms === 'object' &&
+      !Array.isArray(transaction.accepted_terms)
+    ? transaction.accepted_terms as Record<string, unknown>
+    : {};
+  return Math.max(
+    0,
+    Math.round(Number(acceptedTerms.totalEstimate ?? 0) * 100),
+  );
+}
+
+async function transactionToolboxPayload(
+  tx: DbClient,
+  transaction: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const transactionId = String(transaction.id);
+  const schedules = await tx`
+    SELECT * FROM public.hdc_service_schedule_changes
+    WHERE transaction_id = ${transactionId}
+    ORDER BY created_at DESC
+  `;
+  const changeOrders = await tx`
+    SELECT * FROM public.hdc_service_change_orders
+    WHERE transaction_id = ${transactionId}
+    ORDER BY created_at DESC
+  `;
+  const exceptions = await tx`
+    SELECT * FROM public.hdc_service_transaction_exceptions
+    WHERE transaction_id = ${transactionId}
+    ORDER BY created_at DESC
+  `;
+  const payments = await tx`
+    SELECT * FROM public.hdc_service_payments
+    WHERE transaction_id = ${transactionId}
+    ORDER BY created_at DESC
+  `;
+  const paymentEvents = await tx`
+    SELECT * FROM public.hdc_service_payment_events
+    WHERE transaction_id = ${transactionId}
+    ORDER BY created_at, id
+  `;
+  const receipts = await tx`
+    SELECT * FROM public.hdc_service_receipts
+    WHERE transaction_id = ${transactionId}
+    ORDER BY issued_at DESC
+  `;
+  const documents = await tx`
+    SELECT * FROM public.hdc_service_documents
+    WHERE transaction_id = ${transactionId}
+      AND visibility = 'participants'
+      AND status <> 'removed'
+    ORDER BY created_at DESC
+  `;
+  const disputes = await tx`
+    SELECT * FROM public.hdc_service_disputes
+    WHERE transaction_id = ${transactionId}
+    ORDER BY created_at DESC
+  `;
+  const disputeEvents = await tx`
+    SELECT * FROM public.hdc_service_dispute_events
+    WHERE transaction_id = ${transactionId}
+    ORDER BY created_at, id
+  `;
+  const authorizedTotalMinor = await authorizedTransactionTotalMinor(
+    tx,
+    transaction,
+  );
+  const confirmedPaidMinor = payments.reduce((total, row) => {
+    const status = String(row.status);
+    if (!['confirmed', 'partiallyRefunded', 'refunded'].includes(status)) {
+      return total;
+    }
+    return total + Number(row.amount_minor) - Number(row.refunded_minor ?? 0);
+  }, 0);
+  return {
+    transactionId,
+    authorizedTotalMinor,
+    confirmedPaidMinor,
+    balanceMinor: Math.max(0, authorizedTotalMinor - confirmedPaidMinor),
+    currency: 'PHP',
+    schedules: schedules.map((row) => scheduleChangeView(rowObject(row))),
+    changeOrders: changeOrders.map((row) => changeOrderView(rowObject(row))),
+    exceptions: exceptions.map((row) =>
+      transactionExceptionView(rowObject(row))),
+    payments: payments.map((row) => paymentView(rowObject(row))),
+    paymentEvents: paymentEvents.map((row) =>
+      paymentEventView(rowObject(row))),
+    receipts: receipts.map((row) => receiptView(rowObject(row))),
+    documents: documents.map((row) => documentView(rowObject(row))),
+    disputes: disputes.map((row) => disputeView(rowObject(row))),
+    disputeEvents: disputeEvents.map((row) =>
+      disputeEventView(rowObject(row))),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function handleTransactionToolbox(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  transactionId: string,
+): Promise<Response> {
+  if (req.method !== 'GET') return methodNotAllowed();
+  const toolbox = await withWorkflowAuthority(sql, user, async (tx) => {
+    const transaction = await transactionForParticipant(
+      tx,
+      user,
+      transactionId,
+    );
+    return await transactionToolboxPayload(tx, transaction);
+  });
+  return json({ toolbox });
+}
+
+async function handleCreateScheduleChange(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  transactionId: string,
+): Promise<Response> {
+  if (req.method !== 'POST') return methodNotAllowed();
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const input = parseScheduleChangeWrite(body);
+  if (new Date(input.proposedFor).getTime() <= Date.now()) {
+    throw new WorkflowHttpError(
+      'schedule_must_be_future',
+      409,
+      'Choose a future service date and time.',
+    );
+  }
+
+  const result = await withWorkflowAuthority(sql, user, async (tx) => {
+    const transaction = await transactionForParticipant(
+      tx,
+      user,
+      transactionId,
+      true,
+    );
+    if (['completed', 'cancelled', 'disputed'].includes(String(transaction.status))) {
+      throw new WorkflowHttpError(
+        'schedule_change_unavailable',
+        409,
+        'This transaction cannot be rescheduled in its current state.',
+      );
+    }
+    const replayRows = await tx`
+      SELECT * FROM public.hdc_service_schedule_changes
+      WHERE transaction_id = ${transactionId}
+        AND proposed_by = ${user.id}
+        AND client_reference = ${input.clientReference}
+      LIMIT 1
+    `;
+    if (replayRows.length > 0) {
+      const replay = rowObject(replayRows[0]);
+      if (
+        new Date(String(replay.proposed_for)).getTime() !==
+          new Date(input.proposedFor).getTime() ||
+        String(replay.note ?? '') !== input.note
+      ) {
+        throw new WorkflowHttpError(
+          'schedule_reference_conflict',
+          409,
+          'That schedule-change reference is already in use.',
+        );
+      }
+      return {
+        transaction,
+        toolbox: await transactionToolboxPayload(tx, transaction),
+        replayed: true,
+      };
+    }
+    const pendingRows = await tx`
+      SELECT id FROM public.hdc_service_schedule_changes
+      WHERE transaction_id = ${transactionId}
+        AND status = 'pending'
+      LIMIT 1
+    `;
+    if (pendingRows.length > 0) {
+      throw new WorkflowHttpError(
+        'schedule_change_pending',
+        409,
+        'Decide or withdraw the current schedule proposal first.',
+      );
+    }
+    await tx`
+      INSERT INTO public.hdc_service_schedule_changes (
+        id, transaction_id, client_reference, proposed_by,
+        proposed_for, note, status
+      ) VALUES (
+        ${newWorkflowId('SCH')}, ${transactionId}, ${input.clientReference},
+        ${user.id}, ${input.proposedFor}, ${input.note}, 'pending'
+      )
+    `;
+    return {
+      transaction,
+      toolbox: await transactionToolboxPayload(tx, transaction),
+      replayed: false,
+    };
+  });
+
+  if (!result.replayed) {
+    await audit(sql, user.id, 'workflow.schedule.proposed', 'success', {
+      transaction_id: transactionId,
+    });
+    await notifyTransactionCounterparty(
+      sql,
+      result.transaction,
+      user.id,
+      'workflow.schedule_proposed',
+      'Schedule change requested',
+      'A new service date and time is waiting for your decision.',
+      { transactionId },
+      'high',
+    );
+  }
+  return json(
+    { toolbox: result.toolbox, idempotentReplay: result.replayed },
+    result.replayed ? 200 : 201,
+  );
+}
+
+async function handleScheduleChangeDecision(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  transactionId: string,
+  scheduleId: string,
+): Promise<Response> {
+  if (req.method !== 'PUT') return methodNotAllowed();
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const input = parseParticipantDecisionWrite(body);
+  const result = await withWorkflowAuthority(sql, user, async (tx) => {
+    let transaction = await transactionForParticipant(
+      tx,
+      user,
+      transactionId,
+      true,
+    );
+    const rows = await tx`
+      SELECT * FROM public.hdc_service_schedule_changes
+      WHERE id = ${scheduleId}
+        AND transaction_id = ${transactionId}
+      FOR UPDATE
+    `;
+    if (rows.length === 0) {
+      throw new WorkflowHttpError(
+        'schedule_change_not_found',
+        404,
+        'That schedule change was not found.',
+      );
+    }
+    const schedule = rowObject(rows[0]);
+    if (String(schedule.status) !== 'pending') {
+      throw new WorkflowHttpError(
+        'schedule_change_decided',
+        409,
+        'That schedule change has already been decided.',
+      );
+    }
+    const proposerId = String(schedule.proposed_by);
+    const withdrawing = input.action === 'withdraw';
+    if (String(transaction.status) === 'disputed' && !withdrawing) {
+      throw new WorkflowHttpError(
+        'transaction_frozen_by_dispute',
+        409,
+        'Schedule decisions are frozen while the dispute is active.',
+      );
+    }
+    if (withdrawing ? proposerId !== user.id : proposerId === user.id) {
+      throw new WorkflowHttpError(
+        'schedule_decision_forbidden',
+        403,
+        withdrawing
+          ? 'Only the proposer can withdraw this schedule change.'
+          : 'The other participant must decide this schedule change.',
+      );
+    }
+    const status = input.action === 'accept'
+      ? 'accepted'
+      : input.action === 'decline'
+        ? 'declined'
+        : 'withdrawn';
+    await tx`
+      UPDATE public.hdc_service_schedule_changes
+      SET
+        status = ${status},
+        decided_by = ${withdrawing ? null : user.id},
+        decided_at = now(),
+        note = CASE
+          WHEN ${input.note} = '' THEN note
+          ELSE ${input.note}
+        END
+      WHERE id = ${scheduleId}
+    `;
+    if (status === 'accepted') {
+      const nextStatus = String(transaction.status) === 'confirmed'
+        ? 'scheduled'
+        : String(transaction.status);
+      const activity = transactionActivity(
+        transaction,
+        user.id,
+        'statusChanged',
+        `Service schedule changed to ${new Date(
+          String(schedule.proposed_for),
+        ).toISOString()}.`,
+        nextStatus,
+      );
+      const transactionRows = await tx`
+        UPDATE public.hdc_service_transactions
+        SET status = ${nextStatus}, activity = ${tx.json(activity)}
+        WHERE id = ${transactionId}
+        RETURNING *
+      `;
+      transaction = rowObject(transactionRows[0]);
+    }
+    return {
+      transaction,
+      status,
+      toolbox: await transactionToolboxPayload(tx, transaction),
+    };
+  });
+
+  await audit(sql, user.id, 'workflow.schedule.decision', 'success', {
+    transaction_id: transactionId,
+    schedule_id: scheduleId,
+    status: result.status,
+  });
+  await notifyTransactionCounterparty(
+    sql,
+    result.transaction,
+    user.id,
+    'workflow.schedule_decided',
+    'Schedule request updated',
+    `The schedule request was ${result.status}.`,
+    { transactionId, scheduleId, status: result.status },
+  );
+  return json({ toolbox: result.toolbox });
+}
+
+async function handleCreateChangeOrder(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  transactionId: string,
+): Promise<Response> {
+  if (req.method !== 'POST') return methodNotAllowed();
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const input = parseChangeOrderWrite(body);
+  if (input.serviceFeeMinor + input.partsCostMinor <= 0) {
+    throw new WorkflowHttpError(
+      'invalid_change_order_amount',
+      400,
+      'The revised total must be greater than zero.',
+    );
+  }
+  const result = await withWorkflowAuthority(sql, user, async (tx) => {
+    const transaction = await transactionForParticipant(
+      tx,
+      user,
+      transactionId,
+      true,
+    );
+    if (String(transaction.technician_id) !== user.id) {
+      throw new WorkflowHttpError(
+        'change_order_forbidden',
+        403,
+        'Only the assigned technician can propose a revised price.',
+      );
+    }
+    if (['completed', 'cancelled', 'disputed'].includes(String(transaction.status))) {
+      throw new WorkflowHttpError(
+        'change_order_unavailable',
+        409,
+        'A price change is not available in the current transaction state.',
+      );
+    }
+    const replayRows = await tx`
+      SELECT * FROM public.hdc_service_change_orders
+      WHERE transaction_id = ${transactionId}
+        AND proposed_by = ${user.id}
+        AND client_reference = ${input.clientReference}
+      LIMIT 1
+    `;
+    if (replayRows.length > 0) {
+      const replay = rowObject(replayRows[0]);
+      if (
+        String(replay.reason) !== input.reason ||
+        Number(replay.service_fee_minor) !== input.serviceFeeMinor ||
+        Number(replay.parts_cost_minor) !== input.partsCostMinor ||
+        String(replay.currency) !== input.currency
+      ) {
+        throw new WorkflowHttpError(
+          'change_order_reference_conflict',
+          409,
+          'That price-change reference is already in use.',
+        );
+      }
+      return {
+        transaction,
+        toolbox: await transactionToolboxPayload(tx, transaction),
+        replayed: true,
+      };
+    }
+    const pendingRows = await tx`
+      SELECT id FROM public.hdc_service_change_orders
+      WHERE transaction_id = ${transactionId}
+        AND status = 'pending'
+      LIMIT 1
+    `;
+    if (pendingRows.length > 0) {
+      throw new WorkflowHttpError(
+        'change_order_pending',
+        409,
+        'The customer must decide the current price change first.',
+      );
+    }
+    await tx`
+      INSERT INTO public.hdc_service_change_orders (
+        id, transaction_id, client_reference, proposed_by, reason,
+        service_fee_minor, parts_cost_minor, total_minor, currency, status
+      ) VALUES (
+        ${newWorkflowId('CHG')}, ${transactionId}, ${input.clientReference},
+        ${user.id}, ${input.reason}, ${input.serviceFeeMinor},
+        ${input.partsCostMinor},
+        ${input.serviceFeeMinor + input.partsCostMinor}, ${input.currency},
+        'pending'
+      )
+    `;
+    return {
+      transaction,
+      toolbox: await transactionToolboxPayload(tx, transaction),
+      replayed: false,
+    };
+  });
+
+  if (!result.replayed) {
+    await audit(sql, user.id, 'workflow.change_order.proposed', 'success', {
+      transaction_id: transactionId,
+    });
+    await notifyTransactionCounterparty(
+      sql,
+      result.transaction,
+      user.id,
+      'workflow.change_order_proposed',
+      'Price change awaiting approval',
+      'The technician proposed a revised service total. Review it before payment.',
+      { transactionId },
+      'high',
+    );
+  }
+  return json(
+    { toolbox: result.toolbox, idempotentReplay: result.replayed },
+    result.replayed ? 200 : 201,
+  );
+}
+
+async function handleChangeOrderDecision(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  transactionId: string,
+  changeOrderId: string,
+): Promise<Response> {
+  if (req.method !== 'PUT') return methodNotAllowed();
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const input = parseParticipantDecisionWrite(body);
+  const result = await withWorkflowAuthority(sql, user, async (tx) => {
+    let transaction = await transactionForParticipant(
+      tx,
+      user,
+      transactionId,
+      true,
+    );
+    const rows = await tx`
+      SELECT * FROM public.hdc_service_change_orders
+      WHERE id = ${changeOrderId}
+        AND transaction_id = ${transactionId}
+      FOR UPDATE
+    `;
+    if (rows.length === 0) {
+      throw new WorkflowHttpError(
+        'change_order_not_found',
+        404,
+        'That price change was not found.',
+      );
+    }
+    const change = rowObject(rows[0]);
+    if (String(change.status) !== 'pending') {
+      throw new WorkflowHttpError(
+        'change_order_decided',
+        409,
+        'That price change has already been decided.',
+      );
+    }
+    const proposerId = String(change.proposed_by);
+    const withdrawing = input.action === 'withdraw';
+    if (String(transaction.status) === 'disputed' && !withdrawing) {
+      throw new WorkflowHttpError(
+        'transaction_frozen_by_dispute',
+        409,
+        'Price decisions are frozen while the dispute is active.',
+      );
+    }
+    if (withdrawing ? proposerId !== user.id : proposerId === user.id) {
+      throw new WorkflowHttpError(
+        'change_order_decision_forbidden',
+        403,
+        withdrawing
+          ? 'Only the technician can withdraw this price change.'
+          : 'Only the customer can decide this price change.',
+      );
+    }
+    const status = input.action === 'accept'
+      ? 'accepted'
+      : input.action === 'decline'
+        ? 'declined'
+        : 'withdrawn';
+    await tx`
+      UPDATE public.hdc_service_change_orders
+      SET
+        status = ${status},
+        decided_by = ${withdrawing ? null : user.id},
+        decided_at = now()
+      WHERE id = ${changeOrderId}
+    `;
+    if (status === 'accepted') {
+      const currentTerms = transaction.accepted_terms &&
+          typeof transaction.accepted_terms === 'object' &&
+          !Array.isArray(transaction.accepted_terms)
+        ? transaction.accepted_terms as Record<
+          string,
+          DbJsonValue | undefined
+        >
+        : {};
+      const revisedTerms = {
+        ...currentTerms,
+        originalTotalEstimate:
+          currentTerms.originalTotalEstimate ?? currentTerms.totalEstimate,
+        serviceFee: Number(change.service_fee_minor) / 100,
+        estimatedPartsCost: Number(change.parts_cost_minor) / 100,
+        totalEstimate: Number(change.total_minor) / 100,
+        latestAcceptedChangeOrderId: changeOrderId,
+      };
+      const activity = transactionActivity(
+        transaction,
+        user.id,
+        'statusChanged',
+        'Customer approved a revised service price.',
+      );
+      const transactionRows = await tx`
+        UPDATE public.hdc_service_transactions
+        SET accepted_terms = ${tx.json(revisedTerms)}, activity = ${tx.json(activity)}
+        WHERE id = ${transactionId}
+        RETURNING *
+      `;
+      transaction = rowObject(transactionRows[0]);
+    }
+    return {
+      transaction,
+      status,
+      toolbox: await transactionToolboxPayload(tx, transaction),
+    };
+  });
+
+  await audit(sql, user.id, 'workflow.change_order.decision', 'success', {
+    transaction_id: transactionId,
+    change_order_id: changeOrderId,
+    status: result.status,
+  });
+  await notifyTransactionCounterparty(
+    sql,
+    result.transaction,
+    user.id,
+    'workflow.change_order_decided',
+    'Price change updated',
+    `The revised service price was ${result.status}.`,
+    { transactionId, changeOrderId, status: result.status },
+  );
+  return json({ toolbox: result.toolbox });
+}
+
+async function handleCreateTransactionException(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  transactionId: string,
+): Promise<Response> {
+  if (req.method !== 'POST') return methodNotAllowed();
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const input = parseTransactionExceptionWrite(body);
+  if (
+    ['customerNoShow', 'technicianNoShow', 'customerNonResponse'].includes(
+      input.exceptionType,
+    ) && input.reason.length < 20
+  ) {
+    throw new WorkflowHttpError(
+      'invalid_transaction_tool_payload',
+      400,
+      'Describe the no-show or non-response in at least 20 characters.',
+    );
+  }
+  const result = await withWorkflowAuthority(sql, user, async (tx) => {
+    let transaction = await transactionForParticipant(
+      tx,
+      user,
+      transactionId,
+      true,
+    );
+    const customerId = String(transaction.customer_id);
+    const technicianId = String(transaction.technician_id);
+    if (String(transaction.status) === 'disputed') {
+      throw new WorkflowHttpError(
+        'transaction_frozen_by_dispute',
+        409,
+        'Service exception changes are frozen while the dispute is active.',
+      );
+    }
+    if (
+      (input.exceptionType === 'customerNoShow' ||
+        input.exceptionType === 'customerNonResponse') &&
+      user.id !== technicianId
+    ) {
+      throw new WorkflowHttpError(
+        'exception_report_forbidden',
+        403,
+        'Only the assigned technician can report this customer issue.',
+      );
+    }
+    if (
+      input.exceptionType === 'technicianNoShow' &&
+      user.id !== customerId
+    ) {
+      throw new WorkflowHttpError(
+        'exception_report_forbidden',
+        403,
+        'Only the customer can report a technician no-show.',
+      );
+    }
+    const replayRows = await tx`
+      SELECT * FROM public.hdc_service_transaction_exceptions
+      WHERE transaction_id = ${transactionId}
+        AND reported_by = ${user.id}
+        AND client_reference = ${input.clientReference}
+      LIMIT 1
+    `;
+    if (replayRows.length > 0) {
+      const replay = rowObject(replayRows[0]);
+      if (
+        String(replay.exception_type) !== input.exceptionType ||
+        String(replay.reason) !== input.reason
+      ) {
+        throw new WorkflowHttpError(
+          'exception_reference_conflict',
+          409,
+          'That service-issue reference is already in use.',
+        );
+      }
+      return {
+        transaction,
+        toolbox: await transactionToolboxPayload(tx, transaction),
+        replayed: true,
+      };
+    }
+
+    if (input.exceptionType === 'cancellation') {
+      if (
+        ['inProgress', 'awaitingCustomerConfirmation', 'completed',
+          'cancelled', 'disputed'].includes(String(transaction.status))
+      ) {
+        throw new WorkflowHttpError(
+          'transaction_cancellation_unavailable',
+          409,
+          'This transaction now requires the dispute workflow instead of direct cancellation.',
+        );
+      }
+    } else if (['completed', 'cancelled'].includes(String(transaction.status))) {
+      throw new WorkflowHttpError(
+        'transaction_exception_unavailable',
+        409,
+        'This service issue cannot be recorded in the current state.',
+      );
+    }
+
+    const exceptionId = newWorkflowId('TXN-EXC');
+    await tx`
+      INSERT INTO public.hdc_service_transaction_exceptions (
+        id, transaction_id, client_reference, reported_by,
+        exception_type, reason, status
+      ) VALUES (
+        ${exceptionId}, ${transactionId}, ${input.clientReference},
+        ${user.id}, ${input.exceptionType}, ${input.reason},
+        ${['customerNoShow', 'technicianNoShow', 'customerNonResponse'].includes(
+          input.exceptionType,
+        ) ? 'underReview' : 'recorded'}
+      )
+    `;
+
+    if (input.exceptionType === 'cancellation') {
+      const activity = transactionActivity(
+        transaction,
+        user.id,
+        'cancelled',
+        `Service cancelled: ${input.reason}`,
+        'cancelled',
+      );
+      const transactionRows = await tx`
+        UPDATE public.hdc_service_transactions
+        SET status = 'cancelled', activity = ${tx.json(activity)}
+        WHERE id = ${transactionId}
+        RETURNING *
+      `;
+      await tx`
+        UPDATE public.hdc_service_requests
+        SET status = 'cancelled'
+        WHERE id = ${String(transaction.request_id)}
+      `;
+      transaction = rowObject(transactionRows[0]);
+    } else if (
+      ['customerNoShow', 'technicianNoShow', 'customerNonResponse'].includes(
+        input.exceptionType,
+      )
+    ) {
+      const priorStatus = String(transaction.status);
+      const activeRows = await tx`
+        SELECT id FROM public.hdc_service_disputes
+        WHERE transaction_id = ${transactionId}
+          AND status IN ('open', 'underReview')
+        LIMIT 1
+      `;
+      if (activeRows.length === 0) {
+        const disputeId = newWorkflowId('DSP');
+        await tx`
+          INSERT INTO public.hdc_service_disputes (
+            id, transaction_id, client_reference, opened_by, reason_code,
+            summary, requested_outcome, prior_transaction_status, status
+          ) VALUES (
+            ${disputeId}, ${transactionId}, ${input.clientReference}, ${user.id},
+            ${input.exceptionType.includes('NoShow') ? 'noShow' : 'completion'},
+            ${input.reason}, 'cancelService', ${priorStatus}, 'open'
+          )
+        `;
+        await tx`
+          INSERT INTO public.hdc_service_dispute_events (
+            id, dispute_id, transaction_id, actor_id, event_type, message
+          ) VALUES (
+            ${newWorkflowId('DSP-EVT')}, ${disputeId}, ${transactionId},
+            ${user.id}, 'opened', ${input.reason}
+          )
+        `;
+      }
+      const activity = transactionActivity(
+        transaction,
+        user.id,
+        'disputeOpened',
+        'A no-show or non-response report opened a dispute review.',
+        'disputed',
+      );
+      const transactionRows = await tx`
+        UPDATE public.hdc_service_transactions
+        SET status = 'disputed', activity = ${tx.json(activity)}
+        WHERE id = ${transactionId}
+        RETURNING *
+      `;
+      transaction = rowObject(transactionRows[0]);
+    }
+
+    return {
+      transaction,
+      toolbox: await transactionToolboxPayload(tx, transaction),
+      replayed: false,
+    };
+  });
+
+  if (!result.replayed) {
+    await audit(sql, user.id, 'workflow.transaction.exception', 'success', {
+      transaction_id: transactionId,
+      exception_type: input.exceptionType,
+    });
+    await notifyTransactionCounterparty(
+      sql,
+      result.transaction,
+      user.id,
+      'workflow.transaction_exception',
+      input.exceptionType === 'cancellation'
+        ? 'Service cancelled'
+        : 'Service issue reported',
+      input.exceptionType === 'cancellation'
+        ? 'The other participant cancelled this service transaction.'
+        : 'A no-show, non-response, or service issue was recorded.',
+      { transactionId, exceptionType: input.exceptionType },
+      'critical',
+    );
+  }
+  return json(
+    { toolbox: result.toolbox, idempotentReplay: result.replayed },
+    result.replayed ? 200 : 201,
+  );
+}
+
+async function handleCreateServicePayment(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  transactionId: string,
+): Promise<Response> {
+  if (req.method !== 'POST') return methodNotAllowed();
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const input = parsePaymentWrite(body);
+  const result = await withWorkflowAuthority(sql, user, async (tx) => {
+    const transaction = await transactionForParticipant(
+      tx,
+      user,
+      transactionId,
+      true,
+    );
+    if (String(transaction.customer_id) !== user.id) {
+      throw new WorkflowHttpError(
+        'payment_record_forbidden',
+        403,
+        'Only the customer can record a payment for technician confirmation.',
+      );
+    }
+    if (['cancelled', 'disputed'].includes(String(transaction.status))) {
+      throw new WorkflowHttpError(
+        'payment_unavailable',
+        409,
+        'Payment recording is frozen for this transaction.',
+      );
+    }
+    const pendingChangeRows = await tx`
+      SELECT id FROM public.hdc_service_change_orders
+      WHERE transaction_id = ${transactionId}
+        AND status = 'pending'
+      LIMIT 1
+    `;
+    if (pendingChangeRows.length > 0) {
+      throw new WorkflowHttpError(
+        'change_order_pending',
+        409,
+        'Decide the pending price change before recording payment.',
+      );
+    }
+    const replayRows = await tx`
+      SELECT * FROM public.hdc_service_payments
+      WHERE transaction_id = ${transactionId}
+        AND recorded_by = ${user.id}
+        AND client_reference = ${input.clientReference}
+      LIMIT 1
+    `;
+    if (replayRows.length > 0) {
+      const replay = rowObject(replayRows[0]);
+      if (
+        Number(replay.amount_minor) !== input.amountMinor ||
+        String(replay.currency) !== input.currency ||
+        String(replay.payment_method) !== input.paymentMethod ||
+        String(replay.note ?? '') !== input.note ||
+        (replay.external_reference ? String(replay.external_reference) : null) !==
+          input.externalReference
+      ) {
+        throw new WorkflowHttpError(
+          'payment_reference_conflict',
+          409,
+          'That payment reference is already in use.',
+        );
+      }
+      return {
+        transaction,
+        toolbox: await transactionToolboxPayload(tx, transaction),
+        replayed: true,
+      };
+    }
+    const authorizedTotalMinor = await authorizedTransactionTotalMinor(
+      tx,
+      transaction,
+    );
+    const totals = await tx`
+      SELECT COALESCE(sum(amount_minor - refunded_minor), 0)::bigint AS total
+      FROM public.hdc_service_payments
+      WHERE transaction_id = ${transactionId}
+        AND status IN ('recorded', 'confirmed', 'partiallyRefunded', 'refunded')
+    `;
+    const existingTotal = Number(totals[0]?.total ?? 0);
+    if (existingTotal + input.amountMinor > authorizedTotalMinor) {
+      throw new WorkflowHttpError(
+        'payment_exceeds_balance',
+        409,
+        'The recorded payment exceeds the currently approved balance.',
+      );
+    }
+    const paymentId = newWorkflowId('PAY');
+    await tx`
+      INSERT INTO public.hdc_service_payments (
+        id, transaction_id, client_reference, recorded_by, amount_minor,
+        currency, payment_method, status, note, external_reference
+      ) VALUES (
+        ${paymentId}, ${transactionId}, ${input.clientReference}, ${user.id},
+        ${input.amountMinor}, ${input.currency}, ${input.paymentMethod},
+        'recorded', ${input.note}, ${input.externalReference}
+      )
+    `;
+    await tx`
+      INSERT INTO public.hdc_service_payment_events (
+        id, payment_id, transaction_id, actor_id, event_type,
+        amount_minor, note
+      ) VALUES (
+        ${newWorkflowId('PAY-EVT')}, ${paymentId}, ${transactionId},
+        ${user.id}, 'recorded', ${input.amountMinor}, ${input.note}
+      )
+    `;
+    return {
+      transaction,
+      toolbox: await transactionToolboxPayload(tx, transaction),
+      replayed: false,
+    };
+  });
+
+  if (!result.replayed) {
+    await audit(sql, user.id, 'workflow.payment.recorded', 'success', {
+      transaction_id: transactionId,
+      amount_minor: input.amountMinor,
+    });
+    await notifyTransactionCounterparty(
+      sql,
+      result.transaction,
+      user.id,
+      'workflow.payment_recorded',
+      'Payment awaiting confirmation',
+      'The customer recorded a payment. Confirm only after receiving it.',
+      { transactionId, amountMinor: input.amountMinor },
+      'high',
+    );
+  }
+  return json(
+    { toolbox: result.toolbox, idempotentReplay: result.replayed },
+    result.replayed ? 200 : 201,
+  );
+}
+
+async function handleServicePaymentAction(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  transactionId: string,
+  paymentId: string,
+): Promise<Response> {
+  if (req.method !== 'PUT') return methodNotAllowed();
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const input = parsePaymentActionWrite(body);
+  const result = await withWorkflowAuthority(sql, user, async (tx) => {
+    const transaction = await transactionForParticipant(
+      tx,
+      user,
+      transactionId,
+      true,
+    );
+    const rows = await tx`
+      SELECT * FROM public.hdc_service_payments
+      WHERE id = ${paymentId}
+        AND transaction_id = ${transactionId}
+      FOR UPDATE
+    `;
+    if (rows.length === 0) {
+      throw new WorkflowHttpError(
+        'payment_not_found',
+        404,
+        'That payment record was not found.',
+      );
+    }
+    const payment = rowObject(rows[0]);
+    const customerId = String(transaction.customer_id);
+    const technicianId = String(transaction.technician_id);
+    const currentStatus = String(payment.status);
+    if (String(transaction.status) === 'disputed') {
+      throw new WorkflowHttpError(
+        'transaction_frozen_by_dispute',
+        409,
+        'Payment and refund changes are frozen while the dispute is active.',
+      );
+    }
+    let eventType: string = input.action;
+    let eventAmount = input.amountMinor;
+    let receiptType: 'payment' | 'refund' | null = null;
+    let receiptAmount = 0;
+
+    if (input.action === 'confirm' || input.action === 'reject') {
+      if (user.id !== technicianId) {
+        throw new WorkflowHttpError(
+          'payment_confirmation_forbidden',
+          403,
+          'Only the assigned technician can confirm or reject a payment.',
+        );
+      }
+      if (currentStatus !== 'recorded') {
+        if (input.action === 'confirm' && currentStatus === 'confirmed') {
+          return {
+            transaction,
+            toolbox: await transactionToolboxPayload(tx, transaction),
+            replayed: true,
+            eventType: 'confirmed',
+          };
+        }
+        throw new WorkflowHttpError(
+          'payment_already_decided',
+          409,
+          'That payment has already been decided.',
+        );
+      }
+      const nextStatus = input.action === 'confirm' ? 'confirmed' : 'rejected';
+      await tx`
+        UPDATE public.hdc_service_payments
+        SET status = ${nextStatus}, confirmed_by = ${user.id}, confirmed_at = now()
+        WHERE id = ${paymentId}
+      `;
+      eventType = nextStatus;
+      eventAmount = Number(payment.amount_minor);
+      if (nextStatus === 'confirmed') {
+        receiptType = 'payment';
+        receiptAmount = Number(payment.amount_minor);
+      }
+    } else if (input.action === 'cancel') {
+      if (user.id !== customerId || String(payment.recorded_by) !== user.id) {
+        throw new WorkflowHttpError(
+          'payment_cancel_forbidden',
+          403,
+          'Only the customer who recorded this pending payment can cancel it.',
+        );
+      }
+      if (currentStatus !== 'recorded') {
+        throw new WorkflowHttpError(
+          'payment_already_decided',
+          409,
+          'Only a pending payment record can be cancelled.',
+        );
+      }
+      await tx`
+        UPDATE public.hdc_service_payments
+        SET status = 'cancelled'
+        WHERE id = ${paymentId}
+      `;
+      eventType = 'cancelled';
+      eventAmount = Number(payment.amount_minor);
+    } else if (input.action === 'recordRefund') {
+      if (user.id !== technicianId) {
+        throw new WorkflowHttpError(
+          'refund_record_forbidden',
+          403,
+          'Only the technician can record a refund for customer confirmation.',
+        );
+      }
+      if (!['confirmed', 'partiallyRefunded'].includes(currentStatus)) {
+        throw new WorkflowHttpError(
+          'refund_unavailable',
+          409,
+          'This payment is not available for a refund.',
+        );
+      }
+      const pendingRows = await tx`
+        SELECT event.id
+        FROM public.hdc_service_payment_events event
+        WHERE event.payment_id = ${paymentId}
+          AND event.event_type = 'refundRecorded'
+          AND NOT EXISTS (
+            SELECT 1 FROM public.hdc_service_payment_events confirmation
+            WHERE confirmation.related_event_id = event.id
+              AND confirmation.event_type = 'refundConfirmed'
+          )
+        LIMIT 1
+      `;
+      if (pendingRows.length > 0) {
+        throw new WorkflowHttpError(
+          'refund_pending',
+          409,
+          'The customer must confirm the current refund first.',
+        );
+      }
+      const remaining = Number(payment.amount_minor) -
+        Number(payment.refunded_minor ?? 0);
+      if ((input.amountMinor ?? 0) > remaining) {
+        throw new WorkflowHttpError(
+          'refund_exceeds_payment',
+          409,
+          'The refund amount exceeds the remaining confirmed payment.',
+        );
+      }
+      const refundEventId = newWorkflowId('PAY-EVT');
+      await tx`
+        INSERT INTO public.hdc_service_payment_events (
+          id, payment_id, transaction_id, actor_id, event_type,
+          amount_minor, note
+        ) VALUES (
+          ${refundEventId}, ${paymentId}, ${transactionId}, ${user.id},
+          'refundRecorded', ${input.amountMinor}, ${input.note}
+        )
+      `;
+      return {
+        transaction,
+        toolbox: await transactionToolboxPayload(tx, transaction),
+        replayed: false,
+        eventType: 'refundRecorded',
+      };
+    } else {
+      if (user.id !== customerId) {
+        throw new WorkflowHttpError(
+          'refund_confirmation_forbidden',
+          403,
+          'Only the customer can confirm receipt of a refund.',
+        );
+      }
+      const refundRows = await tx`
+        SELECT event.*
+        FROM public.hdc_service_payment_events event
+        WHERE event.payment_id = ${paymentId}
+          AND event.event_type = 'refundRecorded'
+          AND NOT EXISTS (
+            SELECT 1 FROM public.hdc_service_payment_events confirmation
+            WHERE confirmation.related_event_id = event.id
+              AND confirmation.event_type = 'refundConfirmed'
+          )
+        ORDER BY event.created_at DESC
+        LIMIT 1
+        FOR UPDATE
+      `;
+      if (refundRows.length === 0) {
+        throw new WorkflowHttpError(
+          'refund_not_pending',
+          409,
+          'There is no refund awaiting confirmation.',
+        );
+      }
+      const refund = rowObject(refundRows[0]);
+      const amount = Number(refund.amount_minor);
+      if (input.amountMinor !== amount) {
+        throw new WorkflowHttpError(
+          'refund_amount_mismatch',
+          409,
+          'The refund amount does not match the pending record.',
+        );
+      }
+      const refundedMinor = Number(payment.refunded_minor ?? 0) + amount;
+      const nextStatus = refundedMinor === Number(payment.amount_minor)
+        ? 'refunded'
+        : 'partiallyRefunded';
+      await tx`
+        UPDATE public.hdc_service_payments
+        SET status = ${nextStatus}, refunded_minor = ${refundedMinor}
+        WHERE id = ${paymentId}
+      `;
+      await tx`
+        INSERT INTO public.hdc_service_payment_events (
+          id, payment_id, transaction_id, actor_id, related_event_id,
+          event_type, amount_minor, note
+        ) VALUES (
+          ${newWorkflowId('PAY-EVT')}, ${paymentId}, ${transactionId},
+          ${user.id}, ${String(refund.id)}, 'refundConfirmed', ${amount},
+          ${input.note}
+        )
+      `;
+      receiptType = 'refund';
+      receiptAmount = amount;
+      eventType = 'refundConfirmed';
+      eventAmount = amount;
+    }
+
+    if (!['recordRefund', 'confirmRefund'].includes(input.action)) {
+      await tx`
+        INSERT INTO public.hdc_service_payment_events (
+          id, payment_id, transaction_id, actor_id, event_type,
+          amount_minor, note
+        ) VALUES (
+          ${newWorkflowId('PAY-EVT')}, ${paymentId}, ${transactionId},
+          ${user.id}, ${eventType}, ${eventAmount}, ${input.note}
+        )
+      `;
+    }
+    if (receiptType !== null) {
+      const receiptId = newWorkflowId('HDC-RCPT');
+      await tx`
+        INSERT INTO public.hdc_service_receipts (
+          id, payment_id, transaction_id, receipt_type, amount_minor,
+          currency, issued_to, issued_by, verification_level, snapshot
+        ) VALUES (
+          ${receiptId}, ${paymentId}, ${transactionId}, ${receiptType},
+          ${receiptAmount}, ${String(payment.currency)}, ${customerId},
+          ${user.id}, 'participantConfirmed', ${tx.json({
+            receiptId,
+            transactionId,
+            paymentId,
+            receiptType,
+            amountMinor: receiptAmount,
+            currency: String(payment.currency),
+            paymentMethod: String(payment.payment_method),
+            providerVerified: false,
+            verificationLabel: 'Confirmed by HDC transaction participants',
+          })}
+        )
+      `;
+    }
+    return {
+      transaction,
+      toolbox: await transactionToolboxPayload(tx, transaction),
+      replayed: false,
+      eventType,
+    };
+  });
+
+  if (!result.replayed) {
+    await audit(sql, user.id, 'workflow.payment.action', 'success', {
+      transaction_id: transactionId,
+      payment_id: paymentId,
+      action: result.eventType,
+    });
+    await notifyTransactionCounterparty(
+      sql,
+      result.transaction,
+      user.id,
+      'workflow.payment_updated',
+      'Payment record updated',
+      `A payment or refund record was updated: ${result.eventType}.`,
+      { transactionId, paymentId, action: result.eventType },
+      'high',
+    );
+  }
+  return json({
+    toolbox: result.toolbox,
+    idempotentReplay: result.replayed,
+  });
+}
+
+async function handleCreateTransactionDocument(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  transactionId: string,
+): Promise<Response> {
+  if (req.method !== 'POST') return methodNotAllowed();
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const input = parseDocumentWrite(body);
+  const byteSize = utf8Bytes(input.content);
+  if (byteSize > 100_000) {
+    throw new WorkflowHttpError(
+      'document_too_large',
+      413,
+      'This structured document is too large.',
+    );
+  }
+
+  const result = await withWorkflowAuthority(sql, user, async (tx) => {
+    const transaction = await transactionForParticipant(
+      tx,
+      user,
+      transactionId,
+      true,
+    );
+    const replayRows = await tx`
+      SELECT * FROM public.hdc_service_documents
+      WHERE transaction_id = ${transactionId}
+        AND created_by = ${user.id}
+        AND client_reference = ${input.clientReference}
+      LIMIT 1
+    `;
+    if (replayRows.length > 0) {
+      const replay = rowObject(replayRows[0]);
+      if (
+        String(replay.document_type) !== input.documentType ||
+        String(replay.title) !== input.title ||
+        String(replay.content_text) !== input.content ||
+        (replay.dispute_id ? String(replay.dispute_id) : null) !==
+          input.disputeId
+      ) {
+        throw new WorkflowHttpError(
+          'document_reference_conflict',
+          409,
+          'That document reference is already in use.',
+        );
+      }
+      return {
+        transaction,
+        toolbox: await transactionToolboxPayload(tx, transaction),
+        replayed: true,
+      };
+    }
+
+    if (input.disputeId !== null) {
+      const disputeRows = await tx`
+        SELECT id FROM public.hdc_service_disputes
+        WHERE id = ${input.disputeId}
+          AND transaction_id = ${transactionId}
+        LIMIT 1
+      `;
+      if (disputeRows.length === 0) {
+        throw new WorkflowHttpError(
+          'document_dispute_not_found',
+          404,
+          'The linked dispute was not found for this transaction.',
+        );
+      }
+    }
+
+    await tx`
+      INSERT INTO public.hdc_service_documents (
+        id, transaction_id, dispute_id, client_reference, created_by,
+        document_type, title, content_text, content_sha256, byte_size
+      ) VALUES (
+        ${newWorkflowId('DOC')}, ${transactionId}, ${input.disputeId},
+        ${input.clientReference}, ${user.id}, ${input.documentType},
+        ${input.title}, ${input.content}, ${contentDigest(input.content)},
+        ${byteSize}
+      )
+    `;
+    return {
+      transaction,
+      toolbox: await transactionToolboxPayload(tx, transaction),
+      replayed: false,
+    };
+  });
+
+  if (!result.replayed) {
+    await audit(sql, user.id, 'workflow.document.created', 'success', {
+      transaction_id: transactionId,
+      document_type: input.documentType,
+    });
+    await notifyTransactionCounterparty(
+      sql,
+      result.transaction,
+      user.id,
+      'workflow.document_created',
+      'New service document',
+      `${input.title} was added to the service workspace.`,
+      { transactionId, documentType: input.documentType },
+    );
+  }
+  return json(
+    { toolbox: result.toolbox, idempotentReplay: result.replayed },
+    result.replayed ? 200 : 201,
+  );
+}
+
+async function handleRemoveTransactionDocument(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  transactionId: string,
+  documentId: string,
+): Promise<Response> {
+  if (req.method !== 'DELETE') return methodNotAllowed();
+  const result = await withWorkflowAuthority(sql, user, async (tx) => {
+    const transaction = await transactionForParticipant(
+      tx,
+      user,
+      transactionId,
+      true,
+    );
+    const rows = await tx`
+      SELECT * FROM public.hdc_service_documents
+      WHERE id = ${documentId}
+        AND transaction_id = ${transactionId}
+      FOR UPDATE
+    `;
+    if (rows.length === 0) {
+      throw new WorkflowHttpError(
+        'document_not_found',
+        404,
+        'That service document was not found.',
+      );
+    }
+    const document = rowObject(rows[0]);
+    if (String(document.created_by) !== user.id) {
+      throw new WorkflowHttpError(
+        'document_remove_forbidden',
+        403,
+        'Only the participant who created this document can remove it.',
+      );
+    }
+    if (document.dispute_id !== null && document.dispute_id !== undefined) {
+      throw new WorkflowHttpError(
+        'dispute_document_immutable',
+        409,
+        'A document linked to a dispute is retained as case evidence.',
+      );
+    }
+    if (String(document.status) !== 'removed') {
+      await tx`
+        UPDATE public.hdc_service_documents
+        SET status = 'removed'
+        WHERE id = ${documentId}
+      `;
+    }
+    return {
+      transaction,
+      toolbox: await transactionToolboxPayload(tx, transaction),
+      replayed: String(document.status) === 'removed',
+    };
+  });
+  if (!result.replayed) {
+    await audit(sql, user.id, 'workflow.document.removed', 'success', {
+      transaction_id: transactionId,
+      document_id: documentId,
+    });
+  }
+  return json({
+    toolbox: result.toolbox,
+    idempotentReplay: result.replayed,
+  });
+}
+
+async function handleOpenServiceDispute(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  transactionId: string,
+): Promise<Response> {
+  if (req.method !== 'POST') return methodNotAllowed();
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const input = parseDisputeWrite(body);
+
+  const result = await withWorkflowAuthority(sql, user, async (tx) => {
+    let transaction = await transactionForParticipant(
+      tx,
+      user,
+      transactionId,
+      true,
+    );
+    const replayRows = await tx`
+      SELECT * FROM public.hdc_service_disputes
+      WHERE transaction_id = ${transactionId}
+        AND opened_by = ${user.id}
+        AND client_reference = ${input.clientReference}
+      LIMIT 1
+    `;
+    if (replayRows.length > 0) {
+      const replay = rowObject(replayRows[0]);
+      if (
+        String(replay.reason_code) !== input.reasonCode ||
+        String(replay.summary) !== input.summary ||
+        String(replay.requested_outcome) !== input.requestedOutcome
+      ) {
+        throw new WorkflowHttpError(
+          'dispute_reference_conflict',
+          409,
+          'That dispute reference is already in use.',
+        );
+      }
+      return {
+        transaction,
+        toolbox: await transactionToolboxPayload(tx, transaction),
+        replayed: true,
+      };
+    }
+    const activeRows = await tx`
+      SELECT id FROM public.hdc_service_disputes
+      WHERE transaction_id = ${transactionId}
+        AND status IN ('open', 'underReview')
+      LIMIT 1
+    `;
+    if (activeRows.length > 0 || String(transaction.status) === 'disputed') {
+      throw new WorkflowHttpError(
+        'active_dispute_exists',
+        409,
+        'This transaction already has an active dispute.',
+      );
+    }
+
+    const disputeId = newWorkflowId('DSP');
+    const priorStatus = String(transaction.status);
+    await tx`
+      INSERT INTO public.hdc_service_disputes (
+        id, transaction_id, client_reference, opened_by, reason_code,
+        summary, requested_outcome, prior_transaction_status, status
+      ) VALUES (
+        ${disputeId}, ${transactionId}, ${input.clientReference}, ${user.id},
+        ${input.reasonCode}, ${input.summary}, ${input.requestedOutcome},
+        ${priorStatus}, 'open'
+      )
+    `;
+    await tx`
+      INSERT INTO public.hdc_service_dispute_events (
+        id, dispute_id, transaction_id, actor_id, event_type, message
+      ) VALUES (
+        ${newWorkflowId('DSP-EVT')}, ${disputeId}, ${transactionId},
+        ${user.id}, 'opened', ${input.summary}
+      )
+    `;
+    const activity = transactionActivity(
+      transaction,
+      user.id,
+      'disputeOpened',
+      'A participant opened a dispute. Service actions are frozen for review.',
+      'disputed',
+    );
+    const transactionRows = await tx`
+      UPDATE public.hdc_service_transactions
+      SET status = 'disputed', activity = ${tx.json(activity)}
+      WHERE id = ${transactionId}
+      RETURNING *
+    `;
+    transaction = rowObject(transactionRows[0]);
+    return {
+      transaction,
+      toolbox: await transactionToolboxPayload(tx, transaction),
+      replayed: false,
+      disputeId,
+    };
+  });
+
+  const openedDisputeId = result.disputeId;
+  if (!result.replayed && openedDisputeId) {
+    await audit(sql, user.id, 'workflow.dispute.opened', 'success', {
+      transaction_id: transactionId,
+      dispute_id: openedDisputeId,
+      reason_code: input.reasonCode,
+    });
+    await notifyTransactionCounterparty(
+      sql,
+      result.transaction,
+      user.id,
+      'workflow.dispute_opened',
+      'Service dispute opened',
+      'The transaction is frozen while the issue is reviewed.',
+      { transactionId, disputeId: openedDisputeId },
+      'critical',
+    );
+  }
+  return json(
+    { toolbox: result.toolbox, idempotentReplay: result.replayed },
+    result.replayed ? 200 : 201,
+  );
+}
+
+function requestStatusForTransactionStatus(status: string): string {
+  if (status === 'completed') return 'completed';
+  if (status === 'cancelled') return 'cancelled';
+  if (status === 'inProgress' || status === 'awaitingCustomerConfirmation') {
+    return 'inProgress';
+  }
+  return 'technicianSelected';
+}
+
+async function handleServiceDisputeParticipantAction(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  transactionId: string,
+  disputeId: string,
+): Promise<Response> {
+  if (req.method !== 'PUT') return methodNotAllowed();
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const input = parseDisputeParticipantActionWrite(body);
+
+  const result = await withWorkflowAuthority(sql, user, async (tx) => {
+    let transaction = await transactionForParticipant(
+      tx,
+      user,
+      transactionId,
+      true,
+    );
+    const rows = await tx`
+      SELECT * FROM public.hdc_service_disputes
+      WHERE id = ${disputeId}
+        AND transaction_id = ${transactionId}
+      FOR UPDATE
+    `;
+    if (rows.length === 0) {
+      throw new WorkflowHttpError(
+        'dispute_not_found',
+        404,
+        'That dispute was not found.',
+      );
+    }
+    const dispute = rowObject(rows[0]);
+    if (!['open', 'underReview'].includes(String(dispute.status))) {
+      throw new WorkflowHttpError(
+        'dispute_closed',
+        409,
+        'That dispute is no longer active.',
+      );
+    }
+
+    if (input.action === 'withdraw') {
+      if (String(dispute.opened_by) !== user.id) {
+        throw new WorkflowHttpError(
+          'dispute_withdraw_forbidden',
+          403,
+          'Only the participant who opened this dispute can withdraw it.',
+        );
+      }
+      const restoredStatus = String(dispute.prior_transaction_status);
+      await tx`
+        UPDATE public.hdc_service_disputes
+        SET status = 'withdrawn', resolution_note = ${input.message},
+            resolved_at = now()
+        WHERE id = ${disputeId}
+      `;
+      const activity = transactionActivity(
+        transaction,
+        user.id,
+        'disputeWithdrawn',
+        'The dispute was withdrawn and the previous service state was restored.',
+        restoredStatus,
+      );
+      const transactionRows = await tx`
+        UPDATE public.hdc_service_transactions
+        SET status = ${restoredStatus}, activity = ${tx.json(activity)}
+        WHERE id = ${transactionId}
+        RETURNING *
+      `;
+      await tx`
+        UPDATE public.hdc_service_requests
+        SET status = ${requestStatusForTransactionStatus(restoredStatus)}
+        WHERE id = ${String(transaction.request_id)}
+      `;
+      transaction = rowObject(transactionRows[0]);
+    }
+
+    await tx`
+      INSERT INTO public.hdc_service_dispute_events (
+        id, dispute_id, transaction_id, actor_id, event_type, message
+      ) VALUES (
+        ${newWorkflowId('DSP-EVT')}, ${disputeId}, ${transactionId},
+        ${user.id},
+        ${input.action === 'withdraw' ? 'withdrawn' : 'participantNote'},
+        ${input.message}
+      )
+    `;
+    return {
+      transaction,
+      toolbox: await transactionToolboxPayload(tx, transaction),
+      action: input.action,
+    };
+  });
+
+  await audit(sql, user.id, `workflow.dispute.${result.action}`, 'success', {
+    transaction_id: transactionId,
+    dispute_id: disputeId,
+  });
+  await notifyTransactionCounterparty(
+    sql,
+    result.transaction,
+    user.id,
+    result.action === 'withdraw'
+      ? 'workflow.dispute_withdrawn'
+      : 'workflow.dispute_note',
+    result.action === 'withdraw' ? 'Dispute withdrawn' : 'Dispute updated',
+    result.action === 'withdraw'
+      ? 'The other participant withdrew the dispute.'
+      : 'The other participant added a note to the dispute.',
+    { transactionId, disputeId },
+    'high',
+  );
+  return json({ toolbox: result.toolbox });
+}
+
+function requireDisputeResolver(user: UserView): void {
+  if (!canApprovePlatformRoles(user.internalRoles)) {
+    throw new WorkflowHttpError(
+      'dispute_resolution_forbidden',
+      403,
+      'Owner or Super Admin access is required to resolve disputes.',
+    );
+  }
+}
+
+async function handleInternalDisputes(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+): Promise<Response> {
+  if (req.method !== 'GET') return methodNotAllowed();
+  requireDisputeResolver(user);
+  const rows = await sql`
+    SELECT
+      dispute.*,
+      transaction.request_title,
+      transaction.customer_name,
+      transaction.technician_name
+    FROM public.hdc_service_disputes dispute
+    JOIN public.hdc_service_transactions transaction
+      ON transaction.id = dispute.transaction_id
+    ORDER BY
+      CASE dispute.status WHEN 'open' THEN 0 WHEN 'underReview' THEN 1 ELSE 2 END,
+      dispute.created_at DESC
+    LIMIT 200
+  `;
+  const eventRows = await sql`
+    SELECT * FROM public.hdc_service_dispute_events
+    WHERE dispute_id IN (
+      SELECT id FROM public.hdc_service_disputes
+      ORDER BY created_at DESC
+      LIMIT 200
+    )
+    ORDER BY created_at, id
+  `;
+  return json({
+    disputes: rows.map((row) => ({
+      ...disputeView(rowObject(row)),
+      requestTitle: String(row.request_title),
+      customerName: String(row.customer_name),
+      technicianName: String(row.technician_name),
+    })),
+    events: eventRows.map((row) => disputeEventView(rowObject(row))),
+    openCount: rows.filter((row) =>
+      ['open', 'underReview'].includes(String(row.status))).length,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+async function handleInternalDisputeResolution(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  disputeId: string,
+): Promise<Response> {
+  if (req.method !== 'PUT') return methodNotAllowed();
+  requireDisputeResolver(user);
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const input = parseDisputeResolutionWrite(body);
+
+  const result = await sql.begin(async (tx) => {
+    const rows = await tx`
+      SELECT dispute.*, transaction.activity, transaction.request_id,
+             transaction.customer_id, transaction.technician_id,
+             transaction.status AS transaction_status
+      FROM public.hdc_service_disputes dispute
+      JOIN public.hdc_service_transactions transaction
+        ON transaction.id = dispute.transaction_id
+      WHERE dispute.id = ${disputeId}
+      FOR UPDATE OF dispute, transaction
+    `;
+    if (rows.length === 0) {
+      throw new WorkflowHttpError(
+        'dispute_not_found',
+        404,
+        'That dispute was not found.',
+      );
+    }
+    const dispute = rowObject(rows[0]);
+    if (!['open', 'underReview'].includes(String(dispute.status))) {
+      throw new WorkflowHttpError(
+        'dispute_closed',
+        409,
+        'That dispute has already been closed.',
+      );
+    }
+    const restoresPrior = ['serviceContinues', 'noAdjustment', 'other']
+      .includes(input.outcome);
+    const targetStatus = restoresPrior
+      ? String(dispute.prior_transaction_status)
+      : targetStatusForDisputeOutcome(input.outcome);
+    const transactionShape: Record<string, unknown> = {
+      ...dispute,
+      id: dispute.transaction_id,
+      status: dispute.transaction_status,
+      activity: dispute.activity,
+    };
+    const activity = transactionActivity(
+      transactionShape,
+      user.id,
+      'disputeResolved',
+      `Dispute resolved: ${input.outcome}. ${input.note}`,
+      targetStatus,
+    );
+    if (String(dispute.status) === 'open') {
+      await tx`
+        INSERT INTO public.hdc_service_dispute_events (
+          id, dispute_id, transaction_id, actor_id, event_type, message
+        ) VALUES (
+          ${newWorkflowId('DSP-EVT')}, ${disputeId},
+          ${String(dispute.transaction_id)}, ${user.id}, 'reviewStarted',
+          'Owner review started.'
+        )
+      `;
+    }
+    await tx`
+      UPDATE public.hdc_service_disputes
+      SET status = 'resolved', resolution_outcome = ${input.outcome},
+          resolution_note = ${input.note}, resolved_by = ${user.id},
+          resolved_at = now()
+      WHERE id = ${disputeId}
+    `;
+    await tx`
+      INSERT INTO public.hdc_service_dispute_events (
+        id, dispute_id, transaction_id, actor_id, event_type, message
+      ) VALUES (
+        ${newWorkflowId('DSP-EVT')}, ${disputeId},
+        ${String(dispute.transaction_id)}, ${user.id}, 'resolved',
+        ${`${input.outcome}: ${input.note}`}
+      )
+    `;
+    await tx`
+      UPDATE public.hdc_service_transactions
+      SET status = ${targetStatus}, activity = ${tx.json(activity)}
+      WHERE id = ${String(dispute.transaction_id)}
+    `;
+    await tx`
+      UPDATE public.hdc_service_requests
+      SET status = ${requestStatusForTransactionStatus(targetStatus)}
+      WHERE id = ${String(dispute.request_id)}
+    `;
+    await tx`
+      UPDATE public.hdc_service_transaction_exceptions
+      SET status = 'resolved', resolved_at = now()
+      WHERE transaction_id = ${String(dispute.transaction_id)}
+        AND status = 'underReview'
+    `;
+    return {
+      transactionId: String(dispute.transaction_id),
+      customerId: String(dispute.customer_id),
+      technicianId: String(dispute.technician_id),
+      targetStatus,
+    };
+  });
+
+  await audit(sql, user.id, 'workflow.dispute.resolved', 'success', {
+    dispute_id: disputeId,
+    transaction_id: result.transactionId,
+    outcome: input.outcome,
+  });
+  const notificationMetadata = {
+    transactionId: result.transactionId,
+    disputeId,
+    outcome: input.outcome,
+  };
+  await Promise.all([
+    notifyUser(
+      sql,
+      result.customerId,
+      'workflow.dispute_resolved',
+      'Dispute resolved',
+      `The dispute outcome is ${input.outcome}. Review the resolution note.`,
+      notificationMetadata,
+      'critical',
+    ),
+    notifyUser(
+      sql,
+      result.technicianId,
+      'workflow.dispute_resolved',
+      'Dispute resolved',
+      `The dispute outcome is ${input.outcome}. Review the resolution note.`,
+      notificationMetadata,
+      'critical',
+    ),
+  ]);
+  return json({
+    resolved: true,
+    disputeId,
+    transactionId: result.transactionId,
+    transactionStatus: result.targetStatus,
+  });
 }
 
 async function handleWorkflowBootstrap(
@@ -3410,6 +5575,21 @@ async function handleCreateProposal(
     status: input.status,
     idempotent_replay: created.replayed,
   });
+  if (input.status === 'submitted' && !created.replayed) {
+    const request = created.updatedRequest as Record<string, unknown>;
+    await notifyUser(
+      sql,
+      String(request.customerId),
+      'workflow.proposal_received',
+      'New service proposal',
+      'A technician submitted an offer for your service request.',
+      {
+        requestId: input.requestId,
+        proposalId: String((created.proposal as Record<string, unknown>).id),
+      },
+      'high',
+    );
+  }
   return json({
     proposal: created.proposal,
     updatedRequest: created.updatedRequest,
@@ -3725,6 +5905,7 @@ async function handleAcceptProposal(
           (row) => proposalView(rowObject(row)),
         ),
         competingProposalsClosed: 0,
+        replayed: true,
       };
     }
 
@@ -3869,6 +6050,7 @@ async function handleAcceptProposal(
         (row) => proposalView(rowObject(row)),
       ),
       competingProposalsClosed: competingRows.length,
+      replayed: false,
     };
   });
 
@@ -3877,6 +6059,36 @@ async function handleAcceptProposal(
     request_id: String((result.updatedRequest as Record<string, unknown>).id),
     transaction_id: String((result.serviceTransaction as Record<string, unknown>).id),
   });
+  if (result.replayed !== true) {
+    const accepted = result.acceptedProposal as Record<string, unknown>;
+    const transaction = result.serviceTransaction as Record<string, unknown>;
+    await notifyUser(
+      sql,
+      String(accepted.technicianId),
+      'workflow.proposal_accepted',
+      'Proposal accepted',
+      'Your proposal was accepted and a service workspace is now active.',
+      {
+        proposalId,
+        transactionId: String(transaction.id),
+      },
+      'high',
+    );
+    for (const competingValue of result.competingProposals as unknown[]) {
+      const competing = competingValue as Record<string, unknown>;
+      await notifyUser(
+        sql,
+        String(competing.technicianId),
+        'workflow.proposal_closed',
+        'Service request assigned',
+        'The customer selected another proposal for this service request.',
+        {
+          proposalId: String(competing.id),
+          transactionId: String(transaction.id),
+        },
+      );
+    }
+  }
   return json(result);
 }
 
@@ -3895,6 +6107,20 @@ async function handleTransactionStatus(
       'invalid_transaction_status',
       400,
       'A valid transaction status is required.',
+    );
+  }
+  if (nextStatus === 'disputed') {
+    throw new WorkflowHttpError(
+      'dispute_record_required',
+      409,
+      'Open a dispute from the service workspace so the reason is recorded.',
+    );
+  }
+  if (nextStatus === 'cancelled') {
+    throw new WorkflowHttpError(
+      'cancellation_record_required',
+      409,
+      'Cancel from the service workspace so the reason is recorded.',
     );
   }
 
@@ -3990,6 +6216,15 @@ async function handleTransactionStatus(
     transaction_id: transactionId,
     status: nextStatus,
   });
+  await notifyTransactionCounterparty(
+    sql,
+    updated.serviceTransaction as Record<string, unknown>,
+    user.id,
+    'workflow.transaction_status_changed',
+    'Service status updated',
+    `The service transaction is now ${nextStatus}.`,
+    { transactionId, status: nextStatus },
+  );
   return json(updated);
 }
 
@@ -4010,6 +6245,19 @@ async function handleReadiness(req: Request): Promise<Response> {
           to_regclass('public.hdc_private_conversations') IS NOT NULL AND
           to_regclass('public.hdc_private_messages') IS NOT NULL
         ) AS private_messaging_tables_ready,
+        (
+          to_regclass('public.hdc_service_schedule_changes') IS NOT NULL AND
+          to_regclass('public.hdc_service_change_orders') IS NOT NULL AND
+          to_regclass('public.hdc_service_transaction_exceptions') IS NOT NULL AND
+          to_regclass('public.hdc_service_payments') IS NOT NULL AND
+          to_regclass('public.hdc_service_receipts') IS NOT NULL AND
+          to_regclass('public.hdc_service_documents') IS NOT NULL AND
+          to_regclass('public.hdc_service_disputes') IS NOT NULL AND
+          EXISTS (
+            SELECT 1 FROM public.hdc_schema_migrations
+            WHERE version = '0015'
+          )
+        ) AS transaction_tools_ready,
         EXISTS (
           SELECT 1
           FROM pg_roles
@@ -4029,6 +6277,7 @@ async function handleReadiness(req: Request): Promise<Response> {
     const workflowAuthorityReady =
       authority.workflow_table_ready === true &&
       authority.private_messaging_tables_ready === true &&
+      authority.transaction_tools_ready === true &&
       authority.workflow_role_ready === true &&
       authority.technician_proposal_lock_ready === true;
     if (!workflowAuthorityReady) {
@@ -4043,6 +6292,8 @@ async function handleReadiness(req: Request): Promise<Response> {
             authority.private_messaging_tables_ready === true
               ? 'ok'
               : 'not_ready',
+          transactionTools:
+            authority.transaction_tools_ready === true ? 'ok' : 'not_ready',
         },
       }, 503);
     }
@@ -4053,6 +6304,7 @@ async function handleReadiness(req: Request): Promise<Response> {
         database: 'ok',
         workflowAuthority: 'ok',
         privateMessaging: 'ok',
+        transactionTools: 'ok',
       },
       latencyMs: database.latencyMs,
     });
@@ -4083,7 +6335,7 @@ async function handleHdcApiRequestCore(
     return json({
       service: 'hdc-beta-api',
       status: 'ok',
-      build: '0.6.4-build20',
+      build: '0.6.4-build22',
     });
   }
   if (path === '/api/health/ready') return await handleReadiness(req);
@@ -4110,7 +6362,14 @@ async function handleHdcApiRequestCore(
     path === '/api/internal/role-applications' ||
     path.startsWith('/api/internal/role-applications/') ||
     path === '/api/internal/account-recovery' ||
-    path.startsWith('/api/internal/account-recovery/');
+    path.startsWith('/api/internal/account-recovery/') ||
+    path === '/api/internal/disputes' ||
+    path.startsWith('/api/internal/disputes/');
+
+  const isNotificationPath =
+    path === '/api/notifications' ||
+    path === '/api/notifications/read-all' ||
+    path.startsWith('/api/notifications/');
 
   const isProfilePath =
     path === '/api/profiles' ||
@@ -4166,6 +6425,27 @@ async function handleHdcApiRequestCore(
 
     if (path === '/api/commerce/catalog') {
       return await handleProductCatalog(req, sql);
+    }
+
+    if (isNotificationPath) {
+      const session = await activeSession(req, sql);
+      if (!session) return json({ error: 'unauthorized' }, 401);
+      if (path === '/api/notifications') {
+        return await handleNotificationCenter(req, sql, session.user);
+      }
+      if (path === '/api/notifications/read-all') {
+        return await handleNotificationsReadAll(req, sql, session.user);
+      }
+      const notificationReadMatch =
+        /^\/api\/notifications\/([^/]+)\/read$/.exec(path);
+      if (notificationReadMatch) {
+        return await handleNotificationRead(
+          req,
+          sql,
+          session.user,
+          requirePathId(notificationReadMatch[1]),
+        );
+      }
     }
 
     if (isProfilePath) {
@@ -4258,6 +6538,9 @@ async function handleHdcApiRequestCore(
       if (path === '/api/internal/account-recovery') {
         return await handleListRecoveryReviews(req, sql, session.user);
       }
+      if (path === '/api/internal/disputes') {
+        return await handleInternalDisputes(req, sql, session.user);
+      }
 
       const roleApplicationMatch =
         /^\/api\/internal\/role-applications\/([^/]+)$/.exec(path);
@@ -4278,6 +6561,17 @@ async function handleHdcApiRequestCore(
           sql,
           session.user,
           requirePathId(recoveryReviewMatch[1]),
+        );
+      }
+
+      const disputeResolutionMatch =
+        /^\/api\/internal\/disputes\/([^/]+)$/.exec(path);
+      if (disputeResolutionMatch) {
+        return await handleInternalDisputeResolution(
+          req,
+          sql,
+          session.user,
+          requirePathId(disputeResolutionMatch[1]),
         );
       }
     }
@@ -4390,6 +6684,142 @@ async function handleHdcApiRequestCore(
           sql,
           session.user,
           requirePathId(privateConversationMatch[1]),
+        );
+      }
+
+      const transactionToolboxMatch =
+        /^\/api\/service-transactions\/([^/]+)\/toolbox$/.exec(path);
+      if (transactionToolboxMatch) {
+        return await handleTransactionToolbox(
+          req,
+          sql,
+          session.user,
+          requirePathId(transactionToolboxMatch[1]),
+        );
+      }
+
+      const scheduleDecisionMatch =
+        /^\/api\/service-transactions\/([^/]+)\/schedule-changes\/([^/]+)$/.exec(
+          path,
+        );
+      if (scheduleDecisionMatch) {
+        return await handleScheduleChangeDecision(
+          req,
+          sql,
+          session.user,
+          requirePathId(scheduleDecisionMatch[1]),
+          requirePathId(scheduleDecisionMatch[2]),
+        );
+      }
+      const scheduleCollectionMatch =
+        /^\/api\/service-transactions\/([^/]+)\/schedule-changes$/.exec(path);
+      if (scheduleCollectionMatch) {
+        return await handleCreateScheduleChange(
+          req,
+          sql,
+          session.user,
+          requirePathId(scheduleCollectionMatch[1]),
+        );
+      }
+
+      const changeOrderDecisionMatch =
+        /^\/api\/service-transactions\/([^/]+)\/change-orders\/([^/]+)$/.exec(
+          path,
+        );
+      if (changeOrderDecisionMatch) {
+        return await handleChangeOrderDecision(
+          req,
+          sql,
+          session.user,
+          requirePathId(changeOrderDecisionMatch[1]),
+          requirePathId(changeOrderDecisionMatch[2]),
+        );
+      }
+      const changeOrderCollectionMatch =
+        /^\/api\/service-transactions\/([^/]+)\/change-orders$/.exec(path);
+      if (changeOrderCollectionMatch) {
+        return await handleCreateChangeOrder(
+          req,
+          sql,
+          session.user,
+          requirePathId(changeOrderCollectionMatch[1]),
+        );
+      }
+
+      const exceptionCollectionMatch =
+        /^\/api\/service-transactions\/([^/]+)\/exceptions$/.exec(path);
+      if (exceptionCollectionMatch) {
+        return await handleCreateTransactionException(
+          req,
+          sql,
+          session.user,
+          requirePathId(exceptionCollectionMatch[1]),
+        );
+      }
+
+      const paymentActionMatch =
+        /^\/api\/service-transactions\/([^/]+)\/payments\/([^/]+)$/.exec(path);
+      if (paymentActionMatch) {
+        return await handleServicePaymentAction(
+          req,
+          sql,
+          session.user,
+          requirePathId(paymentActionMatch[1]),
+          requirePathId(paymentActionMatch[2]),
+        );
+      }
+      const paymentCollectionMatch =
+        /^\/api\/service-transactions\/([^/]+)\/payments$/.exec(path);
+      if (paymentCollectionMatch) {
+        return await handleCreateServicePayment(
+          req,
+          sql,
+          session.user,
+          requirePathId(paymentCollectionMatch[1]),
+        );
+      }
+
+      const documentActionMatch =
+        /^\/api\/service-transactions\/([^/]+)\/documents\/([^/]+)$/.exec(path);
+      if (documentActionMatch) {
+        return await handleRemoveTransactionDocument(
+          req,
+          sql,
+          session.user,
+          requirePathId(documentActionMatch[1]),
+          requirePathId(documentActionMatch[2]),
+        );
+      }
+      const documentCollectionMatch =
+        /^\/api\/service-transactions\/([^/]+)\/documents$/.exec(path);
+      if (documentCollectionMatch) {
+        return await handleCreateTransactionDocument(
+          req,
+          sql,
+          session.user,
+          requirePathId(documentCollectionMatch[1]),
+        );
+      }
+
+      const disputeActionMatch =
+        /^\/api\/service-transactions\/([^/]+)\/disputes\/([^/]+)$/.exec(path);
+      if (disputeActionMatch) {
+        return await handleServiceDisputeParticipantAction(
+          req,
+          sql,
+          session.user,
+          requirePathId(disputeActionMatch[1]),
+          requirePathId(disputeActionMatch[2]),
+        );
+      }
+      const disputeCollectionMatch =
+        /^\/api\/service-transactions\/([^/]+)\/disputes$/.exec(path);
+      if (disputeCollectionMatch) {
+        return await handleOpenServiceDispute(
+          req,
+          sql,
+          session.user,
+          requirePathId(disputeCollectionMatch[1]),
         );
       }
 
@@ -4547,6 +6977,11 @@ export const config: Config = {
     '/api/internal/role-applications/:id',
     '/api/internal/account-recovery',
     '/api/internal/account-recovery/:id',
+    '/api/internal/disputes',
+    '/api/internal/disputes/:id',
+    '/api/notifications',
+    '/api/notifications/read-all',
+    '/api/notifications/:id/read',
     '/api/profiles',
     '/api/profiles/member',
     '/api/profiles/:role',
@@ -4566,6 +7001,18 @@ export const config: Config = {
     '/api/proposals/:id',
     '/api/proposals/:id/accept',
     '/api/service-transactions/:id/status',
+    '/api/service-transactions/:id/toolbox',
+    '/api/service-transactions/:id/schedule-changes',
+    '/api/service-transactions/:id/schedule-changes/:itemId',
+    '/api/service-transactions/:id/change-orders',
+    '/api/service-transactions/:id/change-orders/:itemId',
+    '/api/service-transactions/:id/exceptions',
+    '/api/service-transactions/:id/payments',
+    '/api/service-transactions/:id/payments/:itemId',
+    '/api/service-transactions/:id/documents',
+    '/api/service-transactions/:id/documents/:itemId',
+    '/api/service-transactions/:id/disputes',
+    '/api/service-transactions/:id/disputes/:itemId',
     '/api/service-transactions/:id/conversation',
     '/api/service-transactions/:id/conversation/messages',
     '/api/service-transactions/:id/conversation/read',

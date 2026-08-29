@@ -12,6 +12,7 @@ import '../../models/service_transaction.dart';
 import '../../models/ticket.dart';
 import '../../providers/hdc_auth_provider.dart';
 import '../../providers/hdc_marketplace_provider.dart';
+import '../../providers/hdc_notification_center_provider.dart';
 import '../../providers/hdc_sales_center_provider.dart';
 import '../../providers/proposal_provider.dart';
 import '../../providers/service_request_provider.dart';
@@ -23,6 +24,7 @@ import '../customer_proposals/customer_offers_screen.dart';
 import '../internal/internal_dashboard_screen.dart';
 import '../marketplace/marketplace_catalog_screen.dart';
 import '../marketplace/sales_center_screen.dart';
+import '../notifications/notification_center_screen.dart';
 import '../profiles/profile_center_screen.dart';
 import '../roles/role_center_screen.dart';
 import '../search/search_screen.dart';
@@ -205,6 +207,16 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _openNotifications(BuildContext context) async {
+    if (!await requireRegisteredUser(context, action: 'view notifications')) {
+      return;
+    }
+    if (!context.mounted) return;
+    Navigator.of(context).push(
+      HDCPageRoute<void>(page: const NotificationCenterScreen()),
+    );
+  }
+
   Future<void> _openPassport(BuildContext context) async {
     if (!await requireRegisteredUser(
       context,
@@ -356,6 +368,8 @@ class DashboardScreen extends StatelessWidget {
     final ticketProvider = context.watch<TicketProvider>();
     final marketplaceProvider = context.watch<HdcMarketplaceProvider>();
     final salesProvider = context.watch<HdcSalesCenterProvider>();
+    final notificationCenter =
+        context.watch<HdcNotificationCenterProvider>();
     final platformRoleLabels = [
       ...?auth.identity?.platformRoles.map((role) => role.label),
     ]..sort();
@@ -465,8 +479,16 @@ class DashboardScreen extends StatelessWidget {
           ),
           IconButton(
             tooltip: 'Notifications',
-            icon: const Icon(Icons.notifications_none),
-            onPressed: () => _showComingSoon(context, 'Notifications'),
+            icon: Badge(
+              isLabelVisible: notificationCenter.unreadCount > 0,
+              label: Text(
+                notificationCenter.unreadCount > 99
+                    ? '99+'
+                    : '${notificationCenter.unreadCount}',
+              ),
+              child: const Icon(Icons.notifications_none),
+            ),
+            onPressed: () => _openNotifications(context),
           ),
           IconButton(
             tooltip: 'Profiles & Workspaces',
@@ -676,7 +698,7 @@ class DashboardScreen extends StatelessWidget {
                       const SizedBox(height: 32),
                       const Center(
                         child: Text(
-                          'HelpDesk Connect Beta v0.6.4 Build 20',
+                          'HelpDesk Connect Beta v0.6.4 Build 22',
                           style: TextStyle(color: HDCColors.textSecondary),
                         ),
                       ),

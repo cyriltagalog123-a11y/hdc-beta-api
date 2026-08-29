@@ -5,6 +5,7 @@ import '../../core/ui/hdc_colors.dart';
 import '../../models/service_transaction.dart';
 import '../../providers/service_transaction_provider.dart';
 import '../messaging/private_transaction_chat_screen.dart';
+import 'transaction_tools_screen.dart';
 
 class ServiceTransactionWorkspaceScreen extends StatelessWidget {
   final String transactionId;
@@ -362,11 +363,11 @@ class _NexusWorkspaceInsight extends StatelessWidget {
             ? 'The technician says the work is ready. Review the result before confirming completion.'
             : 'The customer now controls final completion confirmation.';
       case ServiceTransactionStatus.completed:
-        return 'This service transaction is complete. Receipt and warranty workflows will build on this record.';
+        return 'This service transaction is complete. Review participant-confirmed receipts, documents, and warranty records below.';
       case ServiceTransactionStatus.cancelled:
         return 'This transaction was cancelled.';
       case ServiceTransactionStatus.disputed:
-        return 'This transaction is under dispute. Future dispute tools will use this same transaction record.';
+        return 'This transaction is frozen while its dispute is reviewed. Open the Dispute tool for the case history.';
       case ServiceTransactionStatus.created:
         return 'The transaction has been created and is awaiting confirmation.';
     }
@@ -712,6 +713,21 @@ class _FutureWorkspaceTools extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final role = transaction.roleFor(actorId);
+    void openTools(TransactionToolSection section) {
+      if (role == null) return;
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => TransactionToolsScreen(
+            transactionId: transaction.id,
+            actorId: actorId,
+            role: role,
+            initialSection: section,
+          ),
+        ),
+      );
+    }
+
     final items = [
       _FutureTool(
         icon: Icons.chat_bubble_outline,
@@ -733,20 +749,41 @@ class _FutureWorkspaceTools extends StatelessWidget {
               }
             : null,
       ),
-      const _FutureTool(
+      _FutureTool(
+        icon: Icons.event_note_outlined,
+        title: 'Schedule, Price & Issues',
+        subtitle: 'Mutually approved schedule and price changes with recorded service exceptions.',
+        enabled: role != null,
+        onTap: role == null
+            ? null
+            : () => openTools(TransactionToolSection.service),
+      ),
+      _FutureTool(
         icon: Icons.payments_outlined,
         title: 'Payment & Receipt',
-        subtitle: 'Reserved for the payment and receipt workflow.',
+        subtitle: 'Record external payments, confirm receipt, and review participant-confirmed receipts.',
+        enabled: role != null,
+        onTap: role == null
+            ? null
+            : () => openTools(TransactionToolSection.payment),
       ),
-      const _FutureTool(
+      _FutureTool(
         icon: Icons.folder_outlined,
         title: 'Documents',
-        subtitle: 'Future reports, attachments, receipts, and warranty records.',
+        subtitle: 'Protected service reports, warranty terms, receipt notes, and evidence records.',
+        enabled: role != null,
+        onTap: role == null
+            ? null
+            : () => openTools(TransactionToolSection.documents),
       ),
-      const _FutureTool(
+      _FutureTool(
         icon: Icons.gavel_outlined,
         title: 'Dispute',
-        subtitle: 'Dispute controls remain reserved for the dedicated workflow.',
+        subtitle: 'Open a case, add participant notes, and review the resolution history.',
+        enabled: role != null,
+        onTap: role == null
+            ? null
+            : () => openTools(TransactionToolSection.dispute),
       ),
     ];
 
@@ -765,8 +802,9 @@ class _FutureWorkspaceTools extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Private transaction chat is now active. Other transaction '
-              'tools remain reserved for their dedicated workflows.',
+              'Participant-authorized tools are active. Payment records are '
+              'not payment-provider verification, and disputes freeze the '
+              'transaction until withdrawal or internal resolution.',
               style: TextStyle(
                 color: HDCColors.textSecondary,
                 height: 1.45,

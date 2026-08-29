@@ -137,9 +137,14 @@ class PrivateMessagingProvider extends ChangeNotifier {
     _isRefreshing = true;
     notifyListeners();
     try {
-      final conversation = await remote.refreshConversation(
+      final cached = _remoteConversations[transactionId];
+      final incoming = await remote.refreshConversation(
         transactionId: transactionId,
+        changedSince: cached?.messageSyncCursor,
       );
+      final conversation = cached == null
+          ? incoming
+          : _mergeIncrementalConversation(cached, incoming);
       _cache(
         conversation,
         expectedTransactionId: transactionId,
@@ -160,6 +165,7 @@ class PrivateMessagingProvider extends ChangeNotifier {
     required String transactionId,
     required String senderId,
     required String text,
+    String? clientMessageId,
     bool acknowledgeLanguageWarning = false,
   }) async {
     final normalizedText = text.trim();
@@ -187,6 +193,8 @@ class PrivateMessagingProvider extends ChangeNotifier {
 
     try {
       final remote = gateway;
+      final messageReference = clientMessageId ??
+          'MSG-CLIENT-${DateTime.now().microsecondsSinceEpoch}';
       final conversation = remote == null
           ? await _requireService().sendMessage(
               transactionId: transactionId,
@@ -198,6 +206,7 @@ class PrivateMessagingProvider extends ChangeNotifier {
               remote,
               transactionId: transactionId,
               senderId: senderId,
+              clientMessageId: messageReference,
               text: normalizedText,
               acknowledgeLanguageWarning: acknowledgeLanguageWarning,
             );
@@ -277,6 +286,7 @@ class PrivateMessagingProvider extends ChangeNotifier {
     PrivateMessagingGateway remote, {
     required String transactionId,
     required String senderId,
+    required String clientMessageId,
     required String text,
     required bool acknowledgeLanguageWarning,
   }) async {
@@ -292,6 +302,7 @@ class PrivateMessagingProvider extends ChangeNotifier {
     final bindingVersion = _bindingVersion;
     final conversation = await remote.sendMessage(
       transactionId: transactionId,
+      clientMessageId: clientMessageId,
       text: text,
       acknowledgeLanguageWarning: acknowledgeLanguageWarning,
     );
@@ -392,6 +403,44 @@ class PrivateMessagingProvider extends ChangeNotifier {
     if (incoming.updatedAt.isBefore(cached.updatedAt)) return true;
     if (!incoming.updatedAt.isAtSameMomentAs(cached.updatedAt)) return false;
     return incoming.messages.length < cached.messages.length;
+  }
+
+  PrivateConversation _mergeIncrementalConversation(
+    PrivateConversation cached,
+    PrivateConversation incoming,
+  ) {
+    if (cached.id != incoming.id ||
+        cached.transactionId != incoming.transactionId ||
+        cached.customerId != incoming.customerId ||
+        cached.technicianId != incoming.technicianId) {
+      return incoming;
+    }
+    final messages = <String, PrivateMessage>{
+      for (final message in cached.messages) message.id: message,
+    };
+    for (final message in incoming.messages) {
+      final current = messages[message.id];
+      if (current == null || !message.updatedAt.isBefore(current.updatedAt)) {
+        messages[message.id] = message;
+      }
+    }
+    final mergedMessages = messages.values.toList(growable: false)
+      ..sort((a, b) {
+        final byTime = a.createdAt.compareTo(b.createdAt);
+        return byTime == 0 ? a.id.compareTo(b.id) : byTime;
+      });
+    return PrivateConversation(
+      id: incoming.id,
+      transactionId: incoming.transactionId,
+      customerId: incoming.customerId,
+      technicianId: incoming.technicianId,
+      storage: incoming.storage,
+      messages: List<PrivateMessage>.unmodifiable(mergedMessages),
+      createdAt: cached.createdAt,
+      updatedAt: incoming.updatedAt.isAfter(cached.updatedAt)
+          ? incoming.updatedAt
+          : cached.updatedAt,
+    );
   }
 
   PrivateMessagingService _requireService() {

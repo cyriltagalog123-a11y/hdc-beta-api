@@ -40,10 +40,15 @@ void main() {
           break;
         case 2:
           expect(request.method, 'GET');
+          expect(
+            request.url.queryParameters['since'],
+            '2026-08-27T10:00:00.000Z',
+          );
           break;
         case 3:
           expect(request.method, 'POST');
           expect(jsonDecode(request.body), {
+            'clientMessageId': 'MSG-CLIENT-1',
             'text': 'Repair is complete.',
             'acknowledgeLanguageWarning': false,
           });
@@ -78,9 +83,13 @@ void main() {
       (await gateway.ensureConversation(transactionId: 'TXN-1')).id,
       'CONV-1',
     );
-    await gateway.refreshConversation(transactionId: 'TXN-1');
+    await gateway.refreshConversation(
+      transactionId: 'TXN-1',
+      changedSince: DateTime.utc(2026, 8, 27, 10),
+    );
     await gateway.sendMessage(
       transactionId: 'TXN-1',
+      clientMessageId: 'MSG-CLIENT-1',
       text: 'Repair is complete.',
       acknowledgeLanguageWarning: false,
     );

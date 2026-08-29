@@ -32,13 +32,16 @@ describe('private messaging policy', () => {
 
   it('trims writes and validates acknowledgement types', () => {
     expect(parsePrivateMessageWrite({
+      clientMessageId: 'MSG-CLIENT-1',
       text: '  Repair is complete.  ',
       acknowledgeLanguageWarning: true,
     })).toEqual({
+      clientMessageId: 'MSG-CLIENT-1',
       text: 'Repair is complete.',
       acknowledgeLanguageWarning: true,
     });
     expect(() => parsePrivateMessageWrite({
+      clientMessageId: 'MSG-CLIENT-2',
       text: 'Repair is complete.',
       acknowledgeLanguageWarning: 'yes',
     })).toThrow(/acknowledgement/i);
@@ -71,12 +74,14 @@ describe('private messaging policy', () => {
       updated_at: '2026-08-27T10:01:00.000Z',
     }, [{
       id: 'MSG-1',
+      client_message_id: 'MSG-CLIENT-1',
       conversation_id: 'CONV-1',
       sender_id: 'customer-1',
       body: 'Hello',
       status: 'sent',
       language_warning_acknowledged: false,
       created_at: '2026-08-27T10:01:00.000Z',
+      updated_at: '2026-08-27T10:02:00.000Z',
       read_at: null,
     }])).toMatchObject({
       transactionId: 'TXN-1',
@@ -88,8 +93,10 @@ describe('private messaging policy', () => {
       },
       messages: [{
         id: 'MSG-1',
+        clientMessageId: 'MSG-CLIENT-1',
         body: 'Hello',
         status: 'sent',
+        updatedAt: '2026-08-27T10:02:00.000Z',
       }],
     });
   });

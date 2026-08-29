@@ -7,10 +7,12 @@ abstract class PrivateMessagingGateway {
 
   Future<PrivateConversation> refreshConversation({
     required String transactionId,
+    DateTime? changedSince,
   });
 
   Future<PrivateConversation> sendMessage({
     required String transactionId,
+    required String clientMessageId,
     required String text,
     required bool acknowledgeLanguageWarning,
   });
