@@ -1,5 +1,28 @@
 # HDC Change Log
 
+## 0.6.4+22 — 2026-08-29
+
+- Build 20.1A adds an authenticated notification center with per-item/read-all
+  state, proposal and service-event notifications, unread dashboard count, and
+  incremental private-chat synchronization using required idempotency keys.
+- Build 20.1B adds participant-approved schedule changes, Technician-proposed
+  price change orders, cancellation/non-response/no-show exception records,
+  and an auditable transaction toolbox shared by Customer and Technician.
+- Build 21 adds provider-neutral records for payments completed outside HDC,
+  counterparty confirmation, refund records, and immutable receipts issued only
+  after both participants confirm the payment. HDC does not collect or move
+  money in this release.
+- Build 22 adds structured-text transaction documents, SHA-256 evidence
+  digests, participant-opened disputes, automatic dispute freezes, and an
+  Owner/Super Admin resolution queue with immutable resolution events.
+- Disputed transactions block schedule, price, payment, refund, and exception
+  mutations until an authorized resolution restores or closes the service.
+- Adds PostgreSQL migrations 0012–0015 with participant row-level security,
+  unique pending-action constraints, touch triggers, lifecycle evidence, and
+  idempotent migration guards.
+- Synchronizes Flutter, dashboard, API health, package, CI artifact, startup
+  recovery, generated-web, and integration-test release markers at Build 22.
+
 ## Build 20 startup recovery hotfix — 2026-08-27
 
 - Added an immediate, accessible web startup screen so Flutter initialization

@@ -11,6 +11,10 @@
     "0008_product_catalog_purchase_requests.sql": "fd35e3d948189a7c77b110f76bb0b20f018878d4e54efa26cd7ee76cac59d125",
     "0009_workflow_role_set_authority.sql": "70e9624d9730d7cf70d638bf4ed1a0020832e9f387e067199527cace18fbf3a8",
     "0010_private_transaction_messaging.sql": "605dfb393125a5a7caffdca65355631509b556249bd0b069b21f913d0771894c",
-    "0011_technician_proposal_lock.sql": "bf0ef0496408470f61bb5aa27cf8fc84a489511da9206f672d604d942f42c5f2"
+    "0011_technician_proposal_lock.sql": "bf0ef0496408470f61bb5aa27cf8fc84a489511da9206f672d604d942f42c5f2",
+    "0012_build20_1a_notifications_message_sync.sql": "1588242bb30cc64de3ce3eedaa698c3b92331574319c0ab104187c8fe212f10b",
+    "0013_build20_1b_transaction_exceptions.sql": "fc897ed9ed769061c293945576fda56aaa28214350f5975a8da296c094d286eb",
+    "0014_build21_payment_receipts.sql": "c349e0e11e9cfcc00e0e34f7977afb42542de4002763461096eecfeee7c31f4f",
+    "0015_documents_and_disputes.sql": "b959bb67d21f3269b5a5f4367a3b1cdcbe2331a188e2d4a08d6236d123793f60"
   }
 }

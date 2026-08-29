@@ -26,17 +26,22 @@ class PrivateTransactionChatScreen extends StatefulWidget {
 }
 
 class _PrivateTransactionChatScreenState
-    extends State<PrivateTransactionChatScreen> {
+    extends State<PrivateTransactionChatScreen>
+    with WidgetsBindingObserver {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _opening = true;
   bool _refreshing = false;
   Object? _openError;
   Timer? _refreshTimer;
+  bool _isForeground = true;
+  String? _pendingClientMessageId;
+  String? _pendingMessageText;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _openConversation();
     });
@@ -44,10 +49,22 @@ class _PrivateTransactionChatScreenState
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _isForeground = state == AppLifecycleState.resumed;
+    if (_isForeground) {
+      unawaited(_refreshConversation());
+      _startRefreshTimer();
+    } else {
+      _refreshTimer?.cancel();
+    }
   }
 
   Future<void> _openConversation() async {
@@ -91,8 +108,9 @@ class _PrivateTransactionChatScreenState
 
   void _startRefreshTimer() {
     _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 12), (_) {
-      if (mounted) unawaited(_refreshConversation());
+    if (!_isForeground) return;
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted && _isForeground) unawaited(_refreshConversation());
     });
   }
 
@@ -103,15 +121,22 @@ class _PrivateTransactionChatScreenState
 
     setState(() => _refreshing = true);
     try {
-      await messaging.refreshConversation(
+      final conversation = await messaging.refreshConversation(
         transactionId: widget.transactionId,
         actorId: widget.actorId,
       );
       if (!mounted) return;
-      await messaging.markConversationRead(
-        transactionId: widget.transactionId,
-        readerId: widget.actorId,
+      final hasUnread = conversation.messages.any(
+        (message) =>
+            message.senderId != widget.actorId &&
+            message.status != PrivateMessageStatus.read,
       );
+      if (hasUnread) {
+        await messaging.markConversationRead(
+          transactionId: widget.transactionId,
+          readerId: widget.actorId,
+        );
+      }
       if (mounted) _scrollToBottom();
     } on Object catch (error) {
       if (!mounted || !showError) return;
@@ -242,16 +267,26 @@ class _PrivateTransactionChatScreenState
     final text = _messageController.text;
 
     if (text.trim().isEmpty) return;
+    final normalizedText = text.trim();
+    if (_pendingMessageText != normalizedText ||
+        _pendingClientMessageId == null) {
+      _pendingMessageText = normalizedText;
+      _pendingClientMessageId =
+          'MSG-CLIENT-${DateTime.now().microsecondsSinceEpoch}';
+    }
 
     try {
       await context.read<PrivateMessagingProvider>().sendMessage(
             transactionId: widget.transactionId,
             senderId: widget.actorId,
-            text: text,
+            clientMessageId: _pendingClientMessageId,
+            text: normalizedText,
             acknowledgeLanguageWarning: acknowledgeLanguageWarning,
           );
 
       _messageController.clear();
+      _pendingClientMessageId = null;
+      _pendingMessageText = null;
       _scrollToBottom();
     } on PrivateMessageWarningRequired catch (warning) {
       if (!mounted) return;

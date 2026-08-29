@@ -7,6 +7,7 @@ import '../models/account_identity.dart';
 import '../models/account_recovery_review.dart';
 import '../models/hdc_internal_dashboard.dart';
 import '../models/platform_role_application.dart';
+import '../models/transaction_toolbox.dart';
 
 class HdcInternalDashboardProvider extends ChangeNotifier {
   final HdcWorkflowApiClient? client;
@@ -16,6 +17,8 @@ class HdcInternalDashboardProvider extends ChangeNotifier {
   HDCInternalDashboardSnapshot? _snapshot;
   List<PlatformRoleApplication> _reviewQueue = const [];
   List<AccountRecoveryReviewRequest> _recoveryReviewQueue = const [];
+  List<HdcServiceDispute> _disputeQueue = const [];
+  List<HdcDisputeEvent> _disputeEvents = const [];
   bool _isLoading = false;
   bool _isSubmitting = false;
   Object? _lastError;
@@ -37,6 +40,10 @@ class HdcInternalDashboardProvider extends ChangeNotifier {
       List<PlatformRoleApplication>.unmodifiable(_reviewQueue);
   List<AccountRecoveryReviewRequest> get recoveryReviewQueue =>
       List<AccountRecoveryReviewRequest>.unmodifiable(_recoveryReviewQueue);
+  List<HdcServiceDispute> get disputeQueue =>
+      List<HdcServiceDispute>.unmodifiable(_disputeQueue);
+  List<HdcDisputeEvent> get disputeEvents =>
+      List<HdcDisputeEvent>.unmodifiable(_disputeEvents);
   bool get isLoading => _isLoading;
   bool get isSubmitting => _isSubmitting;
   Object? get lastError => _lastError;
@@ -70,6 +77,8 @@ class HdcInternalDashboardProvider extends ChangeNotifier {
     _snapshot = null;
     _reviewQueue = const [];
     _recoveryReviewQueue = const [];
+    _disputeQueue = const [];
+    _disputeEvents = const [];
     _isLoading = false;
     _isSubmitting = false;
     _lastError = null;
@@ -280,6 +289,80 @@ class HdcInternalDashboardProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> loadDisputeQueue() async {
+    final api = client;
+    final userId = _boundUserId;
+    if (_disposed ||
+        api == null ||
+        userId == null ||
+        !permissions.canApprovePlatformRoles ||
+        _isLoading) {
+      return;
+    }
+    final bindingVersion = _bindingVersion;
+    _isLoading = true;
+    _lastError = null;
+    _announce();
+    try {
+      final response = await api.get('/api/internal/disputes');
+      if (!_isCurrent(userId, bindingVersion)) return;
+      _disputeQueue = List<HdcServiceDispute>.unmodifiable(
+        _objectList(response['disputes']).map(HdcServiceDispute.fromJson),
+      );
+      _disputeEvents = List<HdcDisputeEvent>.unmodifiable(
+        _objectList(response['events']).map(HdcDisputeEvent.fromJson),
+      );
+      _setPendingDisputeCount(
+        _disputeQueue.where((item) => item.isActive).length,
+      );
+    } on Object catch (error) {
+      if (_isCurrent(userId, bindingVersion)) _lastError = error;
+    } finally {
+      if (_isCurrent(userId, bindingVersion)) {
+        _isLoading = false;
+        _announce();
+      }
+    }
+  }
+
+  Future<void> resolveDispute(
+    HdcServiceDispute dispute, {
+    required String outcome,
+    required String note,
+  }) async {
+    final api = client;
+    final userId = _boundUserId;
+    if (_disposed ||
+        api == null ||
+        userId == null ||
+        !permissions.canApprovePlatformRoles) {
+      throw const HdcWorkflowException(
+        code: 'dispute_resolution_forbidden',
+        message: 'Owner or Super Admin access is required.',
+      );
+    }
+    final bindingVersion = _bindingVersion;
+    _isSubmitting = true;
+    _lastError = null;
+    _announce();
+    try {
+      await api.put(
+        '/api/internal/disputes/${Uri.encodeComponent(dispute.id)}',
+        body: {'outcome': outcome, 'note': note.trim()},
+      );
+      if (!_isCurrent(userId, bindingVersion)) return;
+      await loadDisputeQueue();
+    } on Object catch (error) {
+      if (_isCurrent(userId, bindingVersion)) _lastError = error;
+      rethrow;
+    } finally {
+      if (_isCurrent(userId, bindingVersion)) {
+        _isSubmitting = false;
+        _announce();
+      }
+    }
+  }
+
   void _setPendingReviewCount(int value) {
     final current = _snapshot;
     if (current != null) {
@@ -291,6 +374,13 @@ class HdcInternalDashboardProvider extends ChangeNotifier {
     final current = _snapshot;
     if (current != null) {
       _snapshot = current.withStatistic('pendingRecoveryReviews', value);
+    }
+  }
+
+  void _setPendingDisputeCount(int value) {
+    final current = _snapshot;
+    if (current != null) {
+      _snapshot = current.withStatistic('pendingDisputes', value);
     }
   }
 

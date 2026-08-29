@@ -118,12 +118,14 @@ extension PrivateMessageStatusDetails on PrivateMessageStatus {
 
 class PrivateMessage {
   final String id;
+  final String clientMessageId;
   final String conversationId;
   final String senderId;
   final String body;
   final PrivateMessageStatus status;
   final bool languageWarningAcknowledged;
   final DateTime createdAt;
+  final DateTime updatedAt;
   final DateTime? readAt;
 
   const PrivateMessage({
@@ -134,8 +136,11 @@ class PrivateMessage {
     required this.status,
     required this.languageWarningAcknowledged,
     required this.createdAt,
+    String? clientMessageId,
+    DateTime? updatedAt,
     this.readAt,
-  });
+  })  : clientMessageId = clientMessageId ?? id,
+        updatedAt = updatedAt ?? createdAt;
 
   int get approximateStorageBytes {
     return body.codeUnits.length * 2 + 160;
@@ -144,12 +149,14 @@ class PrivateMessage {
   Map<String, Object?> toJson() {
     return {
       'id': id,
+      'clientMessageId': clientMessageId,
       'conversationId': conversationId,
       'senderId': senderId,
       'body': body,
       'status': status.name,
       'languageWarningAcknowledged': languageWarningAcknowledged,
       'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
       'readAt': readAt?.toIso8601String(),
     };
   }
@@ -158,6 +165,7 @@ class PrivateMessage {
     final readAt = json['readAt'] as String?;
     return PrivateMessage(
       id: json['id'] as String,
+      clientMessageId: json['clientMessageId'] as String?,
       conversationId: json['conversationId'] as String,
       senderId: json['senderId'] as String,
       body: json['body'] as String? ?? '',
@@ -167,6 +175,9 @@ class PrivateMessage {
       languageWarningAcknowledged:
           json['languageWarningAcknowledged'] as bool? ?? false,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: json['updatedAt'] is String
+          ? DateTime.tryParse(json['updatedAt'] as String)
+          : null,
       readAt: readAt == null ? null : DateTime.tryParse(readAt),
     );
   }
@@ -177,12 +188,14 @@ class PrivateMessage {
   }) {
     return PrivateMessage(
       id: id,
+      clientMessageId: clientMessageId,
       conversationId: conversationId,
       senderId: senderId,
       body: body,
       status: status ?? this.status,
       languageWarningAcknowledged: languageWarningAcknowledged,
       createdAt: createdAt,
+      updatedAt: updatedAt,
       readAt: readAt ?? this.readAt,
     );
   }
@@ -223,6 +236,14 @@ class PrivateConversation {
   double get storageUsageRatio {
     if (storage.quotaBytes <= 0) return 0;
     return approximateStorageBytes / storage.quotaBytes;
+  }
+
+  DateTime get messageSyncCursor {
+    var cursor = createdAt;
+    for (final message in messages) {
+      if (message.updatedAt.isAfter(cursor)) cursor = message.updatedAt;
+    }
+    return cursor;
   }
 
   Map<String, Object?> toJson() {

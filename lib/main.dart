@@ -12,10 +12,12 @@ import 'features/splash/splash_screen.dart';
 import 'providers/hdc_auth_provider.dart';
 import 'providers/hdc_internal_dashboard_provider.dart';
 import 'providers/hdc_marketplace_provider.dart';
+import 'providers/hdc_notification_center_provider.dart';
 import 'providers/hdc_profile_provider.dart';
 import 'providers/hdc_role_center_provider.dart';
 import 'providers/hdc_sales_center_provider.dart';
 import 'providers/hdc_workflow_sync_provider.dart';
+import 'providers/hdc_transaction_tools_provider.dart';
 import 'providers/onboarding_provider.dart';
 import 'providers/private_messaging_provider.dart';
 import 'providers/proposal_acceptance_provider.dart';
@@ -168,6 +170,38 @@ class HDCApp extends StatelessWidget {
                 HdcInternalDashboardProvider(client: roleApiClient);
             provider.bindIdentity(
               auth.authenticated && !auth.guestMode ? auth.identity : null,
+            );
+            return provider;
+          },
+        ),
+        ChangeNotifierProxyProvider<
+          HDCAuthProvider,
+          HdcNotificationCenterProvider
+        >(
+          create: (_) => HdcNotificationCenterProvider(client: roleApiClient),
+          update: (_, auth, notificationCenter) {
+            final provider = notificationCenter ??
+                HdcNotificationCenterProvider(client: roleApiClient);
+            provider.bindUser(
+              auth.authenticated && !auth.guestMode
+                  ? auth.identity?.id
+                  : null,
+            );
+            return provider;
+          },
+        ),
+        ChangeNotifierProxyProvider<
+          HDCAuthProvider,
+          HdcTransactionToolsProvider
+        >(
+          create: (_) => HdcTransactionToolsProvider(client: roleApiClient),
+          update: (_, auth, transactionTools) {
+            final provider = transactionTools ??
+                HdcTransactionToolsProvider(client: roleApiClient);
+            provider.bindUser(
+              auth.authenticated && !auth.guestMode
+                  ? auth.identity?.id
+                  : null,
             );
             return provider;
           },

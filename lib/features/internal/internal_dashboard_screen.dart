@@ -8,6 +8,7 @@ import '../../models/hdc_internal_dashboard.dart';
 import '../../providers/hdc_internal_dashboard_provider.dart';
 import '../roles/internal_role_application_review_screen.dart';
 import 'account_recovery_review_screen.dart';
+import 'dispute_resolution_screen.dart';
 
 class InternalDashboardScreen extends StatefulWidget {
   const InternalDashboardScreen({super.key});
@@ -47,6 +48,16 @@ class _InternalDashboardScreenState extends State<InternalDashboardScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => const AccountRecoveryReviewScreen(),
+      ),
+    );
+  }
+
+  Future<void> _openDisputeQueue(BuildContext context) async {
+    await context.read<HdcInternalDashboardProvider>().loadDisputeQueue();
+    if (!context.mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const DisputeResolutionScreen(),
       ),
     );
   }
@@ -123,11 +134,15 @@ class _InternalDashboardScreenState extends State<InternalDashboardScreen> {
                             pendingRecoveryReviews: workspace.statistics[
                                     'pendingRecoveryReviews'] ??
                                 0,
+                            pendingDisputes:
+                                workspace.statistics['pendingDisputes'] ?? 0,
                             loading: workspace.isLoading,
                             onOpenApprovalQueue: () =>
                                 _openApprovalQueue(context),
                             onOpenRecoveryQueue: () =>
                                 _openRecoveryQueue(context),
+                            onOpenDisputeQueue: () =>
+                                _openDisputeQueue(context),
                           ),
                           if (workspace.assignments.isNotEmpty) ...[
                             const SizedBox(height: 26),
@@ -359,17 +374,21 @@ class _AuthorizedScope extends StatelessWidget {
   final HDCInternalDashboardPermissions permissions;
   final int pendingApplications;
   final int pendingRecoveryReviews;
+  final int pendingDisputes;
   final bool loading;
   final VoidCallback onOpenApprovalQueue;
   final VoidCallback onOpenRecoveryQueue;
+  final VoidCallback onOpenDisputeQueue;
 
   const _AuthorizedScope({
     required this.permissions,
     required this.pendingApplications,
     required this.pendingRecoveryReviews,
+    required this.pendingDisputes,
     required this.loading,
     required this.onOpenApprovalQueue,
     required this.onOpenRecoveryQueue,
+    required this.onOpenDisputeQueue,
   });
 
   @override
@@ -406,6 +425,19 @@ class _AuthorizedScope extends StatelessWidget {
                 : '$pendingRecoveryReviews recovery request(s) waiting for review.',
             action: FilledButton.tonalIcon(
               onPressed: loading ? null : onOpenRecoveryQueue,
+              icon: const Icon(Icons.arrow_forward),
+              label: const Text('Open Queue'),
+            ),
+          ),
+        if (permissions.canApprovePlatformRoles)
+          _ScopeTile(
+            icon: Icons.gavel_outlined,
+            title: 'Service dispute resolution',
+            subtitle: pendingDisputes == 0
+                ? 'The dispute queue is clear.'
+                : '$pendingDisputes active dispute(s) waiting for resolution.',
+            action: FilledButton.tonalIcon(
+              onPressed: loading ? null : onOpenDisputeQueue,
               icon: const Icon(Icons.arrow_forward),
               label: const Text('Open Queue'),
             ),
@@ -608,6 +640,8 @@ class _AccessUnavailable extends StatelessWidget {
       return ('Pending applications', Icons.fact_check_outlined, HDCColors.warning);
     case 'pendingRecoveryReviews':
       return ('Recovery reviews', Icons.security_outlined, HDCColors.danger);
+    case 'pendingDisputes':
+      return ('Pending disputes', Icons.gavel_outlined, HDCColors.warning);
     case 'activeDepartments':
       return ('Active departments', Icons.account_tree_outlined, HDCColors.primary);
     case 'activeSections':
@@ -630,6 +664,7 @@ int _statisticOrder(String key) {
     'myAssignments',
     'pendingRoleApplications',
     'pendingRecoveryReviews',
+    'pendingDisputes',
     'activeMembers',
     'openServiceRequests',
     'activeServiceTransactions',

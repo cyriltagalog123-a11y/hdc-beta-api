@@ -6,6 +6,7 @@ import type {
 import { databaseDriver, databaseUrl } from './env.mjs';
 
 export type DbClient = ReturnType<typeof postgres>;
+export type DbJsonValue = postgres.JSONValue;
 
 const postgresAdapter: HdcDatabaseAdapter<DbClient> = Object.freeze({
   driver: 'postgres',

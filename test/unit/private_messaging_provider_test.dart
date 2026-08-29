@@ -242,6 +242,7 @@ class _ControlledMessagingGateway extends Fake
   @override
   Future<PrivateConversation> refreshConversation({
     required String transactionId,
+    DateTime? changedSince,
   }) {
     return refreshCompleter.future;
   }
@@ -249,6 +250,7 @@ class _ControlledMessagingGateway extends Fake
   @override
   Future<PrivateConversation> sendMessage({
     required String transactionId,
+    required String clientMessageId,
     required String text,
     required bool acknowledgeLanguageWarning,
   }) {

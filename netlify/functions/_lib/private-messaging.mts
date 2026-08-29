@@ -33,6 +33,7 @@ export type PrivateMessageModeration = Readonly<{
 }>;
 
 export type PrivateMessageWrite = Readonly<{
+  clientMessageId: string;
   text: string;
   acknowledgeLanguageWarning: boolean;
 }>;
@@ -86,6 +87,16 @@ export function parsePrivateMessageWrite(
     );
   }
   if (
+    typeof source.clientMessageId !== 'string' ||
+    !/^[A-Za-z0-9._:-]{3,100}$/.test(source.clientMessageId)
+  ) {
+    throw new WorkflowHttpError(
+      'invalid_private_message',
+      400,
+      'The client message reference is invalid.',
+    );
+  }
+  if (
     source.acknowledgeLanguageWarning !== undefined &&
     typeof source.acknowledgeLanguageWarning !== 'boolean'
   ) {
@@ -96,6 +107,7 @@ export function parsePrivateMessageWrite(
     );
   }
   return Object.freeze({
+    clientMessageId: source.clientMessageId,
     text,
     acknowledgeLanguageWarning:
       source.acknowledgeLanguageWarning === true,
@@ -124,6 +136,7 @@ export function privateMessageView(
 ): Record<string, unknown> {
   return {
     id: String(row.id),
+    clientMessageId: String(row.client_message_id ?? row.id),
     conversationId: String(row.conversation_id),
     senderId: String(row.sender_id),
     body: String(row.body),
@@ -131,6 +144,7 @@ export function privateMessageView(
     languageWarningAcknowledged:
       Boolean(row.language_warning_acknowledged),
     createdAt: new Date(String(row.created_at)).toISOString(),
+    updatedAt: new Date(String(row.updated_at ?? row.created_at)).toISOString(),
     readAt: row.read_at === null || row.read_at === undefined
       ? null
       : new Date(String(row.read_at)).toISOString(),

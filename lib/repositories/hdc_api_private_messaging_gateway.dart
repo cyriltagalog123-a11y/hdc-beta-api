@@ -18,20 +18,27 @@ class HdcApiPrivateMessagingGateway implements PrivateMessagingGateway {
   @override
   Future<PrivateConversation> refreshConversation({
     required String transactionId,
+    DateTime? changedSince,
   }) async {
-    final response = await client.get(_conversationPath(transactionId));
+    final basePath = _conversationPath(transactionId);
+    final path = changedSince == null
+        ? basePath
+        : '$basePath?since=${Uri.encodeQueryComponent(changedSince.toUtc().toIso8601String())}';
+    final response = await client.get(path);
     return _conversation(response);
   }
 
   @override
   Future<PrivateConversation> sendMessage({
     required String transactionId,
+    required String clientMessageId,
     required String text,
     required bool acknowledgeLanguageWarning,
   }) async {
     final response = await client.post(
       '${_conversationPath(transactionId)}/messages',
       body: {
+        'clientMessageId': clientMessageId,
         'text': text,
         'acknowledgeLanguageWarning': acknowledgeLanguageWarning,
       },
