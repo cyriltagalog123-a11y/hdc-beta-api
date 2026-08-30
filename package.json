@@ -8,7 +8,9 @@
   },
   "scripts": {
     "backup:postgres": "node scripts/postgres/backup.mjs",
+    "db:rehearse-clean": "node scripts/postgres/rehearse-clean-schema.mjs",
     "build:web": "bash scripts/build-netlify-web.sh",
+    "test:postgres": "node scripts/postgres/run-integration-tests.mjs",
     "verify:backup": "node scripts/postgres/verify-backup.mjs",
     "check:migrations": "node scripts/check-migration-checksums.mjs",
     "check:portability": "node scripts/check-portability.mjs",
@@ -18,9 +20,9 @@
     "verify": "npm run check:migrations && npm run check:portability && npm run check:release && npm run typecheck && npm test"
   },
   "dependencies": {
-    "@netlify/functions": "^4.2.5",
+    "@netlify/functions": "^6.0.0",
     "bcryptjs": "^3.0.2",
-    "jose": "^6.1.0",
+    "jose": "^6.2.10",
     "postgres": "^3.4.7"
   },
   "devDependencies": {

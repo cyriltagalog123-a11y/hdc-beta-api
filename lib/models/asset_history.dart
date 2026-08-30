@@ -5,7 +5,7 @@ enum AssetHistoryType {
   assigned,
  transferred,
  maintenance,
- ticket,
+ serviceRequest,
  inspection,
  warranty,
  softwareUpdate,
@@ -48,8 +48,8 @@ class AssetHistory {
       case AssetHistoryType.maintenance:
         return Icons.build;
 
-      case AssetHistoryType.ticket:
-        return Icons.confirmation_number;
+      case AssetHistoryType.serviceRequest:
+        return Icons.campaign;
 
       case AssetHistoryType.inspection:
         return Icons.fact_check;
@@ -79,7 +79,7 @@ class AssetHistory {
       case AssetHistoryType.maintenance:
         return Colors.deepPurple;
 
-      case AssetHistoryType.ticket:
+      case AssetHistoryType.serviceRequest:
         return Colors.teal;
 
       case AssetHistoryType.inspection:

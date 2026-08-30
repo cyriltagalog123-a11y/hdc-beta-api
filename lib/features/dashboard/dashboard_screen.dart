@@ -9,7 +9,6 @@ import '../../models/proposal.dart';
 import '../../models/service_request.dart';
 import '../../models/service_request_draft.dart';
 import '../../models/service_transaction.dart';
-import '../../models/ticket.dart';
 import '../../providers/hdc_auth_provider.dart';
 import '../../providers/hdc_marketplace_provider.dart';
 import '../../providers/hdc_notification_center_provider.dart';
@@ -17,7 +16,6 @@ import '../../providers/hdc_sales_center_provider.dart';
 import '../../providers/proposal_provider.dart';
 import '../../providers/service_request_provider.dart';
 import '../../providers/service_transaction_provider.dart';
-import '../../providers/ticket_provider.dart';
 import '../authentication/login_screen.dart';
 import '../authentication/registered_user_gate.dart';
 import '../customer_proposals/customer_offers_screen.dart';
@@ -30,7 +28,6 @@ import '../roles/role_center_screen.dart';
 import '../search/search_screen.dart';
 import '../service_requests/create_service_request_screen.dart';
 import '../service_requests/my_service_requests_screen.dart';
-import '../tickets/my_tickets_screen.dart';
 import '../technician_marketplace/technician_marketplace_screen.dart';
 import '../transactions/my_transactions_screen.dart';
 import 'widgets/dashboard_activity_timeline.dart';
@@ -110,13 +107,8 @@ class DashboardScreen extends StatelessWidget {
     }
     if (!context.mounted) return;
 
-    Navigator.of(context).push(
-      HDCPageRoute<void>(
-        page: MyTransactionsScreen(
-          actorId: actorId,
-        ),
-      ),
-    );
+    Navigator.of(context)
+        .push(HDCPageRoute<void>(page: MyTransactionsScreen(actorId: actorId)));
   }
 
   Future<void> _openOffers(BuildContext context) async {
@@ -128,9 +120,8 @@ class DashboardScreen extends StatelessWidget {
     }
     if (!context.mounted) return;
 
-    Navigator.of(context).push(
-      HDCPageRoute<void>(page: const CustomerOffersScreen()),
-    );
+    Navigator.of(context)
+        .push(HDCPageRoute<void>(page: const CustomerOffersScreen()));
   }
 
   void _openTechnicianSearch(BuildContext context) {
@@ -173,16 +164,6 @@ class DashboardScreen extends StatelessWidget {
         .push(HDCPageRoute<void>(page: const TechnicianMarketplaceScreen()));
   }
 
-  Future<void> _openTickets(BuildContext context) async {
-    if (!await requireRegisteredUser(context, action: 'view your tickets')) {
-      return;
-    }
-    if (!context.mounted) return;
-
-    Navigator.of(context)
-        .push(HDCPageRoute<void>(page: const MyTicketsScreen()));
-  }
-
   Future<void> _openSalesCenter(BuildContext context) async {
     if (!await requireRegisteredUser(
       context,
@@ -212,9 +193,8 @@ class DashboardScreen extends StatelessWidget {
       return;
     }
     if (!context.mounted) return;
-    Navigator.of(context).push(
-      HDCPageRoute<void>(page: const NotificationCenterScreen()),
-    );
+    Navigator.of(context)
+        .push(HDCPageRoute<void>(page: const NotificationCenterScreen()));
   }
 
   Future<void> _openPassport(BuildContext context) async {
@@ -233,7 +213,6 @@ class DashboardScreen extends StatelessWidget {
     required List<ServiceRequest> ownedRequests,
     required List<Proposal> relevantProposals,
     required List<ServiceTransaction> transactions,
-    required List<Ticket> tickets,
   }) {
     final entries = <DashboardActivityItem>[];
     final requestsById = {
@@ -282,18 +261,6 @@ class DashboardScreen extends StatelessWidget {
           title: 'Service ${transaction.status.label}',
           subtitle: '${transaction.requestTitle} • ${transaction.id}',
           occurredAt: transaction.updatedAt,
-        ),
-      );
-    }
-
-    for (final ticket in tickets) {
-      entries.add(
-        DashboardActivityItem(
-          icon: ticket.statusIcon,
-          color: ticket.statusColor,
-          title: 'Booking ${ticket.statusLabel}',
-          subtitle: '${ticket.technician.name} • ${ticket.id}',
-          occurredAt: ticket.createdAt,
         ),
       );
     }
@@ -365,11 +332,9 @@ class DashboardScreen extends StatelessWidget {
     final requestProvider = context.watch<ServiceRequestProvider>();
     final proposalProvider = context.watch<ProposalProvider>();
     final transactionProvider = context.watch<ServiceTransactionProvider>();
-    final ticketProvider = context.watch<TicketProvider>();
     final marketplaceProvider = context.watch<HdcMarketplaceProvider>();
     final salesProvider = context.watch<HdcSalesCenterProvider>();
-    final notificationCenter =
-        context.watch<HdcNotificationCenterProvider>();
+    final notificationCenter = context.watch<HdcNotificationCenterProvider>();
     final platformRoleLabels = [
       ...?auth.identity?.platformRoles.map((role) => role.label),
     ]..sort();
@@ -406,9 +371,6 @@ class DashboardScreen extends StatelessWidget {
               .where((transaction) => transaction.isParticipant(actorId))
               .toList(growable: false)
         : const <ServiceTransaction>[];
-    final accountTickets = isRegisteredUser
-        ? ticketProvider.tickets
-        : const <Ticket>[];
     final activeRequests = ownedRequests
         .where((request) => request.status.isActive)
         .length;
@@ -416,30 +378,18 @@ class DashboardScreen extends StatelessWidget {
     final activeTransactions = accountTransactions
         .where((transaction) => transaction.status.isActive)
         .length;
-    final openTicketCount = accountTickets
+    final completedServiceCount = accountTransactions
         .where(
-          (ticket) =>
-              ticket.status != TicketStatus.completed &&
-              ticket.status != TicketStatus.cancelled,
+          (transaction) =>
+              transaction.status == ServiceTransactionStatus.completed,
         )
         .length;
-    final completedJobCount =
-        accountTransactions
-            .where(
-              (transaction) =>
-                  transaction.status == ServiceTransactionStatus.completed,
-            )
-            .length +
-        accountTickets
-            .where((ticket) => ticket.status == TicketStatus.completed)
-            .length;
     final accountActivity = isRegisteredUser
         ? _accountActivity(
             actorId: actorId,
             ownedRequests: ownedRequests,
             relevantProposals: relevantProposals,
             transactions: accountTransactions,
-            tickets: accountTickets,
           )
         : const <DashboardActivityItem>[];
 
@@ -594,10 +544,11 @@ class DashboardScreen extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 24),
                                   DashboardStatistics(
-                                    activeServiceCount: activeRequests,
+                                    openRequestCount: activeRequests,
                                     offerCount: totalOffers,
-                                    openTicketCount: openTicketCount,
-                                    completedJobCount: completedJobCount,
+                                    activeServiceCount: activeTransactions,
+                                    completedServiceCount:
+                                        completedServiceCount,
                                     guestMode: auth.guestMode,
                                   ),
                                   const SizedBox(height: 24),
@@ -614,7 +565,7 @@ class DashboardScreen extends StatelessWidget {
                               child: DashboardQuickAccess(
                                 onTransactions: () =>
                                     _openTransactions(context, actorId),
-                                onTickets: () => _openTickets(context),
+                                onRequests: () => _openMyRequests(context),
                                 onMarketplace: () =>
                                     _openTechnicianMarketplace(context, auth),
                                 onPassport: () => _openPassport(context),
@@ -667,17 +618,17 @@ class DashboardScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 24),
                         DashboardStatistics(
-                          activeServiceCount: activeRequests,
+                          openRequestCount: activeRequests,
                           offerCount: totalOffers,
-                          openTicketCount: openTicketCount,
-                          completedJobCount: completedJobCount,
+                          activeServiceCount: activeTransactions,
+                          completedServiceCount: completedServiceCount,
                           guestMode: auth.guestMode,
                         ),
                         const SizedBox(height: 24),
                         DashboardQuickAccess(
                           onTransactions: () =>
                               _openTransactions(context, actorId),
-                          onTickets: () => _openTickets(context),
+                          onRequests: () => _openMyRequests(context),
                           onMarketplace: () =>
                               _openTechnicianMarketplace(context, auth),
                           onPassport: () => _openPassport(context),

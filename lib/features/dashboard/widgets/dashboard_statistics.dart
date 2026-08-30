@@ -3,17 +3,17 @@ import 'package:flutter/material.dart';
 import '../../../core/ui/hdc_colors.dart';
 
 class DashboardStatistics extends StatelessWidget {
+  final int openRequestCount;
   final int activeServiceCount;
   final int offerCount;
-  final int openTicketCount;
-  final int completedJobCount;
+  final int completedServiceCount;
   final bool guestMode;
 
   const DashboardStatistics({
+    this.openRequestCount = 0,
     this.activeServiceCount = 0,
     this.offerCount = 0,
-    this.openTicketCount = 0,
-    this.completedJobCount = 0,
+    this.completedServiceCount = 0,
     this.guestMode = false,
     super.key,
   });
@@ -26,19 +26,14 @@ class DashboardStatistics extends StatelessWidget {
           padding: const EdgeInsets.all(22),
           child: Row(
             children: [
-              const Icon(
-                Icons.visibility_outlined,
-                color: HDCColors.info,
-              ),
+              const Icon(Icons.visibility_outlined, color: HDCColors.info),
               const SizedBox(width: 14),
               Expanded(
                 child: Text(
                   'Account statistics are hidden in Guest mode. Sign in or '
-                  'register to see your requests, tickets, offers, and jobs.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: HDCColors.textSecondary,
-                        height: 1.45,
-                      ),
+                  'register to see your requests, offers, and service history.',
+                  style: Theme.of(context).textTheme.bodyMedium
+                      ?.copyWith(color: HDCColors.textSecondary, height: 1.45),
                 ),
               ),
             ],
@@ -49,7 +44,7 @@ class DashboardStatistics extends StatelessWidget {
 
     final items = [
       _StatisticData(
-        value: '$activeServiceCount',
+        value: '$openRequestCount',
         label: 'Open Requests',
         icon: Icons.campaign_outlined,
         color: HDCColors.info,
@@ -61,14 +56,14 @@ class DashboardStatistics extends StatelessWidget {
         color: HDCColors.warning,
       ),
       _StatisticData(
-        value: '$openTicketCount',
-        label: 'Open Tickets',
-        icon: Icons.confirmation_number_outlined,
-        color: HDCColors.danger,
+        value: '$activeServiceCount',
+        label: 'Active Services',
+        icon: Icons.handshake_outlined,
+        color: HDCColors.primary,
       ),
       _StatisticData(
-        value: '$completedJobCount',
-        label: 'Completed Jobs',
+        value: '$completedServiceCount',
+        label: 'Completed Services',
         icon: Icons.check_circle_outline,
         color: HDCColors.success,
       ),

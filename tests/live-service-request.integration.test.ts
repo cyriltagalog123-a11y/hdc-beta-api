@@ -40,7 +40,8 @@ describe.skipIf(!runLiveIntegration)('isolated service-request integration', () 
           { questionCode: 'private_phrase', answer: 'amber harbor lantern' },
         ],
         termsAccepted: true,
-        termsVersion: 'beta-2026-08',
+        privacyAcknowledged: true,
+        termsVersion: 'beta-2026-08-29',
       }),
     });
     expect(registration.response.status, JSON.stringify(registration.body))

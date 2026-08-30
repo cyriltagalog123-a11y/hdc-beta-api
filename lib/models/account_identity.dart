@@ -19,14 +19,7 @@ enum HDCAccountStatus {
 ///
 /// Customer is granted by public registration. Every other platform role is
 /// activated only by a trusted approval workflow.
-enum HDCPlatformRole {
-  customer,
-  technician,
-  seller,
-  business,
-  supplier,
-  store,
-}
+enum HDCPlatformRole { customer, technician, seller, business, supplier, store }
 
 extension HDCPlatformRoleDetails on HDCPlatformRole {
   String get code => name;
@@ -61,12 +54,7 @@ HDCPlatformRole? parseHDCPlatformRole(Object? value) {
 
 /// Private HDC operational authority. These roles are never selectable during
 /// registration or through a platform-role application.
-enum HDCInternalRole {
-  owner,
-  superAdmin,
-  admin,
-  moderator,
-}
+enum HDCInternalRole { owner, superAdmin, admin, moderator }
 
 extension HDCInternalRoleDetails on HDCInternalRole {
   String get code {
@@ -137,6 +125,8 @@ class AccountIdentity {
   final HDCAccountStatus status;
   final Set<HDCPlatformRole> platformRoles;
   final Set<HDCInternalRole> internalRoles;
+  final bool legalAcceptanceRequired;
+  final String legalVersion;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -146,6 +136,8 @@ class AccountIdentity {
     required this.status,
     required this.platformRoles,
     this.internalRoles = const <HDCInternalRole>{},
+    this.legalAcceptanceRequired = false,
+    this.legalVersion = '',
     required this.createdAt,
     required this.updatedAt,
     this.email,
@@ -176,6 +168,8 @@ class AccountIdentity {
     HDCAccountStatus? status,
     Set<HDCPlatformRole>? platformRoles,
     Set<HDCInternalRole>? internalRoles,
+    bool? legalAcceptanceRequired,
+    String? legalVersion,
     DateTime? updatedAt,
   }) {
     return AccountIdentity(
@@ -187,6 +181,9 @@ class AccountIdentity {
       status: status ?? this.status,
       platformRoles: platformRoles ?? this.platformRoles,
       internalRoles: internalRoles ?? this.internalRoles,
+      legalAcceptanceRequired:
+          legalAcceptanceRequired ?? this.legalAcceptanceRequired,
+      legalVersion: legalVersion ?? this.legalVersion,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );

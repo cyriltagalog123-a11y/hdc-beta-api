@@ -1,6 +1,7 @@
 import '../../models/account_identity.dart';
 import '../../models/account_recovery.dart';
 import '../../models/authenticated_session.dart';
+import '../../models/privacy_request.dart';
 import 'auth_gateway.dart';
 
 class UnavailableAuthGateway implements AuthGateway {
@@ -26,6 +27,18 @@ class UnavailableAuthGateway implements AuthGateway {
 
   @override
   Future<void> refreshSession() async => _unavailable();
+
+  @override
+  Future<AccountIdentity> acceptCurrentLegalDocuments() async => _unavailable();
+
+  @override
+  Future<List<HDCPrivacyRequest>> listPrivacyRequests() async => _unavailable();
+
+  @override
+  Future<HDCPrivacyRequest> submitPrivacyRequest({
+    required HDCPrivacyRequestType type,
+    required String details,
+  }) async => _unavailable();
 
   @override
   Future<void> requestPasswordReset({required String email}) async =>
@@ -61,8 +74,7 @@ class UnavailableAuthGateway implements AuthGateway {
   Future<AccountIdentity> signIn({
     required String identifier,
     required String password,
-  }) async =>
-      _unavailable();
+  }) async => _unavailable();
 
   @override
   Future<AccountIdentity> signUp({
@@ -71,8 +83,8 @@ class UnavailableAuthGateway implements AuthGateway {
     required String displayName,
     required List<AccountRecoveryAnswer> recoveryAnswers,
     required bool termsAccepted,
-  }) async =>
-      _unavailable();
+    required bool privacyAcknowledged,
+  }) async => _unavailable();
 
   @override
   Future<void> signOut() async {}

@@ -24,6 +24,11 @@ import {
   recoveryAnswerDigest,
 } from './_lib/account-recovery.mjs';
 import {
+  CURRENT_LEGAL_DOCUMENTS,
+  CURRENT_LEGAL_VERSION,
+  currentLegalDocumentList,
+} from './_lib/legal-documents.mjs';
+import {
   canTransitionProductListing,
   isProductListingStatus,
   parseProductListingWrite,
@@ -112,7 +117,6 @@ const LOGIN_FAILURE_WINDOW_MINUTES = 15;
 const RECOVERY_FAILURE_LIMIT = 5;
 const RECOVERY_FAILURE_WINDOW_MINUTES = 60;
 const RESET_TOKEN_MINUTES = 15;
-const CURRENT_TERMS_VERSION = 'beta-2026-08';
 const DUMMY_RECOVERY_HASH =
   '$2b$12$ibDq6pxirBndt2VuaSnxnOW9kJGgAFQE3ZTpEfOxq3uszeDT982z6';
 
@@ -127,6 +131,8 @@ type UserView = {
   roles: string[];
   platformRoles: PlatformRoleCode[];
   internalRoles: InternalRoleCode[];
+  legalAcceptanceRequired: boolean;
+  legalVersion: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -251,6 +257,23 @@ async function getUserView(sql: DbClient, userId: string): Promise<UserView | nu
     for (const role of splitInternalRoles.internalRoles) internalRoles.add(role);
   }
 
+  const acceptanceRows = await sql`
+    SELECT document_type, document_content_sha256
+    FROM public.hdc_terms_acceptances
+    WHERE user_id = ${userId}
+      AND document_version = ${CURRENT_LEGAL_VERSION}
+  `;
+  const acceptedDocuments = new Map(
+    acceptanceRows.map((row) => [
+      String(row.document_type),
+      String(row.document_content_sha256 ?? ''),
+    ]),
+  );
+  const legalAcceptanceRequired = Object.values(CURRENT_LEGAL_DOCUMENTS)
+    .some((document) =>
+      acceptedDocuments.get(document.documentType) !== document.contentSha256,
+    );
+
   const user = users[0];
   const platformRoles = [...splitLegacyRoles.platformRoles].sort();
   return {
@@ -263,12 +286,18 @@ async function getUserView(sql: DbClient, userId: string): Promise<UserView | nu
     roles: [...platformRoles],
     platformRoles,
     internalRoles: [...internalRoles].sort(),
+    legalAcceptanceRequired,
+    legalVersion: CURRENT_LEGAL_VERSION,
     createdAt: new Date(String(user.created_at)).toISOString(),
     updatedAt: new Date(String(user.updated_at)).toISOString(),
   };
 }
 
-async function activeSession(req: Request, sql: DbClient): Promise<{ user: UserView; jti: string } | null> {
+async function activeSession(
+  req: Request,
+  sql: DbClient,
+  options: { allowPendingLegal?: boolean } = {},
+): Promise<{ user: UserView; jti: string } | null> {
   const token = bearerToken(req);
   if (!token) return null;
 
@@ -288,6 +317,13 @@ async function activeSession(req: Request, sql: DbClient): Promise<{ user: UserV
 
   const user = await getUserView(sql, verified.userId);
   if (!user || user.status !== 'active') return null;
+  if (user.legalAcceptanceRequired && options.allowPendingLegal !== true) {
+    throw new WorkflowHttpError(
+      'legal_acceptance_required',
+      428,
+      'Review and accept the current Terms of Service and Privacy Notice to continue.',
+    );
+  }
 
   if (operationMode() === 'normal') {
     await sql`
@@ -310,12 +346,14 @@ async function handleRegister(req: Request, sql: DbClient): Promise<Response> {
   const password = normalizePassword(body.password);
   const recoveryAnswers = parseRecoveryAnswers(body.recoveryAnswers);
   const termsAccepted = body.termsAccepted === true;
+  const privacyAcknowledged = body.privacyAcknowledged === true;
   const termsVersion = typeof body.termsVersion === 'string'
     ? body.termsVersion.trim()
     : '';
   if (
     !email || !displayName || !password || !recoveryAnswers ||
-    !termsAccepted || termsVersion !== CURRENT_TERMS_VERSION
+    !termsAccepted || !privacyAcknowledged ||
+    termsVersion !== CURRENT_LEGAL_VERSION
   ) {
     return json({
       error: 'invalid_registration',
@@ -370,10 +408,19 @@ async function handleRegister(req: Request, sql: DbClient): Promise<Response> {
       }
       await tx`
         INSERT INTO public.hdc_terms_acceptances (
-          user_id, document_type, document_version, client_metadata
+          user_id, document_type, document_version,
+          document_content_sha256, acceptance_method, client_metadata
         ) VALUES
-          (${userId}, 'terms_of_service', ${termsVersion}, ${tx.json({ source: 'registration' })}),
-          (${userId}, 'privacy_notice', ${termsVersion}, ${tx.json({ source: 'registration' })})
+          (
+            ${userId}, 'terms_of_service', ${termsVersion},
+            ${CURRENT_LEGAL_DOCUMENTS.terms_of_service.contentSha256},
+            'registration', ${tx.json({ source: 'registration' })}
+          ),
+          (
+            ${userId}, 'privacy_notice', ${termsVersion},
+            ${CURRENT_LEGAL_DOCUMENTS.privacy_notice.contentSha256},
+            'registration', ${tx.json({ source: 'registration' })}
+          )
       `;
       return userId;
     });
@@ -1059,9 +1106,75 @@ async function handleLogin(req: Request, sql: DbClient): Promise<Response> {
 
 async function handleSession(req: Request, sql: DbClient): Promise<Response> {
   if (req.method !== 'GET') return methodNotAllowed();
-  const session = await activeSession(req, sql);
+  const session = await activeSession(req, sql, { allowPendingLegal: true });
   if (!session) return json({ error: 'unauthorized' }, 401);
   return json({ user: session.user });
+}
+
+async function handleLegalDocuments(req: Request): Promise<Response> {
+  if (req.method !== 'GET') return methodNotAllowed();
+  return json({
+    version: CURRENT_LEGAL_VERSION,
+    documents: currentLegalDocumentList(),
+  });
+}
+
+async function handleLegalAcceptance(
+  req: Request,
+  sql: DbClient,
+): Promise<Response> {
+  if (req.method !== 'POST') return methodNotAllowed();
+  const session = await activeSession(req, sql, { allowPendingLegal: true });
+  if (!session) return json({ error: 'unauthorized' }, 401);
+
+  const body = await readJson(req);
+  if (
+    !body ||
+    body.version !== CURRENT_LEGAL_VERSION ||
+    body.termsAccepted !== true ||
+    body.privacyAcknowledged !== true
+  ) {
+    return json({
+      error: 'invalid_legal_acceptance',
+      message: 'Review and acknowledge both current legal documents.',
+    }, 400);
+  }
+
+  const userAgent = (req.headers.get('user-agent') ?? '').slice(0, 500);
+  await sql.begin(async (tx) => {
+    await tx`
+      INSERT INTO public.hdc_terms_acceptances (
+        user_id, document_type, document_version,
+        document_content_sha256, acceptance_method, client_metadata
+      ) VALUES
+        (
+          ${session.user.id}, 'terms_of_service', ${CURRENT_LEGAL_VERSION},
+          ${CURRENT_LEGAL_DOCUMENTS.terms_of_service.contentSha256},
+          'renewal', ${tx.json({ source: 'legal_gate', userAgent })}
+        ),
+        (
+          ${session.user.id}, 'privacy_notice', ${CURRENT_LEGAL_VERSION},
+          ${CURRENT_LEGAL_DOCUMENTS.privacy_notice.contentSha256},
+          'renewal', ${tx.json({ source: 'legal_gate', userAgent })}
+        )
+      ON CONFLICT (user_id, document_type, document_version) DO NOTHING
+    `;
+  });
+
+  const user = await getUserView(sql, session.user.id);
+  if (!user || user.legalAcceptanceRequired) {
+    throw new WorkflowHttpError(
+      'legal_acceptance_conflict',
+      409,
+      'The legal acceptance record could not be verified. Contact HDC support.',
+    );
+  }
+  await audit(sql, user.id, 'legal.acceptance', 'success', {
+    version: CURRENT_LEGAL_VERSION,
+    terms_sha256: CURRENT_LEGAL_DOCUMENTS.terms_of_service.contentSha256,
+    privacy_sha256: CURRENT_LEGAL_DOCUMENTS.privacy_notice.contentSha256,
+  });
+  return json({ user });
 }
 
 async function handleLogout(req: Request, sql: DbClient): Promise<Response> {
@@ -1308,6 +1421,228 @@ async function handleNotificationsReadAll(
     RETURNING id
   `;
   return json({ updated: rows.length });
+}
+
+const PRIVACY_REQUEST_TYPES = new Set([
+  'access',
+  'correction',
+  'objection',
+  'export',
+  'deletion',
+  'complaint',
+  'other',
+]);
+
+const PRIVACY_REQUEST_TRANSITIONS: Record<string, ReadonlySet<string>> = {
+  submitted: new Set(['acknowledged', 'in_review']),
+  acknowledged: new Set(['in_review', 'resolved', 'rejected']),
+  in_review: new Set(['resolved', 'rejected']),
+  resolved: new Set(),
+  rejected: new Set(),
+};
+
+function privacyRequestView(row: Record<string, unknown>): Record<string, unknown> {
+  const view: Record<string, unknown> = {
+    id: String(row.id),
+    publicReference: String(row.public_reference),
+    userId: String(row.user_id),
+    requestType: String(row.request_type),
+    details: String(row.details),
+    status: String(row.status),
+    version: Number(row.version),
+    reviewerNote: String(row.reviewer_note ?? ''),
+    acknowledgedAt: row.acknowledged_at
+      ? new Date(String(row.acknowledged_at)).toISOString()
+      : null,
+    resolvedAt: row.resolved_at
+      ? new Date(String(row.resolved_at)).toISOString()
+      : null,
+    createdAt: new Date(String(row.created_at)).toISOString(),
+    updatedAt: new Date(String(row.updated_at)).toISOString(),
+  };
+  if (row.display_name) view.displayName = String(row.display_name);
+  if (row.email) view.email = String(row.email);
+  return view;
+}
+
+async function notifyPrivacyReviewers(
+  sql: DbClient,
+  publicReference: string,
+  requestType: string,
+): Promise<void> {
+  const reviewers = await sql`
+    SELECT DISTINCT user_id
+    FROM public.hdc_internal_role_assignments
+    WHERE is_active = true
+      AND role IN ('owner', 'super_admin')
+  `;
+  for (const reviewer of reviewers) {
+    await notifyUser(
+      sql,
+      String(reviewer.user_id),
+      'privacy.request_submitted',
+      'Privacy request submitted',
+      `${publicReference} requires private review.`,
+      { publicReference, requestType },
+      'high',
+    );
+  }
+}
+
+async function handlePrivacyRequests(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+): Promise<Response> {
+  if (req.method === 'GET') {
+    const rows = await withWorkflowAuthority(sql, user, async (tx) => await tx`
+      SELECT *
+      FROM public.hdc_privacy_requests
+      WHERE user_id = ${user.id}
+      ORDER BY created_at DESC
+      LIMIT 100
+    `);
+    return json({
+      requests: rows.map((row) => privacyRequestView(rowObject(row))),
+      updatedAt: new Date().toISOString(),
+    });
+  }
+  if (req.method !== 'POST') return methodNotAllowed();
+
+  const body = await readJson(req);
+  const requestType = typeof body?.requestType === 'string'
+    ? body.requestType.trim()
+    : '';
+  const details = typeof body?.details === 'string' ? body.details.trim() : '';
+  if (!PRIVACY_REQUEST_TYPES.has(requestType) || details.length < 10 || details.length > 4000) {
+    return json({
+      error: 'invalid_privacy_request',
+      message: 'Choose a request type and provide 10 to 4,000 characters of detail.',
+    }, 400);
+  }
+
+  const rows = await withWorkflowAuthority(sql, user, async (tx) => await tx`
+    INSERT INTO public.hdc_privacy_requests (user_id, request_type, details)
+    VALUES (${user.id}, ${requestType}, ${details})
+    RETURNING *
+  `);
+  const requestView = privacyRequestView(rowObject(rows[0]));
+  const publicReference = String(requestView.publicReference);
+  await audit(sql, user.id, 'privacy.request.submit', 'success', {
+    public_reference: publicReference,
+    request_type: requestType,
+  });
+  await notifyPrivacyReviewers(sql, publicReference, requestType);
+  return json({ request: requestView }, 201);
+}
+
+async function handleInternalPrivacyRequests(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+): Promise<Response> {
+  if (req.method !== 'GET') return methodNotAllowed();
+  requireDisputeResolver(user);
+  const rows = await sql`
+    SELECT privacy_request.*, account.display_name, account.email::text AS email
+    FROM public.hdc_privacy_requests privacy_request
+    JOIN public.hdc_users account ON account.id = privacy_request.user_id
+    ORDER BY
+      CASE privacy_request.status
+        WHEN 'submitted' THEN 0
+        WHEN 'acknowledged' THEN 1
+        WHEN 'in_review' THEN 2
+        ELSE 3
+      END,
+      privacy_request.created_at DESC
+    LIMIT 200
+  `;
+  return json({
+    requests: rows.map((row) => privacyRequestView(rowObject(row))),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+async function handleInternalPrivacyRequestReview(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  requestId: string,
+): Promise<Response> {
+  if (req.method !== 'PUT') return methodNotAllowed();
+  requireDisputeResolver(user);
+  const body = await readJson(req);
+  const status = typeof body?.status === 'string' ? body.status.trim() : '';
+  const reviewerNote = typeof body?.reviewerNote === 'string'
+    ? body.reviewerNote.trim()
+    : '';
+  const expectedVersion = Number(body?.version);
+  if (
+    !Number.isInteger(expectedVersion) || expectedVersion < 1 ||
+    !Object.hasOwn(PRIVACY_REQUEST_TRANSITIONS, status) ||
+    reviewerNote.length > 4000
+  ) {
+    return json({ error: 'invalid_privacy_review' }, 400);
+  }
+
+  const updated = await sql.begin(async (tx) => {
+    const rows = await tx`
+      SELECT * FROM public.hdc_privacy_requests
+      WHERE id = ${requestId}
+      FOR UPDATE
+    `;
+    if (rows.length === 0) {
+      throw new WorkflowHttpError(
+        'privacy_request_not_found', 404, 'That privacy request was not found.',
+      );
+    }
+    const current = rowObject(rows[0]);
+    const currentStatus = String(current.status);
+    if (Number(current.version) !== expectedVersion) {
+      throw new WorkflowHttpError(
+        'privacy_request_changed', 409, 'This request changed. Refresh before reviewing it.',
+      );
+    }
+    if (!PRIVACY_REQUEST_TRANSITIONS[currentStatus]?.has(status)) {
+      throw new WorkflowHttpError(
+        'invalid_privacy_transition', 409, 'That privacy request status transition is not allowed.',
+      );
+    }
+    const result = await tx`
+      UPDATE public.hdc_privacy_requests
+      SET status = ${status},
+          version = version + 1,
+          reviewer_note = ${reviewerNote},
+          reviewed_by = ${user.id},
+          acknowledged_at = CASE
+            WHEN ${status} IN ('acknowledged', 'in_review', 'resolved', 'rejected')
+              THEN COALESCE(acknowledged_at, now())
+            ELSE acknowledged_at
+          END,
+          resolved_at = CASE
+            WHEN ${status} IN ('resolved', 'rejected') THEN now()
+            ELSE NULL
+          END
+      WHERE id = ${requestId}
+      RETURNING *
+    `;
+    return rowObject(result[0]);
+  });
+
+  await audit(sql, user.id, 'privacy.request.review', 'success', {
+    public_reference: String(updated.public_reference),
+    status,
+  });
+  await notifyUser(
+    sql,
+    String(updated.user_id),
+    'privacy.request_updated',
+    'Privacy request updated',
+    `${String(updated.public_reference)} is now ${status.replace('_', ' ')}.`,
+    { publicReference: String(updated.public_reference), status },
+    status === 'rejected' ? 'high' : 'normal',
+  );
+  return json({ request: privacyRequestView(updated) });
 }
 
 function memberProfileView(row: Record<string, unknown>): Record<string, unknown> {
@@ -6258,6 +6593,38 @@ async function handleReadiness(req: Request): Promise<Response> {
             WHERE version = '0015'
           )
         ) AS transaction_tools_ready,
+        (
+          to_regclass('public.hdc_users') IS NOT NULL AND
+          to_regclass('public.hdc_user_roles') IS NOT NULL AND
+          to_regclass('public.hdc_auth_sessions') IS NOT NULL AND
+          to_regclass('public.hdc_security_audit') IS NOT NULL AND
+          EXISTS (
+            SELECT 1 FROM public.hdc_schema_migrations
+            WHERE version = '0000'
+          )
+        ) AS auth_bootstrap_ready,
+        (
+          to_regclass('public.hdc_legal_documents') IS NOT NULL AND
+          to_regclass('public.hdc_privacy_requests') IS NOT NULL AND
+          EXISTS (
+            SELECT 1 FROM public.hdc_schema_migrations
+            WHERE version = '0016'
+          ) AND
+          EXISTS (
+            SELECT 1 FROM public.hdc_legal_documents
+            WHERE document_type = 'terms_of_service'
+              AND document_version = ${CURRENT_LEGAL_VERSION}
+              AND content_sha256 = ${CURRENT_LEGAL_DOCUMENTS.terms_of_service.contentSha256}
+              AND status = 'published'
+          ) AND
+          EXISTS (
+            SELECT 1 FROM public.hdc_legal_documents
+            WHERE document_type = 'privacy_notice'
+              AND document_version = ${CURRENT_LEGAL_VERSION}
+              AND content_sha256 = ${CURRENT_LEGAL_DOCUMENTS.privacy_notice.contentSha256}
+              AND status = 'published'
+          )
+        ) AS legal_records_ready,
         EXISTS (
           SELECT 1
           FROM pg_roles
@@ -6278,6 +6645,8 @@ async function handleReadiness(req: Request): Promise<Response> {
       authority.workflow_table_ready === true &&
       authority.private_messaging_tables_ready === true &&
       authority.transaction_tools_ready === true &&
+      authority.auth_bootstrap_ready === true &&
+      authority.legal_records_ready === true &&
       authority.workflow_role_ready === true &&
       authority.technician_proposal_lock_ready === true;
     if (!workflowAuthorityReady) {
@@ -6294,6 +6663,10 @@ async function handleReadiness(req: Request): Promise<Response> {
               : 'not_ready',
           transactionTools:
             authority.transaction_tools_ready === true ? 'ok' : 'not_ready',
+          authBootstrap:
+            authority.auth_bootstrap_ready === true ? 'ok' : 'not_ready',
+          legalRecords:
+            authority.legal_records_ready === true ? 'ok' : 'not_ready',
         },
       }, 503);
     }
@@ -6305,6 +6678,8 @@ async function handleReadiness(req: Request): Promise<Response> {
         workflowAuthority: 'ok',
         privateMessaging: 'ok',
         transactionTools: 'ok',
+        authBootstrap: 'ok',
+        legalRecords: 'ok',
       },
       latencyMs: database.latencyMs,
     });
@@ -6339,6 +6714,7 @@ async function handleHdcApiRequestCore(
     });
   }
   if (path === '/api/health/ready') return await handleReadiness(req);
+  if (path === '/api/legal/documents') return await handleLegalDocuments(req);
 
   const operation = operationDecision(operationMode(), req.method, path);
   if (!operation.allowed) {
@@ -6364,7 +6740,11 @@ async function handleHdcApiRequestCore(
     path === '/api/internal/account-recovery' ||
     path.startsWith('/api/internal/account-recovery/') ||
     path === '/api/internal/disputes' ||
-    path.startsWith('/api/internal/disputes/');
+    path.startsWith('/api/internal/disputes/') ||
+    path === '/api/internal/privacy-requests' ||
+    path.startsWith('/api/internal/privacy-requests/');
+
+  const isPrivacyPath = path === '/api/privacy/requests';
 
   const isNotificationPath =
     path === '/api/notifications' ||
@@ -6408,6 +6788,9 @@ async function handleHdcApiRequestCore(
     if (path === '/api/auth/login') return await handleLogin(req, sql);
     if (path === '/api/auth/session') return await handleSession(req, sql);
     if (path === '/api/auth/logout') return await handleLogout(req, sql);
+    if (path === '/api/legal/acceptance') {
+      return await handleLegalAcceptance(req, sql);
+    }
     if (path === '/api/auth/recovery/verify') {
       return await handleRecoveryVerify(req, sql);
     }
@@ -6425,6 +6808,12 @@ async function handleHdcApiRequestCore(
 
     if (path === '/api/commerce/catalog') {
       return await handleProductCatalog(req, sql);
+    }
+
+    if (isPrivacyPath) {
+      const session = await activeSession(req, sql);
+      if (!session) return json({ error: 'unauthorized' }, 401);
+      return await handlePrivacyRequests(req, sql, session.user);
     }
 
     if (isNotificationPath) {
@@ -6541,6 +6930,9 @@ async function handleHdcApiRequestCore(
       if (path === '/api/internal/disputes') {
         return await handleInternalDisputes(req, sql, session.user);
       }
+      if (path === '/api/internal/privacy-requests') {
+        return await handleInternalPrivacyRequests(req, sql, session.user);
+      }
 
       const roleApplicationMatch =
         /^\/api\/internal\/role-applications\/([^/]+)$/.exec(path);
@@ -6572,6 +6964,17 @@ async function handleHdcApiRequestCore(
           sql,
           session.user,
           requirePathId(disputeResolutionMatch[1]),
+        );
+      }
+
+      const privacyRequestReviewMatch =
+        /^\/api\/internal\/privacy-requests\/([^/]+)$/.exec(path);
+      if (privacyRequestReviewMatch) {
+        return await handleInternalPrivacyRequestReview(
+          req,
+          sql,
+          session.user,
+          requirePathId(privacyRequestReviewMatch[1]),
         );
       }
     }
@@ -6892,7 +7295,10 @@ async function handleHdcApiRequestCore(
       }, 503);
     }
 
-    if (databaseCode === '42501' && (isWorkflowPath || isDiscoveryPath)) {
+    if (
+      databaseCode === '42501' &&
+      (isWorkflowPath || isDiscoveryPath || isPrivacyPath)
+    ) {
       console.error('HDC workflow authority unavailable', {
         referenceId: requestReference,
         method: req.method,
@@ -6961,6 +7367,8 @@ export const config: Config = {
   path: [
     '/api/health',
     '/api/health/ready',
+    '/api/legal/documents',
+    '/api/legal/acceptance',
     '/api/auth/register',
     '/api/auth/login',
     '/api/auth/session',
@@ -6979,6 +7387,9 @@ export const config: Config = {
     '/api/internal/account-recovery/:id',
     '/api/internal/disputes',
     '/api/internal/disputes/:id',
+    '/api/internal/privacy-requests',
+    '/api/internal/privacy-requests/:id',
+    '/api/privacy/requests',
     '/api/notifications',
     '/api/notifications/read-all',
     '/api/notifications/:id/read',

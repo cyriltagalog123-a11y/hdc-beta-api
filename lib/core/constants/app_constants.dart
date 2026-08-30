@@ -1,8 +1,6 @@
 class AppConstants {
   static const int maxLoginAttempts = 5;
 
-  static const int ticketAutoCloseDays = 7;
-
   static const int budgetWarningPercent = 90;
 
   @Deprecated('Use HDCInternalRole.owner from account_identity.dart.')

@@ -56,6 +56,45 @@ jobs:
           fi
           echo 'No known HDC secret patterns found.'
 
+  postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hdc_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hdc_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      HDC_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/hdc_test
+      HDC_ALLOW_TEST_DATABASE_RESET: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild a clean database from migrations
+        run: npm run db:rehearse-clean
+
+      - name: Offers, acceptance, chat, payment, dispute, and isolation tests
+        run: npm run test:postgres
+
   flutter-web:
     runs-on: ubuntu-latest
     timeout-minutes: 25

@@ -5,26 +5,21 @@ import '../../models/technician.dart';
 import '../../repositories/master_data_repository.dart';
 
 import '../authentication/registered_user_gate.dart';
-import 'booking_summary_screen.dart';
+import '../service_requests/create_service_request_screen.dart';
 
 class BookingScreen extends StatefulWidget {
   final Technician technician;
 
-  const BookingScreen({
-    super.key,
-    required this.technician,
-  });
+  const BookingScreen({super.key, required this.technician});
 
   @override
-  State<BookingScreen> createState() =>
-      _BookingScreenState();
+  State<BookingScreen> createState() => _BookingScreenState();
 }
 
 class _BookingScreenState extends State<BookingScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  final _descriptionController =
-      TextEditingController();
+  final _descriptionController = TextEditingController();
 
   ServiceCategory? _selectedCategory;
 
@@ -41,9 +36,8 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   Future<void> _loadCategories() async {
-    final categories =
-        await MasterDataRepository.instance
-            .getServiceCategories();
+    final categories = await MasterDataRepository.instance
+        .getServiceCategories();
 
     if (!mounted) {
       return;
@@ -62,10 +56,7 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   Future<void> _continue() async {
-    if (!await requireRegisteredUser(
-      context,
-      action: 'book a technician',
-    )) {
+    if (!await requireRegisteredUser(context, action: 'book a technician')) {
       return;
     }
     if (!mounted) return;
@@ -76,11 +67,7 @@ class _BookingScreenState extends State<BookingScreen> {
 
     if (_selectedCategory == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Please select a service category.",
-          ),
-        ),
+        const SnackBar(content: Text("Please select a service category.")),
       );
 
       return;
@@ -88,17 +75,13 @@ class _BookingScreenState extends State<BookingScreen> {
 
     final draft = ServiceRequestDraft()
       ..category = _selectedCategory
-      ..problemDescription =
-          _descriptionController.text.trim()
+      ..problemDescription = _descriptionController.text.trim()
       ..urgency = _urgency;
 
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => BookingSummaryScreen(
-          technician: widget.technician,
-          draft: draft,
-        ),
+        builder: (_) => CreateServiceRequestScreen(initialDraft: draft),
       ),
     );
   }
@@ -106,18 +89,13 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          "Book Service",
-        ),
-      ),
+      appBar: AppBar(title: const Text("Book Service")),
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 "Booking with ${widget.technician.name}",
@@ -131,17 +109,13 @@ class _BookingScreenState extends State<BookingScreen> {
 
               Text(
                 widget.technician.specialty,
-                style: TextStyle(
-                  color: Colors.grey.shade700,
-                ),
+                style: TextStyle(color: Colors.grey.shade700),
               ),
 
               const SizedBox(height: 25),
 
               if (_loadingCategories)
-                const Center(
-                  child: CircularProgressIndicator(),
-                )
+                const Center(child: CircularProgressIndicator())
               else
                 DropdownButtonFormField<ServiceCategory>(
                   initialValue: _selectedCategory,
@@ -151,13 +125,9 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                   items: _categories
                       .map(
-                        (category) =>
-                            DropdownMenuItem<
-                                ServiceCategory>(
+                        (category) => DropdownMenuItem<ServiceCategory>(
                           value: category,
-                          child: Text(
-                            category.name,
-                          ),
+                          child: Text(category.name),
                         ),
                       )
                       .toList(),
@@ -178,20 +148,17 @@ class _BookingScreenState extends State<BookingScreen> {
               const SizedBox(height: 20),
 
               TextFormField(
-                controller:
-                    _descriptionController,
+                controller: _descriptionController,
                 maxLines: 5,
                 decoration: const InputDecoration(
-                  labelText:
-                      "Problem Description",
+                  labelText: "Problem Description",
                   hintText:
                       "Describe the problem in as much detail as possible.",
                   border: OutlineInputBorder(),
                   alignLabelWithHint: true,
                 ),
                 validator: (value) {
-                  if (value == null ||
-                      value.trim().isEmpty) {
+                  if (value == null || value.trim().isEmpty) {
                     return "Problem description is required.";
                   }
 
@@ -212,18 +179,9 @@ class _BookingScreenState extends State<BookingScreen> {
                   border: OutlineInputBorder(),
                 ),
                 items: const [
-                  DropdownMenuItem(
-                    value: "Low",
-                    child: Text("Low"),
-                  ),
-                  DropdownMenuItem(
-                    value: "Normal",
-                    child: Text("Normal"),
-                  ),
-                  DropdownMenuItem(
-                    value: "High",
-                    child: Text("High"),
-                  ),
+                  DropdownMenuItem(value: "Low", child: Text("Low")),
+                  DropdownMenuItem(value: "Normal", child: Text("Normal")),
+                  DropdownMenuItem(value: "High", child: Text("High")),
                   DropdownMenuItem(
                     value: "Emergency",
                     child: Text("Emergency"),
@@ -245,42 +203,26 @@ class _BookingScreenState extends State<BookingScreen> {
               Card(
                 color: Colors.blue.shade50,
                 child: Padding(
-                  padding:
-                      const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
                         "Technician",
-                        style: TextStyle(
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
 
                       const SizedBox(height: 8),
 
-                      Text(
-                        widget.technician.name,
-                      ),
+                      Text(widget.technician.name),
 
-                      Text(
-                        widget
-                            .technician.specialty,
-                      ),
+                      Text(widget.technician.specialty),
 
                       const SizedBox(height: 8),
 
-                      Text(
-                        widget
-                            .technician.responseText,
-                      ),
+                      Text(widget.technician.responseText),
 
-                      Text(
-                        widget
-                            .technician.distanceText,
-                      ),
+                      Text(widget.technician.distanceText),
                     ],
                   ),
                 ),
@@ -292,16 +234,9 @@ class _BookingScreenState extends State<BookingScreen> {
                 width: double.infinity,
                 height: 55,
                 child: FilledButton.icon(
-                  onPressed:
-                      _loadingCategories
-                          ? null
-                          : _continue,
-                  icon: const Icon(
-                    Icons.arrow_forward,
-                  ),
-                  label: const Text(
-                    "Continue",
-                  ),
+                  onPressed: _loadingCategories ? null : _continue,
+                  icon: const Icon(Icons.arrow_forward),
+                  label: const Text("Continue"),
                 ),
               ),
 

@@ -5,9 +5,7 @@ import 'auth_gateway.dart';
 class AuthService {
   final AuthGateway gateway;
 
-  const AuthService({
-    required this.gateway,
-  });
+  const AuthService({required this.gateway});
 
   Future<AccountIdentity> signIn({
     required String identifier,
@@ -30,9 +28,7 @@ class AuthService {
 
     if (!identity.isActive) {
       await gateway.signOut();
-      throw StateError(
-        'This HDC account is not currently active.',
-      );
+      throw StateError('This HDC account is not currently active.');
     }
 
     final session = gateway.currentSession;
@@ -50,6 +46,7 @@ class AuthService {
     required String displayName,
     required List<AccountRecoveryAnswer> recoveryAnswers,
     required bool termsAccepted,
+    required bool privacyAcknowledged,
   }) async {
     final normalizedEmail = email.trim().toLowerCase();
     final normalizedName = displayName.trim();
@@ -59,16 +56,14 @@ class AuthService {
     }
 
     if (password.length < 12 || password.length > 128) {
-      throw ArgumentError(
-        'Password must contain 12 to 128 characters.',
-      );
+      throw ArgumentError('Password must contain 12 to 128 characters.');
     }
 
     if (normalizedName.length < 2 || normalizedName.length > 80) {
       throw ArgumentError('Display name must contain 2 to 80 characters.');
     }
 
-    if (!termsAccepted) {
+    if (!termsAccepted || !privacyAcknowledged) {
       throw ArgumentError(
         'Accept the HDC Beta Terms and Privacy Notice to register.',
       );
@@ -82,6 +77,7 @@ class AuthService {
       displayName: normalizedName,
       recoveryAnswers: recoveryAnswers,
       termsAccepted: termsAccepted,
+      privacyAcknowledged: privacyAcknowledged,
     );
   }
 
@@ -96,10 +92,10 @@ class AuthService {
     final normalized = <String>{};
     final seenQuestions = <String>{};
     for (final answer in answers) {
-      final value = answer.answer
-          .trim()
-          .toLowerCase()
-          .replaceAll(RegExp(r'\s+'), ' ');
+      final value = answer.answer.trim().toLowerCase().replaceAll(
+        RegExp(r'\s+'),
+        ' ',
+      );
       if (!expected.contains(answer.questionCode) ||
           !seenQuestions.add(answer.questionCode) ||
           value.length < 4 ||

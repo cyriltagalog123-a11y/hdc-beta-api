@@ -1,5 +1,7 @@
+import 'legal_document.dart';
+
 const int hdcRecoveryQuestionVersion = 1;
-const String hdcCurrentTermsVersion = 'beta-2026-08';
+const String hdcCurrentTermsVersion = hdcCurrentLegalVersion;
 
 class AccountRecoveryQuestion {
   final String questionCode;
@@ -13,7 +15,10 @@ class AccountRecoveryQuestion {
   factory AccountRecoveryQuestion.fromJson(Map<String, dynamic> json) {
     final code = json['questionCode'];
     final prompt = json['prompt'];
-    if (code is! String || code.isEmpty || prompt is! String || prompt.isEmpty) {
+    if (code is! String ||
+        code.isEmpty ||
+        prompt is! String ||
+        prompt.isEmpty) {
       throw const FormatException('Invalid HDC recovery question.');
     }
     return AccountRecoveryQuestion(questionCode: code, prompt: prompt);
@@ -31,7 +36,8 @@ const List<AccountRecoveryQuestion> hdcRegistrationRecoveryQuestions = [
   ),
   AccountRecoveryQuestion(
     questionCode: 'private_phrase',
-    prompt: 'Create a private recovery phrase that you do not use anywhere else.',
+    prompt:
+        'Create a private recovery phrase that you do not use anywhere else.',
   ),
 ];
 
@@ -45,15 +51,12 @@ class AccountRecoveryAnswer {
   });
 
   Map<String, Object?> toJson() => {
-        'questionCode': questionCode,
-        'answer': answer,
-      };
+    'questionCode': questionCode,
+    'answer': answer,
+  };
 }
 
-enum AccountRecoveryOutcome {
-  verified,
-  manualReviewSubmitted,
-}
+enum AccountRecoveryOutcome { verified, manualReviewSubmitted }
 
 class AccountRecoveryVerification {
   final AccountRecoveryOutcome outcome;

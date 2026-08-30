@@ -1,0 +1,97 @@
+name: Encrypted HDC Backup and Restore Rehearsal
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hdc-production-backup
+  cancel-in-progress: false
+
+jobs:
+  encrypted-backup-and-full-restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hdc_restore
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hdc_restore"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      HDC_DATABASE_URL: ${{ secrets.HDC_DATABASE_URL }}
+      HDC_BACKUP_ENCRYPTION_KEY: ${{ secrets.HDC_BACKUP_ENCRYPTION_KEY }}
+      HDC_RESTORE_DATABASE_URL: postgres://postgres@localhost:5432/hdc_restore
+      HDC_ALLOW_RESTORE_RESET: '1'
+      PGPASSWORD: postgres
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Require backup secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$HDC_DATABASE_URL"
+          test -n "$HDC_BACKUP_ENCRYPTION_KEY"
+
+      - name: Install PostgreSQL 18 client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error \
+            -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client-18
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
+
+      - name: Create encrypted production backup
+        id: backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          backup_directory="$(mktemp -d)"
+          echo "directory=$backup_directory" >> "$GITHUB_OUTPUT"
+          npm run backup:postgres -- --output "$backup_directory"
+          backup_file="$(find "$backup_directory" -maxdepth 1 -type f -name '*.hdcbackup' -print -quit)"
+          test -n "$backup_file"
+          echo "file=$backup_file" >> "$GITHUB_OUTPUT"
+
+      - name: Perform complete isolated restore rehearsal
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run verify:backup -- --backup "${{ steps.backup.outputs.file }}"
+
+      - name: Upload encrypted backup and manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: hdc-encrypted-backup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.backup.outputs.directory }}
+          if-no-files-found: error
+          retention-days: 30

@@ -167,7 +167,7 @@ class DepartmentPassportScreen extends StatelessWidget {
 
             comingSoon(
               Icons.confirmation_number,
-              "Tickets",
+              "Service Requests",
             ),
 
             comingSoon(

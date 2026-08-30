@@ -156,7 +156,7 @@ class EmployeePassportScreen extends StatelessWidget {
             title("Operations"),
 
             future(Icons.inventory, "Assigned Assets"),
-            future(Icons.confirmation_number, "Open Tickets"),
+            future(Icons.campaign, "Open Service Requests"),
             future(Icons.task, "Assigned Tasks"),
 
             title("Business Intelligence"),

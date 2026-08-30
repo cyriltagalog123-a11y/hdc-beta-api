@@ -1,6 +1,7 @@
 {
   "algorithm": "sha256",
   "files": {
+    "0000_auth_core_bootstrap.sql": "0b113976e5da9b2148d9e727969af619090f983a1dc7540e42d998503d54136f",
     "0001_active_neon_auth_contract.sql": "7171c5e52956a5c654d6aad009cfc3144a250d8c860cba5061fa267bb1ea2de3",
     "0002_workflow_authority.sql": "f4449683f4aed2717c10b7b3ebdc34d10554a8ceec3f975c0e93308a6beba2b6",
     "0003_role_domain_separation.sql": "38dcd9c8ee7515ba185f9b115c9699e759336d5e4e19f0efec8a5ba86fd6ae56",
@@ -15,6 +16,7 @@
     "0012_build20_1a_notifications_message_sync.sql": "1588242bb30cc64de3ce3eedaa698c3b92331574319c0ab104187c8fe212f10b",
     "0013_build20_1b_transaction_exceptions.sql": "fc897ed9ed769061c293945576fda56aaa28214350f5975a8da296c094d286eb",
     "0014_build21_payment_receipts.sql": "c349e0e11e9cfcc00e0e34f7977afb42542de4002763461096eecfeee7c31f4f",
-    "0015_documents_and_disputes.sql": "b959bb67d21f3269b5a5f4367a3b1cdcbe2331a188e2d4a08d6236d123793f60"
+    "0015_documents_and_disputes.sql": "b959bb67d21f3269b5a5f4367a3b1cdcbe2331a188e2d4a08d6236d123793f60",
+    "0016_build22_1_legal_and_recovery_baseline.sql": "734a0ad99bacfc6a4c20036b1abaf169199d2601f11856986caa25ae89f41de2"
   }
 }
