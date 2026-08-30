@@ -357,7 +357,7 @@ async function handleRegister(req: Request, sql: DbClient): Promise<Response> {
   ) {
     return json({
       error: 'invalid_registration',
-      message: 'Complete the account details, all three recovery questions, and the terms acceptance.',
+      message: 'Complete the account details, all three recovery questions, the Terms acceptance, and the Privacy acknowledgement.',
     }, 400);
   }
 

@@ -63,7 +63,11 @@ async function registerAccount(label: string): Promise<{
   email: string;
   password: string;
 }> {
-  const email = `${label}-${nextReference('account').toLowerCase()}@example.invalid`;
+  const emailLabel = label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  const email = `${emailLabel}-${nextReference('account').toLowerCase()}@example.invalid`;
   const password = 'Build22.1!Database-Test-4829';
   const registration = await api('/api/auth/register', {
     method: 'POST',
