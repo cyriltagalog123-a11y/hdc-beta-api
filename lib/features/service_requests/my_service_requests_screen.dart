@@ -12,6 +12,7 @@ import '../../core/ui/hdc_spacing.dart';
 import '../../core/ui/hdc_status_badge.dart';
 import '../../core/workflow/hdc_workflow_refresh.dart';
 import '../../models/service_request.dart';
+import '../../models/service_transaction.dart';
 import '../../providers/hdc_auth_provider.dart';
 import '../../providers/hdc_workflow_sync_provider.dart';
 import '../../providers/proposal_provider.dart';
