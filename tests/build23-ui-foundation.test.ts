@@ -57,13 +57,13 @@ describe('Build 23 HDC interface foundation', () => {
     }
   });
 
-  it('keeps startup recovery bounded and synchronized to Build 23', () => {
+  it('keeps startup recovery bounded and synchronized to the current build', () => {
     const index = read('web/index.html');
     const startup = read('web/hdc_startup.js');
 
-    expect(index).toContain('Build 23');
+    expect(index).toContain('Build 24');
     expect(index).toContain('Opening your secure workspace');
-    expect(startup).toContain('Build 23 could not finish loading.');
+    expect(startup).toContain('Build 24 could not finish loading.');
     expect(startup).toContain("searchParams.set('hdc_refresh'");
     expect(startup).not.toContain('localStorage.clear');
   });

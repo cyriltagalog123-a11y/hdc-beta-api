@@ -49,6 +49,14 @@ confirmation, refunds, and immutable receipts without processing funds. Build
 Owner/Super Admin resolution queue. Active disputes freeze mutable service and
 payment actions until an authorized resolution is recorded.
 
+Build 24A carries the responsive HDC interface into Customer requests and
+Technician discovery. Request creation now has a guided describe-review-publish
+flow, My Service Requests adds provider-backed status and offer filters, and the
+request record keeps offers and the accepted-service workspace visible without
+mobile overflow. Technician search continues to use only approved public
+profiles and explicitly labels technician-stated areas, experience,
+availability, and rates; it does not invent distance or reputation data.
+
 Build 23 introduces HDC's shared signal-network interface system. It redesigns
 the startup, authentication, onboarding, dashboard navigation, dashboard hero,
 and primary actions for desktop and mobile while leaving Build 22.1 database,
