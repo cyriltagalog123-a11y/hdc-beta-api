@@ -4,7 +4,7 @@ class AppConfig {
   static const String shortName = "HDC";
 
   // Current Version
-  static const String version = "0.6.4 Beta (Build 22)";
+  static const String version = "0.6.4 Beta (Build 23)";
 
   // Development Mode
   static const bool isBeta = true;

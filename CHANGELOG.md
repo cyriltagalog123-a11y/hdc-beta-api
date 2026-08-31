@@ -1,5 +1,23 @@
 # HDC Change Log
 
+## 0.6.4+23 — 2026-08-31
+
+- Establishes the HDC signal-network design system with shared color, spacing,
+  typography, card, button, field, header, status, and brand primitives.
+- Rebuilds sign-in and registration as a responsive workspace entry experience
+  while preserving account recovery, legal acceptance, guest access, and all
+  existing authentication authority boundaries.
+- Adds a responsive application shell with desktop navigation, a compact mobile
+  drawer, account context, notification counts, and direct access to the same
+  customer, technician, marketplace, role, and private-operations workflows.
+- Redesigns the dashboard header, primary actions, platform onboarding, Flutter
+  splash screen, and pre-Flutter web recovery screen around one accessible HDC
+  visual language.
+- Makes no service-workflow, payment, document, dispute, chat, authorization, or
+  database-schema changes; Build 22.1 remains the data and security baseline.
+- Synchronizes Flutter, dashboard, API health, package, startup recovery, and
+  live-integration release markers at Build 23.
+
 ## 0.6.4+22 — 2026-08-29
 
 - Build 20.1A adds an authenticated notification center with per-item/read-all

@@ -49,6 +49,12 @@ confirmation, refunds, and immutable receipts without processing funds. Build
 Owner/Super Admin resolution queue. Active disputes freeze mutable service and
 payment actions until an authorized resolution is recorded.
 
+Build 23 introduces HDC's shared signal-network interface system. It redesigns
+the startup, authentication, onboarding, dashboard navigation, dashboard hero,
+and primary actions for desktop and mobile while leaving Build 22.1 database,
+authorization, transaction, payment, document, dispute, and chat behavior
+unchanged.
+
 ## Endpoints
 
 - `GET /api/health`
