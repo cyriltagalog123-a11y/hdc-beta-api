@@ -37,13 +37,12 @@ describe('Flutter web startup recovery', () => {
       '/flutter_bootstrap.js',
       '/flutter_service_worker.js',
       '/hdc_startup.js',
+      '/legal/*',
     ]) {
       expect(netlify).toContain(`for = "${path}"`);
     }
 
-    expect(netlify.match(/no-cache, no-store, must-revalidate/g)).toHaveLength(
-      6,
-    );
+    expect(netlify.match(/no-cache, no-store, must-revalidate/g)).toHaveLength(7);
   });
 
   it('fails the production build if the recovery shell is omitted', () => {

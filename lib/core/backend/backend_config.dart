@@ -1,9 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-enum HDCBackendProvider {
-  hdcApi,
-  local,
-}
+enum HDCBackendProvider { hdcApi, local }
 
 class HDCBackendConfig {
   // Flutter talks only to the provider-neutral HDC HTTPS API. Legacy provider
@@ -27,7 +24,8 @@ class HDCBackendConfig {
     if (value == 'same-origin') {
       if (!kIsWeb) return null;
       final base = Uri.base;
-      final isLoopback = base.host == 'localhost' ||
+      final isLoopback =
+          base.host == 'localhost' ||
           base.host == '127.0.0.1' ||
           base.host == '::1';
       if (base.host.isEmpty ||
@@ -44,15 +42,23 @@ class HDCBackendConfig {
   static bool get hasApiConfiguration => apiBaseUri != null;
 
   static HDCBackendProvider get provider {
-    switch (providerName.trim().toLowerCase()) {
+    return parseProvider(providerName);
+  }
+
+  @visibleForTesting
+  static HDCBackendProvider parseProvider(String value) {
+    switch (value.trim().toLowerCase()) {
       case 'api':
       case 'hdc_api':
       case 'neon':
       case 'supabase':
         return HDCBackendProvider.hdcApi;
       case 'local':
-      default:
         return HDCBackendProvider.local;
+      default:
+        throw StateError(
+          'Unsupported HDC_BACKEND_PROVIDER. Use api or explicit local.',
+        );
     }
   }
 }

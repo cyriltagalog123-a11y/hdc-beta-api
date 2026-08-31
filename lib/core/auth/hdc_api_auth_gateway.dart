@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import '../../models/account_identity.dart';
 import '../../models/account_recovery.dart';
 import '../../models/authenticated_session.dart';
+import '../../models/legal_document.dart';
+import '../../models/privacy_request.dart';
 import 'auth_exception.dart';
 import 'auth_gateway.dart';
 import 'auth_session_store.dart';
@@ -25,8 +27,8 @@ class HdcApiAuthGateway implements AuthGateway {
     required this.baseUri,
     http.Client? client,
     AuthSessionStore? sessionStore,
-  })  : _client = client ?? http.Client(),
-        _sessionStore = sessionStore ?? MemoryAuthSessionStore();
+  }) : _client = client ?? http.Client(),
+       _sessionStore = sessionStore ?? MemoryAuthSessionStore();
 
   @override
   AccountIdentity? get currentIdentity => _currentIdentity;
@@ -61,10 +63,7 @@ class HdcApiAuthGateway implements AuthGateway {
     _storedSession = stored;
 
     try {
-      final response = await _get(
-        '/api/auth/session',
-        token: stored.token,
-      );
+      final response = await _get('/api/auth/session', token: stored.token);
 
       if (response.statusCode == 401) {
         await _clearLocalSession();
@@ -73,10 +72,7 @@ class HdcApiAuthGateway implements AuthGateway {
 
       final body = _requireSuccessObject(response);
       final user = _requireObject(body, 'user');
-      _hydrate(
-        user: user,
-        expiresAt: stored.expiresAt,
-      );
+      _hydrate(user: user, expiresAt: stored.expiresAt);
     } on HDCAuthException {
       rethrow;
     } on Object {
@@ -94,10 +90,7 @@ class HdcApiAuthGateway implements AuthGateway {
   }) async {
     final response = await _post(
       '/api/auth/login',
-      body: {
-        'email': identifier.trim().toLowerCase(),
-        'password': password,
-      },
+      body: {'email': identifier.trim().toLowerCase(), 'password': password},
     );
     final body = _requireSuccessObject(response);
 
@@ -120,10 +113,7 @@ class HdcApiAuthGateway implements AuthGateway {
       );
     }
 
-    final stored = StoredAuthSession(
-      token: token,
-      expiresAt: expiresAt,
-    );
+    final stored = StoredAuthSession(token: token, expiresAt: expiresAt);
     try {
       await _sessionStore.write(stored);
     } on Object {
@@ -149,6 +139,7 @@ class HdcApiAuthGateway implements AuthGateway {
     required String displayName,
     required List<AccountRecoveryAnswer> recoveryAnswers,
     required bool termsAccepted,
+    required bool privacyAcknowledged,
   }) async {
     final response = await _post(
       '/api/auth/register',
@@ -160,7 +151,8 @@ class HdcApiAuthGateway implements AuthGateway {
             .map((answer) => answer.toJson())
             .toList(growable: false),
         'termsAccepted': termsAccepted,
-        'termsVersion': hdcCurrentTermsVersion,
+        'privacyAcknowledged': privacyAcknowledged,
+        'termsVersion': hdcCurrentLegalVersion,
       },
     );
     final body = _requireSuccessObject(response);
@@ -170,6 +162,84 @@ class HdcApiAuthGateway implements AuthGateway {
     // creation always starts as a backend-owned Customer role, then the user
     // signs in through the normal login flow.
     return _identityFromJson(user);
+  }
+
+  @override
+  Future<AccountIdentity> acceptCurrentLegalDocuments() async {
+    final stored = _storedSession ?? await _sessionStore.read();
+    if (stored == null || stored.isExpired) {
+      await _clearLocalSession();
+      throw const HDCAuthException(
+        code: 'session_expired',
+        message: 'Your HDC session has expired. Please sign in again.',
+        statusCode: 401,
+      );
+    }
+    final response = await _post(
+      '/api/legal/acceptance',
+      token: stored.token,
+      body: const {
+        'version': hdcCurrentLegalVersion,
+        'termsAccepted': true,
+        'privacyAcknowledged': true,
+      },
+    );
+    final body = _requireSuccessObject(response);
+    final user = _requireObject(body, 'user');
+    _storedSession = stored;
+    _hydrate(user: user, expiresAt: stored.expiresAt);
+    return _currentIdentity!;
+  }
+
+  @override
+  Future<List<HDCPrivacyRequest>> listPrivacyRequests() async {
+    final stored = await _requireStoredSession();
+    final response = await _get('/api/privacy/requests', token: stored.token);
+    final body = _requireSuccessObject(response);
+    final rawRequests = body['requests'];
+    if (rawRequests is! List) {
+      throw const HDCAuthException(
+        code: 'invalid_server_response',
+        message: 'HDC returned an invalid privacy request list.',
+      );
+    }
+    try {
+      return List<HDCPrivacyRequest>.unmodifiable(
+        rawRequests.map((item) {
+          if (item is! Map) throw const FormatException();
+          return HDCPrivacyRequest.fromJson(
+            item.map((key, value) => MapEntry('$key', value)),
+          );
+        }),
+      );
+    } on FormatException {
+      throw const HDCAuthException(
+        code: 'invalid_server_response',
+        message: 'HDC returned invalid privacy request data.',
+      );
+    }
+  }
+
+  @override
+  Future<HDCPrivacyRequest> submitPrivacyRequest({
+    required HDCPrivacyRequestType type,
+    required String details,
+  }) async {
+    final stored = await _requireStoredSession();
+    final response = await _post(
+      '/api/privacy/requests',
+      token: stored.token,
+      body: {'requestType': type.code, 'details': details.trim()},
+    );
+    final body = _requireSuccessObject(response);
+    try {
+      return HDCPrivacyRequest.fromJson(_requireObject(body, 'request'));
+    } on FormatException {
+      throw const HDCAuthException(
+        code: 'invalid_server_response',
+        message: 'HDC returned invalid privacy request data.',
+      );
+    }
   }
 
   @override
@@ -184,10 +254,7 @@ class HdcApiAuthGateway implements AuthGateway {
       // Remote revocation is best-effort on explicit logout. Whether the
       // backend confirms, rejects, or cannot receive this request, the device
       // credential is removed in the finally block below.
-      await _post(
-        '/api/auth/logout',
-        token: stored.token,
-      );
+      await _post('/api/auth/logout', token: stored.token);
     } on Object {
       // Offline logout still clears the device credential below. The backend
       // session remains bounded by its server-side expiry if it could not be
@@ -269,10 +336,7 @@ class HdcApiAuthGateway implements AuthGateway {
   }) async {
     final response = await _post(
       '/api/auth/recovery/reset',
-      body: {
-        'resetToken': resetToken.trim(),
-        'newPassword': newPassword,
-      },
+      body: {'resetToken': resetToken.trim(), 'newPassword': newPassword},
     );
     _requireSuccessObject(response);
   }
@@ -315,10 +379,7 @@ class HdcApiAuthGateway implements AuthGateway {
       );
     }
 
-    final response = await _get(
-      '/api/auth/session',
-      token: stored.token,
-    );
+    final response = await _get('/api/auth/session', token: stored.token);
     if (response.statusCode == 401) {
       await _clearLocalSession();
       throw const HDCAuthException(
@@ -347,6 +408,19 @@ class HdcApiAuthGateway implements AuthGateway {
     );
   }
 
+  Future<StoredAuthSession> _requireStoredSession() async {
+    final stored = _storedSession ?? await _sessionStore.read();
+    if (stored == null || stored.isExpired) {
+      await _clearLocalSession();
+      throw const HDCAuthException(
+        code: 'session_expired',
+        message: 'Your HDC session has expired. Please sign in again.',
+        statusCode: 401,
+      );
+    }
+    return stored;
+  }
+
   Future<void> _clearLegacyPersistentSession() async {
     const legacyStore = SecureAuthSessionStore();
     try {
@@ -364,16 +438,10 @@ class HdcApiAuthGateway implements AuthGateway {
     }
   }
 
-  Future<http.Response> _get(
-    String path, {
-    String? token,
-  }) async {
+  Future<http.Response> _get(String path, {String? token}) async {
     try {
       return await _client
-          .get(
-            _endpoint(path),
-            headers: _headers(token: token),
-          )
+          .get(_endpoint(path), headers: _headers(token: token))
           .timeout(_requestTimeout);
     } on TimeoutException {
       throw const HDCAuthException(
@@ -456,10 +524,7 @@ class HdcApiAuthGateway implements AuthGateway {
     return null;
   }
 
-  Map<String, dynamic> _requireObject(
-    Map<String, dynamic> parent,
-    String key,
-  ) {
+  Map<String, dynamic> _requireObject(Map<String, dynamic> parent, String key) {
     final value = parent[key];
     if (value is Map<String, dynamic>) return value;
     if (value is Map) {
@@ -473,7 +538,9 @@ class HdcApiAuthGateway implements AuthGateway {
 
   Never _throwResponseError(http.Response response) {
     final body = _decodeObject(response.body) ?? const <String, dynamic>{};
-    final code = body['error'] is String ? body['error'] as String : 'request_failed';
+    final code = body['error'] is String
+        ? body['error'] as String
+        : 'request_failed';
 
     final message = switch (code) {
       'invalid_credentials' => 'Email or password is incorrect.',
@@ -481,10 +548,8 @@ class HdcApiAuthGateway implements AuthGateway {
         'That email address is already registered with HDC.',
       'too_many_attempts' =>
         'Too many attempts. Please wait before trying again.',
-      'invalid_registration' =>
-        'Complete the account details, recovery questions, and terms acceptance.',
-      'weak_recovery_answers' =>
-        'Recovery answers must be distinct and cannot repeat your name, email, or password.',
+      'invalid_registration' => 'Complete the account details, recovery questions, and terms acceptance.',
+      'weak_recovery_answers' => 'Recovery answers must be distinct and cannot repeat your name, email, or password.',
       'invalid_recovery_answers' =>
         'Complete all three recovery questions and try again.',
       'invalid_recovery_request' => 'Enter a valid email address.',
@@ -493,7 +558,8 @@ class HdcApiAuthGateway implements AuthGateway {
         'That password reset code is invalid, expired, or already used.',
       'invalid_password_reset' =>
         'Use a valid reset code and a password of 12 to 128 characters.',
-      'unauthorized' => 'Your HDC session is no longer valid. Please sign in again.',
+      'unauthorized' =>
+        'Your HDC session is no longer valid. Please sign in again.',
       _ when response.statusCode >= 500 =>
         'HDC authentication is temporarily unavailable. Please try again.',
       _ => 'Authentication request failed. Please try again.',
@@ -564,6 +630,10 @@ class HdcApiAuthGateway implements AuthGateway {
       status: _statusFromCode('${user['status'] ?? 'disabled'}'),
       platformRoles: Set<HDCPlatformRole>.unmodifiable(platformRoles),
       internalRoles: Set<HDCInternalRole>.unmodifiable(internalRoles),
+      legalAcceptanceRequired: user['legalAcceptanceRequired'] == true,
+      legalVersion: user['legalVersion'] is String
+          ? user['legalVersion'] as String
+          : '',
       createdAt: createdAt,
       updatedAt: updatedAt,
     );

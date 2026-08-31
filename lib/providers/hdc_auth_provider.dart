@@ -4,6 +4,7 @@ import '../core/auth/auth_gateway.dart';
 import '../core/auth/auth_service.dart';
 import '../models/account_identity.dart';
 import '../models/account_recovery.dart';
+import '../models/privacy_request.dart';
 
 class HDCAuthProvider extends ChangeNotifier {
   final AuthGateway gateway;
@@ -70,6 +71,7 @@ class HDCAuthProvider extends ChangeNotifier {
     required String displayName,
     required List<AccountRecoveryAnswer> recoveryAnswers,
     required bool termsAccepted,
+    required bool privacyAcknowledged,
   }) async {
     _setBusy(true);
     try {
@@ -79,11 +81,59 @@ class HDCAuthProvider extends ChangeNotifier {
         displayName: displayName,
         recoveryAnswers: recoveryAnswers,
         termsAccepted: termsAccepted,
+        privacyAcknowledged: privacyAcknowledged,
       );
       _identityOverride = null;
       _guestMode = false;
       _lastError = null;
       return result;
+    } on Object catch (error) {
+      _lastError = error;
+      rethrow;
+    } finally {
+      _setBusy(false);
+    }
+  }
+
+  Future<AccountIdentity> acceptCurrentLegalDocuments() async {
+    _setBusy(true);
+    try {
+      final result = await gateway.acceptCurrentLegalDocuments();
+      _identityOverride = null;
+      _lastError = null;
+      return result;
+    } on Object catch (error) {
+      _lastError = error;
+      rethrow;
+    } finally {
+      _setBusy(false);
+    }
+  }
+
+  Future<List<HDCPrivacyRequest>> listPrivacyRequests() async {
+    try {
+      final requests = await gateway.listPrivacyRequests();
+      _lastError = null;
+      return requests;
+    } on Object catch (error) {
+      _lastError = error;
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<HDCPrivacyRequest> submitPrivacyRequest({
+    required HDCPrivacyRequestType type,
+    required String details,
+  }) async {
+    _setBusy(true);
+    try {
+      final request = await gateway.submitPrivacyRequest(
+        type: type,
+        details: details,
+      );
+      _lastError = null;
+      return request;
     } on Object catch (error) {
       _lastError = error;
       rethrow;
@@ -202,7 +252,8 @@ class HDCAuthProvider extends ChangeNotifier {
   void updateDisplayNameFromProfile(String displayName) {
     final current = identity;
     final normalized = displayName.trim();
-    if (current == null || normalized.length < 2 ||
+    if (current == null ||
+        normalized.length < 2 ||
         normalized == current.displayName) {
       return;
     }

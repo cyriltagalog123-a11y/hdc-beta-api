@@ -37,7 +37,7 @@ class _PlatformOnboardingScreenState
       icon: Icons.confirmation_number_outlined,
       title: 'Track every request',
       description:
-          'Follow bookings, tickets, technician updates, and completed '
+          'Follow service requests, offers, technician updates, and completed '
           'service records without losing important details.',
     ),
     _OnboardingPageData(

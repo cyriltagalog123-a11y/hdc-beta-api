@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/startup/startup_manager.dart';
 import '../../providers/hdc_auth_provider.dart';
+import '../authentication/legal_acceptance_screen.dart';
 import '../authentication/login_screen.dart';
 import '../onboarding/onboarding_gate.dart';
 
@@ -33,12 +34,13 @@ class _SplashScreenState extends State<SplashScreen> {
 
     final identity = auth.identity;
     final page = auth.authenticated && identity != null
-        ? OnboardingGate(userId: identity.id)
+        ? identity.legalAcceptanceRequired
+              ? const LegalAcceptanceScreen()
+              : OnboardingGate(userId: identity.id)
         : const LoginScreen();
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(builder: (_) => page),
-    );
+    Navigator.of(context)
+        .pushReplacement(MaterialPageRoute<void>(builder: (_) => page));
   }
 
   @override

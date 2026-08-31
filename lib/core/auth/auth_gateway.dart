@@ -1,6 +1,7 @@
 import '../../models/account_identity.dart';
 import '../../models/account_recovery.dart';
 import '../../models/authenticated_session.dart';
+import '../../models/privacy_request.dart';
 
 abstract interface class AuthGateway {
   AccountIdentity? get currentIdentity;
@@ -19,13 +20,21 @@ abstract interface class AuthGateway {
     required String displayName,
     required List<AccountRecoveryAnswer> recoveryAnswers,
     required bool termsAccepted,
+    required bool privacyAcknowledged,
+  });
+
+  Future<AccountIdentity> acceptCurrentLegalDocuments();
+
+  Future<List<HDCPrivacyRequest>> listPrivacyRequests();
+
+  Future<HDCPrivacyRequest> submitPrivacyRequest({
+    required HDCPrivacyRequestType type,
+    required String details,
   });
 
   Future<void> signOut();
 
-  Future<void> requestPasswordReset({
-    required String email,
-  });
+  Future<void> requestPasswordReset({required String email});
 
   Future<List<AccountRecoveryQuestion>> startPasswordRecovery({
     required String email,

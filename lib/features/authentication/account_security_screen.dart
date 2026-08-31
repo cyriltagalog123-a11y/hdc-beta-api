@@ -5,6 +5,7 @@ import '../../core/auth/auth_exception.dart';
 import '../../core/ui/hdc_colors.dart';
 import '../../models/account_recovery.dart';
 import '../../providers/hdc_auth_provider.dart';
+import 'privacy_center_screen.dart';
 
 class AccountSecurityScreen extends StatefulWidget {
   const AccountSecurityScreen({super.key});
@@ -33,12 +34,13 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
 
   List<AccountRecoveryAnswer> _answers() {
     return [
-      for (var index = 0;
-          index < hdcRegistrationRecoveryQuestions.length;
-          index += 1)
+      for (
+        var index = 0;
+        index < hdcRegistrationRecoveryQuestions.length;
+        index += 1
+      )
         AccountRecoveryAnswer(
-          questionCode:
-              hdcRegistrationRecoveryQuestions[index].questionCode,
+          questionCode: hdcRegistrationRecoveryQuestions[index].questionCode,
           answer: _answerControllers[index].text,
         ),
     ];
@@ -50,10 +52,10 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
     }
     final normalized = <String>{};
     for (final controller in _answerControllers) {
-      final answer = controller.text
-          .trim()
-          .toLowerCase()
-          .replaceAll(RegExp(r'\s+'), ' ');
+      final answer = controller.text.trim().toLowerCase().replaceAll(
+        RegExp(r'\s+'),
+        ' ',
+      );
       if (answer.length < 4 || answer.length > 160) {
         return 'Each recovery answer must contain 4 to 160 characters.';
       }
@@ -74,9 +76,9 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
 
     try {
       await context.read<HDCAuthProvider>().updateRecoveryAnswers(
-            currentPassword: _currentPasswordController.text,
-            recoveryAnswers: _answers(),
-          );
+        currentPassword: _currentPasswordController.text,
+        recoveryAnswers: _answers(),
+      );
       if (!mounted) return;
       _currentPasswordController.clear();
       for (final controller in _answerControllers) {
@@ -108,9 +110,8 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -167,8 +168,8 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
                         onPressed: busy
                             ? null
                             : () => setState(
-                                  () => _hidePassword = !_hidePassword,
-                                ),
+                                () => _hidePassword = !_hidePassword,
+                              ),
                         icon: Icon(
                           _hidePassword
                               ? Icons.visibility_outlined
@@ -192,9 +193,8 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
                       TextButton.icon(
                         onPressed: busy
                             ? null
-                            : () => setState(
-                                  () => _hideAnswers = !_hideAnswers,
-                                ),
+                            : () =>
+                                  setState(() => _hideAnswers = !_hideAnswers),
                         icon: Icon(
                           _hideAnswers
                               ? Icons.visibility_outlined
@@ -207,9 +207,11 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  for (var index = 0;
-                      index < hdcRegistrationRecoveryQuestions.length;
-                      index += 1) ...[
+                  for (
+                    var index = 0;
+                    index < hdcRegistrationRecoveryQuestions.length;
+                    index += 1
+                  ) ...[
                     TextField(
                       controller: _answerControllers[index],
                       enabled: !busy,
@@ -218,7 +220,8 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
                       decoration: InputDecoration(
                         labelText:
                             '${index + 1}. ${hdcRegistrationRecoveryQuestions[index].prompt}',
-                        helperText: 'Use a unique answer of 4 to 160 characters',
+                        helperText:
+                            'Use a unique answer of 4 to 160 characters',
                         alignLabelWithHint: true,
                         border: const OutlineInputBorder(),
                       ),
@@ -242,6 +245,32 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
                       fontSize: 12,
                       height: 1.4,
                     ),
+                  ),
+                  const SizedBox(height: 28),
+                  const Divider(),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Privacy rights and requests',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Read the current Privacy Notice, submit a rights request, '
+                    'and track its private review status with a permanent '
+                    'reference number.',
+                    style: TextStyle(height: 1.4),
+                  ),
+                  const SizedBox(height: 14),
+                  OutlinedButton.icon(
+                    onPressed: busy
+                        ? null
+                        : () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const PrivacyCenterScreen(),
+                            ),
+                          ),
+                    icon: const Icon(Icons.privacy_tip_outlined),
+                    label: const Text('Open Privacy Center'),
                   ),
                 ],
               ),

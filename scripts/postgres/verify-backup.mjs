@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { pipeline } from 'node:stream/promises';
+import postgres from 'postgres';
 
 const MAGIC = Buffer.from('HDCBKP1\n', 'utf8');
 const HEADER_BYTES = MAGIC.length + 12;
@@ -74,12 +75,35 @@ if (!existsSync(manifestPath)) {
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 if (
   manifest.format !== 'HDCBKP1' ||
+  manifest.manifestVersion !== 2 ||
   manifest.encryption !== 'AES-256-GCM' ||
   manifest.source !== 'postgres' ||
   manifest.backupFile !== backupPath.split(/[\\/]/).at(-1) ||
-  !/^[a-f0-9]{64}$/.test(String(manifest.checksumSha256 ?? ''))
+  !/^[a-f0-9]{64}$/.test(String(manifest.checksumSha256 ?? '')) ||
+  !manifest.inventory ||
+  !Array.isArray(manifest.inventory.migrationVersions)
 ) {
   throw new Error('The HDC backup manifest is invalid.');
+}
+
+const restoreUrl = process.env.HDC_RESTORE_DATABASE_URL?.trim();
+if (!restoreUrl) {
+  throw new Error('HDC_RESTORE_DATABASE_URL is required for a full restore rehearsal.');
+}
+if (process.env.HDC_ALLOW_RESTORE_RESET !== '1') {
+  throw new Error('Set HDC_ALLOW_RESTORE_RESET=1 for the isolated restore database.');
+}
+if (
+  process.env.HDC_DATABASE_URL?.trim() &&
+  process.env.HDC_DATABASE_URL.trim() === restoreUrl
+) {
+  throw new Error('The restore database URL must not equal HDC_DATABASE_URL.');
+}
+const restoreDatabase = decodeURIComponent(
+  new URL(restoreUrl).pathname.replace(/^\//, ''),
+);
+if (!/^hdc[_-]restore(?:[_-].*)?$/i.test(restoreDatabase)) {
+  throw new Error('The isolated restore database name must start with hdc_restore.');
 }
 const checksum = await sha256(backupPath);
 if (manifest.checksumSha256 !== checksum) {
@@ -109,7 +133,142 @@ try {
   if (verification.status !== 0) {
     throw new Error(`pg_restore verification failed with exit code ${verification.status}.`);
   }
-  console.log('HDC backup checksum, encryption, and PostgreSQL archive verified.');
+
+  const restoreSql = postgres(restoreUrl, {
+    max: 1,
+    prepare: false,
+    connect_timeout: 10,
+    idle_timeout: 10,
+  });
+  try {
+    await restoreSql.unsafe(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hdc_app') THEN
+          CREATE ROLE hdc_app NOLOGIN;
+        END IF;
+      END
+      $$;
+      GRANT hdc_app TO CURRENT_USER WITH SET TRUE;
+    `);
+  } finally {
+    await restoreSql.end({ timeout: 2 });
+  }
+
+  const restore = spawnSync(
+    'pg_restore',
+    [
+      '--clean',
+      '--if-exists',
+      '--no-owner',
+      '--exit-on-error',
+      '--dbname',
+      restoreUrl,
+      plainDumpPath,
+    ],
+    { stdio: ['ignore', 'ignore', 'inherit'] },
+  );
+  if (restore.error) throw restore.error;
+  if (restore.status !== 0) {
+    throw new Error(`Full pg_restore failed with exit code ${restore.status}.`);
+  }
+
+  const verifiedSql = postgres(restoreUrl, {
+    max: 1,
+    prepare: false,
+    connect_timeout: 10,
+    idle_timeout: 10,
+  });
+  try {
+    const rows = await verifiedSql`
+      SELECT
+        (SELECT count(*)::int FROM public.hdc_users) AS users,
+        (SELECT count(*)::int FROM public.hdc_service_requests)
+          AS service_requests,
+        (SELECT count(*)::int FROM public.hdc_proposals) AS proposals,
+        (SELECT count(*)::int FROM public.hdc_service_transactions)
+          AS service_transactions,
+        (SELECT count(*)::int FROM public.hdc_private_messages)
+          AS private_messages,
+        (SELECT count(*)::int FROM public.hdc_service_payments) AS payments,
+        (SELECT count(*)::int FROM public.hdc_service_payment_events)
+          AS payment_events,
+        (SELECT count(*)::int FROM public.hdc_service_receipts) AS receipts,
+        (SELECT count(*)::int FROM public.hdc_service_documents) AS documents,
+        (SELECT count(*)::int FROM public.hdc_service_disputes) AS disputes,
+        (SELECT count(*)::int FROM public.hdc_service_dispute_events)
+          AS dispute_events,
+        (SELECT count(*)::int FROM public.hdc_security_audit) AS security_audit,
+        (SELECT array_agg(version ORDER BY version)
+          FROM public.hdc_schema_migrations) AS migration_versions,
+        (SELECT count(*)::int FROM public.hdc_legal_documents
+          WHERE document_version = 'beta-2026-08-29'
+            AND status = 'published') AS legal_documents,
+        (SELECT count(*)::int FROM pg_constraint
+          WHERE convalidated = false) AS invalid_constraints,
+        has_table_privilege(
+          'hdc_app', 'public.hdc_service_requests', 'SELECT'
+        ) AS app_requests_select,
+        has_table_privilege(
+          'hdc_app', 'public.hdc_service_transactions', 'SELECT'
+        ) AS app_transactions_select,
+        has_table_privilege(
+          'hdc_app', 'public.hdc_private_messages', 'INSERT'
+        ) AS app_messages_insert,
+        has_table_privilege(
+          'hdc_app', 'public.hdc_service_payments', 'INSERT'
+        ) AS app_payments_insert,
+        has_table_privilege(
+          'hdc_app', 'public.hdc_service_disputes', 'INSERT'
+        ) AS app_disputes_insert,
+        (SELECT count(*)::int FROM pg_policies
+          WHERE schemaname = 'public'
+            AND tablename IN (
+              'hdc_service_requests', 'hdc_service_transactions',
+              'hdc_private_messages', 'hdc_service_payments',
+              'hdc_service_disputes'
+            )) AS application_policies
+    `;
+    const row = rows[0];
+    const restoredInventory = {
+      users: Number(row.users),
+      serviceRequests: Number(row.service_requests),
+      proposals: Number(row.proposals),
+      serviceTransactions: Number(row.service_transactions),
+      privateMessages: Number(row.private_messages),
+      payments: Number(row.payments),
+      paymentEvents: Number(row.payment_events),
+      receipts: Number(row.receipts),
+      documents: Number(row.documents),
+      disputes: Number(row.disputes),
+      disputeEvents: Number(row.dispute_events),
+      securityAudit: Number(row.security_audit),
+      migrationVersions: [...(row.migration_versions ?? [])].map(String),
+    };
+    if (JSON.stringify(restoredInventory) !== JSON.stringify(manifest.inventory)) {
+      throw new Error('Restored row inventory does not match the encrypted backup.');
+    }
+    if (
+      Number(row.legal_documents) !== 2 ||
+      Number(row.invalid_constraints) !== 0 ||
+      row.app_requests_select !== true ||
+      row.app_transactions_select !== true ||
+      row.app_messages_insert !== true ||
+      row.app_payments_insert !== true ||
+      row.app_disputes_insert !== true ||
+      Number(row.application_policies) < 5
+    ) {
+      throw new Error(
+        'Restored HDC schema failed legal, constraint, ACL, or RLS readiness checks.',
+      );
+    }
+  } finally {
+    await verifiedSql.end({ timeout: 2 });
+  }
+
+  console.log(
+    'HDC backup decrypted and fully restored; schema and row inventory match.',
+  );
 } finally {
   rmSync(temporaryDirectory, { recursive: true, force: true });
 }

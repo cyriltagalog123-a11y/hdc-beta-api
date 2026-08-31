@@ -26,7 +26,6 @@ import 'providers/service_request_provider.dart';
 import 'providers/service_transaction_provider.dart';
 import 'providers/technician_discovery_provider.dart';
 import 'providers/technician_marketplace_provider.dart';
-import 'providers/ticket_provider.dart';
 import 'repositories/hdc_api_private_messaging_gateway.dart';
 import 'repositories/hdc_api_workflow_repositories.dart';
 import 'repositories/private_messaging_gateway.dart';
@@ -49,10 +48,12 @@ Future<void> main() async {
   AuthGateway authGateway;
   final sessionStore = MemoryAuthSessionStore();
   final baseUri = HDCBackendConfig.apiBaseUri;
+  HDCBackendProvider? backendProvider;
 
   try {
+    backendProvider = HDCBackendConfig.provider;
     if (baseUri == null) {
-      throw StateError('HDC authentication API configuration is invalid.');
+      throw StateError('HDC API configuration is invalid.');
     }
 
     authGateway = HdcApiAuthGateway(
@@ -73,10 +74,14 @@ Future<void> main() async {
   HdcWorkflowApiClient? roleApiClient;
   PrivateMessagingGateway? privateMessagingGateway;
 
-  if (HDCBackendConfig.provider == HDCBackendProvider.hdcApi &&
-      baseUri != null) {
+  if (backendProvider != HDCBackendProvider.local) {
+    // An unknown provider or invalid URL never enables local persistence.
+    // The non-routable fallback keeps repository construction fail-closed;
+    // authentication remains unavailable and no account workflow can start.
+    final failClosedBaseUri =
+        baseUri ?? Uri.parse('https://configuration.invalid');
     final workflowClient = HdcWorkflowApiClient(
-      baseUri: baseUri,
+      baseUri: failClosedBaseUri,
       sessionStore: sessionStore,
     );
     roleApiClient = workflowClient;
@@ -180,12 +185,11 @@ class HDCApp extends StatelessWidget {
         >(
           create: (_) => HdcNotificationCenterProvider(client: roleApiClient),
           update: (_, auth, notificationCenter) {
-            final provider = notificationCenter ??
+            final provider =
+                notificationCenter ??
                 HdcNotificationCenterProvider(client: roleApiClient);
             provider.bindUser(
-              auth.authenticated && !auth.guestMode
-                  ? auth.identity?.id
-                  : null,
+              auth.authenticated && !auth.guestMode ? auth.identity?.id : null,
             );
             return provider;
           },
@@ -196,12 +200,11 @@ class HDCApp extends StatelessWidget {
         >(
           create: (_) => HdcTransactionToolsProvider(client: roleApiClient),
           update: (_, auth, transactionTools) {
-            final provider = transactionTools ??
+            final provider =
+                transactionTools ??
                 HdcTransactionToolsProvider(client: roleApiClient);
             provider.bindUser(
-              auth.authenticated && !auth.guestMode
-                  ? auth.identity?.id
-                  : null,
+              auth.authenticated && !auth.guestMode ? auth.identity?.id : null,
             );
             return provider;
           },
@@ -248,16 +251,6 @@ class HDCApp extends StatelessWidget {
               return provider;
             },
           ),
-        ChangeNotifierProxyProvider<HDCAuthProvider, TicketProvider>(
-          create: (_) => TicketProvider(),
-          update: (_, auth, ticketProvider) {
-            final provider = ticketProvider ?? TicketProvider();
-            provider.bindUser(
-              auth.authenticated && !auth.guestMode ? auth.identity?.id : null,
-            );
-            return provider;
-          },
-        ),
         ChangeNotifierProvider(
           create: (_) => OnboardingProvider(
             repository: SharedPreferencesOnboardingRepository(),
@@ -381,17 +374,17 @@ class HDCApp extends StatelessWidget {
             gateway: privateMessagingGateway,
           )..initialize(),
           update: (_, auth, messagingProvider) {
-            final provider = messagingProvider ??
-                PrivateMessagingProvider(
-                  repository:
-                      SharedPreferencesPrivateConversationRepository(),
-                  transactionRepository: serviceTransactionRepository,
-                  gateway: privateMessagingGateway,
-                )..initialize();
+            final provider =
+                messagingProvider ??
+                      PrivateMessagingProvider(
+                        repository:
+                            SharedPreferencesPrivateConversationRepository(),
+                        transactionRepository: serviceTransactionRepository,
+                        gateway: privateMessagingGateway,
+                      )
+                  ..initialize();
             provider.bindUser(
-              auth.authenticated && !auth.guestMode
-                  ? auth.identity?.id
-                  : null,
+              auth.authenticated && !auth.guestMode ? auth.identity?.id : null,
             );
             return provider;
           },

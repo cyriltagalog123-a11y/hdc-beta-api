@@ -24,6 +24,6 @@ class ApiEndpoints {
   static const String suppliers =
       "/suppliers";
 
-  static const String tickets =
-      "/tickets";
+  static const String serviceRequests =
+      "/service-requests";
 }

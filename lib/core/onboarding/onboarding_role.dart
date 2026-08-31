@@ -57,7 +57,7 @@ extension OnboardingRoleDetails on OnboardingRole {
         return 'Create product listings, manage inventory and orders, and '
             'support buyers through transaction-based conversations.';
       case OnboardingRole.store:
-        return 'Manage branches, departments, employees, assets, tickets, '
+        return 'Manage branches, departments, employees, assets, service requests, '
             'and technician visits from one workspace.';
     }
   }
@@ -105,7 +105,7 @@ extension OnboardingRoleDetails on OnboardingRole {
           'Complete the store profile',
           'Add branches, departments, and employees',
           'Register store products and assets',
-          'Manage support tickets and technician visits',
+          'Manage service requests and technician visits',
           'Review store activity and performance',
         ];
     }

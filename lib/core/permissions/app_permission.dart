@@ -25,10 +25,10 @@ enum AppPermission {
   assetAssign,
   assetEdit,
 
-  ticketRead,
-  ticketCreate,
-  ticketAssign,
-  ticketClose,
+  serviceRequestRead,
+  serviceRequestCreate,
+  proposalCreate,
+  serviceTransactionUpdate,
 
   marketplaceRead,
   marketplaceSell,

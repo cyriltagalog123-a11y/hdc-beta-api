@@ -5,8 +5,11 @@ import '../../core/auth/auth_exception.dart';
 import '../../core/config/app_config.dart';
 import '../../core/ui/hdc_colors.dart';
 import '../../models/account_recovery.dart';
+import '../../models/legal_document.dart';
 import '../../providers/hdc_auth_provider.dart';
 import '../onboarding/onboarding_gate.dart';
+import 'legal_acceptance_screen.dart';
+import 'legal_document_screen.dart';
 import 'password_recovery_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -29,6 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _hideRecoveryAnswers = true;
   bool _creatingAccount = false;
   bool _termsAccepted = false;
+  bool _privacyAcknowledged = false;
 
   @override
   void dispose() {
@@ -43,12 +47,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   List<AccountRecoveryAnswer> _recoveryAnswers() {
     return [
-      for (var index = 0;
-          index < hdcRegistrationRecoveryQuestions.length;
-          index += 1)
+      for (
+        var index = 0;
+        index < hdcRegistrationRecoveryQuestions.length;
+        index += 1
+      )
         AccountRecoveryAnswer(
-          questionCode:
-              hdcRegistrationRecoveryQuestions[index].questionCode,
+          questionCode: hdcRegistrationRecoveryQuestions[index].questionCode,
           answer: _recoveryControllers[index].text,
         ),
     ];
@@ -65,6 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
               displayName: _displayNameController.text,
               recoveryAnswers: _recoveryAnswers(),
               termsAccepted: _termsAccepted,
+              privacyAcknowledged: _privacyAcknowledged,
             )
           : await auth.signIn(
               identifier: _emailController.text,
@@ -100,6 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
           setState(() {
             _creatingAccount = false;
             _termsAccepted = false;
+            _privacyAcknowledged = false;
           });
         }
         return;
@@ -107,15 +114,24 @@ class _LoginScreenState extends State<LoginScreen> {
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (_) => OnboardingGate(userId: identity.id),
+          builder: (_) => identity.legalAcceptanceRequired
+              ? const LegalAcceptanceScreen()
+              : OnboardingGate(userId: identity.id),
         ),
       );
     } on Object catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_friendlyError(error))),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(_friendlyError(error))));
     }
+  }
+
+  Future<void> _openLegalDocument(HDCLegalDocument document) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => LegalDocumentScreen(document: document),
+      ),
+    );
   }
 
   void _continueAsGuest() {
@@ -130,9 +146,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _forgotPassword() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => PasswordRecoveryScreen(
-          initialEmail: _emailController.text.trim(),
-        ),
+        builder: (_) =>
+            PasswordRecoveryScreen(initialEmail: _emailController.text.trim()),
       ),
     );
   }
@@ -232,7 +247,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           : null,
                       prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
-                        tooltip: _hidePassword ? 'Show password' : 'Hide password',
+                        tooltip: _hidePassword
+                            ? 'Show password'
+                            : 'Hide password',
                         icon: Icon(
                           _hidePassword
                               ? Icons.visibility_outlined
@@ -241,8 +258,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         onPressed: busy
                             ? null
                             : () => setState(
-                                  () => _hidePassword = !_hidePassword,
-                                ),
+                                () => _hidePassword = !_hidePassword,
+                              ),
                       ),
                     ),
                   ),
@@ -266,9 +283,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPressed: busy
                               ? null
                               : () => setState(
-                                    () => _hideRecoveryAnswers =
-                                        !_hideRecoveryAnswers,
-                                  ),
+                                  () => _hideRecoveryAnswers =
+                                      !_hideRecoveryAnswers,
+                                ),
                           icon: Icon(
                             _hideRecoveryAnswers
                                 ? Icons.visibility_outlined
@@ -286,16 +303,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    for (var index = 0;
-                        index < hdcRegistrationRecoveryQuestions.length;
-                        index += 1) ...[
+                    for (
+                      var index = 0;
+                      index < hdcRegistrationRecoveryQuestions.length;
+                      index += 1
+                    ) ...[
                       TextField(
                         controller: _recoveryControllers[index],
                         enabled: !busy,
                         obscureText: _hideRecoveryAnswers,
                         maxLength: 160,
-                        textInputAction: index ==
-                                hdcRegistrationRecoveryQuestions.length - 1
+                        textInputAction:
+                            index == hdcRegistrationRecoveryQuestions.length - 1
                             ? TextInputAction.done
                             : TextInputAction.next,
                         decoration: InputDecoration(
@@ -308,19 +327,61 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 10),
                     ],
+                    const Text(
+                      'Legal documents',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: busy
+                              ? null
+                              : () =>
+                                    _openLegalDocument(HDCLegalDocument.terms),
+                          icon: const Icon(Icons.description_outlined),
+                          label: const Text('Read Terms'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: busy
+                              ? null
+                              : () => _openLegalDocument(
+                                  HDCLegalDocument.privacy,
+                                ),
+                          icon: const Icon(Icons.privacy_tip_outlined),
+                          label: const Text('Read Privacy Notice'),
+                        ),
+                      ],
+                    ),
                     CheckboxListTile(
                       value: _termsAccepted,
                       enabled: !busy,
                       contentPadding: EdgeInsets.zero,
                       controlAffinity: ListTileControlAffinity.leading,
-                      onChanged: (value) => setState(
-                        () => _termsAccepted = value == true,
-                      ),
+                      onChanged: (value) =>
+                          setState(() => _termsAccepted = value == true),
                       title: const Text(
-                        'I accept the HDC Beta Terms of Service and Privacy Notice.',
+                        'I have read and accept the HDC Beta Terms of Service.',
+                      ),
+                    ),
+                    CheckboxListTile(
+                      value: _privacyAcknowledged,
+                      enabled: !busy,
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      onChanged: (value) =>
+                          setState(() => _privacyAcknowledged = value == true),
+                      title: const Text(
+                        'I have read and acknowledge the HDC Beta Privacy Notice.',
                       ),
                       subtitle: const Text(
-                        'The accepted document version is recorded with this account.',
+                        'HDC records version $hdcCurrentLegalVersion and the '
+                        'content fingerprints with this account.',
                       ),
                     ),
                   ],
@@ -350,8 +411,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: busy
                         ? null
                         : () => setState(
-                              () => _creatingAccount = !_creatingAccount,
-                            ),
+                            () => _creatingAccount = !_creatingAccount,
+                          ),
                     child: Text(
                       _creatingAccount
                           ? 'Already have an account? Sign In'

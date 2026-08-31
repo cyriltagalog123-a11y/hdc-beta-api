@@ -179,7 +179,7 @@ class BrandPassportScreen extends StatelessWidget {
 
             comingSoon(
               Icons.confirmation_number,
-              "Tickets",
+              "Service Requests",
             ),
 
             sectionTitle("Business Intelligence"),

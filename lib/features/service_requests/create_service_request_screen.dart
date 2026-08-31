@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/navigation/hdc_page_route.dart';
 import '../../core/ui/hdc_colors.dart';
 import '../../models/service_request.dart';
+import '../../models/service_request_draft.dart';
 import '../../models/service_request_form_data.dart';
 import '../../repositories/master_data_repository.dart';
 import '../authentication/registered_user_gate.dart';
@@ -10,9 +11,11 @@ import 'review_service_request_screen.dart';
 
 class CreateServiceRequestScreen extends StatefulWidget {
   final ServiceRequest? existingRequest;
+  final ServiceRequestDraft? initialDraft;
 
   const CreateServiceRequestScreen({
     this.existingRequest,
+    this.initialDraft,
     super.key,
   });
 
@@ -48,9 +51,16 @@ class _CreateServiceRequestScreenState
   void initState() {
     super.initState();
     final existing = widget.existingRequest;
-    _titleController = TextEditingController(text: existing?.title ?? '');
+    final initialDraft = widget.initialDraft;
+    _titleController = TextEditingController(
+      text:
+          existing?.title ??
+          (initialDraft?.category == null
+              ? ''
+              : '${initialDraft!.category!.name} service needed'),
+    );
     _descriptionController = TextEditingController(
-      text: existing?.description ?? '',
+      text: existing?.description ?? initialDraft?.problemDescription ?? '',
     );
     _locationController = TextEditingController(
       text: existing?.location ?? 'Cebu City',
@@ -62,8 +72,16 @@ class _CreateServiceRequestScreenState
       text: existing?.maximumBudget?.toStringAsFixed(0) ?? '',
     );
     _urgency = existing?.urgency ?? ServiceRequestUrgency.normal;
-    _preferredDate = existing?.preferredDate ??
-        DateTime.now().add(const Duration(days: 1));
+    if (existing == null && initialDraft != null) {
+      _urgency = switch (initialDraft.urgency.trim().toLowerCase()) {
+        'flexible' => ServiceRequestUrgency.flexible,
+        'urgent' => ServiceRequestUrgency.urgent,
+        'emergency' => ServiceRequestUrgency.emergency,
+        _ => ServiceRequestUrgency.normal,
+      };
+    }
+    _preferredDate =
+        existing?.preferredDate ?? DateTime.now().add(const Duration(days: 1));
     _preferredTime = existing?.preferredTime ?? 'Any time';
     _categoriesFuture = _loadCategories(existing);
   }
@@ -71,11 +89,18 @@ class _CreateServiceRequestScreenState
   Future<List<ServiceCategory>> _loadCategories(
     ServiceRequest? existing,
   ) async {
-    final categories =
-        await MasterDataRepository.instance.getServiceCategories();
+    final categories = await MasterDataRepository.instance
+        .getServiceCategories();
     if (existing != null) {
       for (final category in categories) {
         if (category.id == existing.categoryId) {
+          _category = category;
+          break;
+        }
+      }
+    } else if (widget.initialDraft?.category != null) {
+      for (final category in categories) {
+        if (category.id == widget.initialDraft!.category!.id) {
           _category = category;
           break;
         }
@@ -180,8 +205,18 @@ class _CreateServiceRequestScreenState
 
   String _dateLabel(DateTime date) {
     const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
@@ -217,7 +252,8 @@ class _CreateServiceRequestScreenState
                             controller: _titleController,
                             decoration: const InputDecoration(
                               labelText: 'Request title',
-                              hintText: 'Example: Desktop computer will not start',
+                              hintText:
+                                  'Example: Desktop computer will not start',
                               prefixIcon: Icon(Icons.title),
                             ),
                             textInputAction: TextInputAction.next,
@@ -276,8 +312,7 @@ class _CreateServiceRequestScreenState
                             maxLines: 8,
                             decoration: const InputDecoration(
                               labelText: 'Describe the problem or work needed',
-                              hintText:
-                                  'Include symptoms, device details, error messages, and anything already tried.',
+                              hintText: 'Include symptoms, device details, error messages, and anything already tried.',
                               alignLabelWithHint: true,
                             ),
                             validator: (value) {
@@ -406,9 +441,10 @@ class _CreateServiceRequestScreenState
                               final horizontal = constraints.maxWidth >= 520;
                               final minimumField = TextFormField(
                                 controller: _minimumBudgetController,
-                                keyboardType: const TextInputType.numberWithOptions(
-                                  decimal: true,
-                                ),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
                                 decoration: const InputDecoration(
                                   labelText: 'Minimum budget (optional)',
                                   prefixText: 'PHP ',
@@ -417,9 +453,10 @@ class _CreateServiceRequestScreenState
                               );
                               final maximumField = TextFormField(
                                 controller: _maximumBudgetController,
-                                keyboardType: const TextInputType.numberWithOptions(
-                                  decimal: true,
-                                ),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
                                 decoration: const InputDecoration(
                                   labelText: 'Maximum budget (optional)',
                                   prefixText: 'PHP ',
@@ -536,10 +573,7 @@ class _SectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 18),
             child,
           ],
@@ -568,10 +602,7 @@ class _SelectionField extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon),
-        ),
+        decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
         child: Text(value),
       ),
     );

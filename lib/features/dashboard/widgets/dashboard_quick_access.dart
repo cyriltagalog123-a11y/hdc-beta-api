@@ -4,7 +4,7 @@ import '../../../core/ui/hdc_colors.dart';
 
 class DashboardQuickAccess extends StatelessWidget {
   final VoidCallback onTransactions;
-  final VoidCallback onTickets;
+  final VoidCallback onRequests;
   final VoidCallback onMarketplace;
   final VoidCallback onPassport;
   final VoidCallback onRoleCenter;
@@ -12,7 +12,7 @@ class DashboardQuickAccess extends StatelessWidget {
 
   const DashboardQuickAccess({
     required this.onTransactions,
-    required this.onTickets,
+    required this.onRequests,
     required this.onMarketplace,
     required this.onPassport,
     required this.onRoleCenter,
@@ -30,10 +30,10 @@ class DashboardQuickAccess extends StatelessWidget {
         onTap: onTransactions,
       ),
       _QuickAccessItem(
-        icon: Icons.confirmation_number_outlined,
-        title: 'My Tickets',
-        subtitle: 'Track service activity',
-        onTap: onTickets,
+        icon: Icons.campaign_outlined,
+        title: 'My Service Requests',
+        subtitle: 'Review every posted request and its offers',
+        onTap: onRequests,
       ),
       if (canAccessMarketplace)
         _QuickAccessItem(
@@ -65,16 +65,13 @@ class DashboardQuickAccess extends StatelessWidget {
           children: [
             Text(
               'Quick Access',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+              style: Theme.of(context).textTheme.titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             const Text(
               'Everything important is one step away.',
-              style: TextStyle(
-                color: HDCColors.textSecondary,
-              ),
+              style: TextStyle(color: HDCColors.textSecondary),
             ),
             const SizedBox(height: 20),
             ...items.map(
@@ -107,9 +104,7 @@ class _QuickAccessItem {
 class _QuickAccessTile extends StatelessWidget {
   final _QuickAccessItem item;
 
-  const _QuickAccessTile({
-    required this.item,
-  });
+  const _QuickAccessTile({required this.item});
 
   @override
   Widget build(BuildContext context) {
@@ -130,10 +125,7 @@ class _QuickAccessTile extends StatelessWidget {
                   color: HDCColors.secondary.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(13),
                 ),
-                child: Icon(
-                  item.icon,
-                  color: HDCColors.secondary,
-                ),
+                child: Icon(item.icon, color: HDCColors.secondary),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -142,9 +134,7 @@ class _QuickAccessTile extends StatelessWidget {
                   children: [
                     Text(
                       item.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 3),
                     Text(
@@ -157,10 +147,7 @@ class _QuickAccessTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(
-                Icons.chevron_right,
-                color: HDCColors.textSecondary,
-              ),
+              const Icon(Icons.chevron_right, color: HDCColors.textSecondary),
             ],
           ),
         ),

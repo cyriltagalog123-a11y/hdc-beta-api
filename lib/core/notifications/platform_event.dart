@@ -7,9 +7,9 @@ enum PlatformEventType {
   assetRegistered,
   assetAssigned,
 
-  ticketCreated,
-  ticketAccepted,
-  ticketCompleted,
+  serviceRequestCreated,
+  proposalAccepted,
+  serviceCompleted,
 
   employeeInvited,
 

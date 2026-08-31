@@ -5,10 +5,9 @@ import '../../models/service_request_draft.dart';
 import '../../models/technician.dart';
 
 import '../authentication/registered_user_gate.dart';
-import '../booking/booking_summary_screen.dart';
+import '../service_requests/create_service_request_screen.dart';
 
-class TechnicianProfileScreen
-    extends StatelessWidget {
+class TechnicianProfileScreen extends StatelessWidget {
   final Technician technician;
   final ServiceRequestDraft draft;
 
@@ -27,16 +26,10 @@ class TechnicianProfileScreen
       child: Card(
         elevation: 2,
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            vertical: 16,
-            horizontal: 10,
-          ),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
           child: Column(
             children: [
-              Icon(
-                icon,
-                color: Colors.blue,
-              ),
+              Icon(icon, color: Colors.blue),
               const SizedBox(height: 8),
               Text(
                 value,
@@ -50,10 +43,7 @@ class TechnicianProfileScreen
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.grey,
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
             ],
           ),
@@ -62,38 +52,25 @@ class TechnicianProfileScreen
     );
   }
 
-  Widget specialtyChip(
-    String text,
-  ) {
+  Widget specialtyChip(String text) {
     return Chip(
-      avatar: const Icon(
-        Icons.check_circle,
-        color: Colors.green,
-        size: 18,
-      ),
+      avatar: const Icon(Icons.check_circle, color: Colors.green, size: 18),
       label: Text(text),
     );
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     final initial = technician.name.isNotEmpty
         ? technician.name.substring(0, 1)
         : "?";
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          "Technician Profile",
-        ),
-      ),
+      appBar: AppBar(title: const Text("Technician Profile")),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 10),
 
@@ -102,28 +79,19 @@ class TechnicianProfileScreen
                 radius: 45,
                 backgroundImage:
                     technician.photoUrl != null &&
-                            technician
-                                .photoUrl!
-                                .isNotEmpty
-                        ? NetworkImage(
-                            technician.photoUrl!,
-                          )
-                        : null,
+                        technician.photoUrl!.isNotEmpty
+                    ? NetworkImage(technician.photoUrl!)
+                    : null,
                 child:
-                    technician.photoUrl == null ||
-                            technician
-                                .photoUrl!
-                                .isEmpty
-                        ? Text(
-                            initial,
-                            style:
-                                const TextStyle(
-                              fontSize: 34,
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
-                          )
-                        : null,
+                    technician.photoUrl == null || technician.photoUrl!.isEmpty
+                    ? Text(
+                        initial,
+                        style: const TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : null,
               ),
             ),
 
@@ -144,10 +112,7 @@ class TechnicianProfileScreen
             Center(
               child: Text(
                 technician.specialty,
-                style: TextStyle(
-                  color: Colors.grey.shade700,
-                  fontSize: 16,
-                ),
+                style: TextStyle(color: Colors.grey.shade700, fontSize: 16),
               ),
             ),
 
@@ -157,17 +122,11 @@ class TechnicianProfileScreen
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
-                    Icons.star,
-                    color: Colors.amber,
-                  ),
+                  const Icon(Icons.star, color: Colors.amber),
                   const SizedBox(width: 4),
                   Text(
-                    technician.rating
-                        .toStringAsFixed(1),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    technician.rating.toStringAsFixed(1),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -178,13 +137,8 @@ class TechnicianProfileScreen
             if (technician.verified)
               const Center(
                 child: Chip(
-                  avatar: Icon(
-                    Icons.verified,
-                    color: Colors.green,
-                  ),
-                  label: Text(
-                    "Verified Technician",
-                  ),
+                  avatar: Icon(Icons.verified, color: Colors.green),
+                  label: Text("Verified Technician"),
                 ),
               ),
 
@@ -192,12 +146,9 @@ class TechnicianProfileScreen
               child: Chip(
                 avatar: Icon(
                   technician.availabilityIcon,
-                  color:
-                      technician.availabilityColor,
+                  color: technician.availabilityColor,
                 ),
-                label: Text(
-                  technician.availabilityText,
-                ),
+                label: Text(technician.availabilityText),
               ),
             ),
 
@@ -208,8 +159,7 @@ class TechnicianProfileScreen
                 infoCard(
                   icon: Icons.task_alt,
                   title: "Jobs",
-                  value:
-                      technician.completedJobsText,
+                  value: technician.completedJobsText,
                 ),
                 infoCard(
                   icon: Icons.place,
@@ -228,10 +178,7 @@ class TechnicianProfileScreen
 
             const Text(
               "Skills",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 12),
@@ -239,44 +186,28 @@ class TechnicianProfileScreen
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: technician.skills
-                  .map(
-                    specialtyChip,
-                  )
-                  .toList(),
+              children: technician.skills.map(specialtyChip).toList(),
             ),
 
             const SizedBox(height: 30),
 
             const Text(
               "About Technician",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 10),
 
-            Text(
-              technician.about,
-            ),
+            Text(technician.about),
 
             if (technician.companyName != null &&
-                technician
-                    .companyName!
-                    .isNotEmpty) ...[
+                technician.companyName!.isNotEmpty) ...[
               const SizedBox(height: 20),
               Card(
                 child: ListTile(
-                  leading:
-                      const Icon(Icons.business),
-                  title: const Text(
-                    "Company",
-                  ),
-                  subtitle: Text(
-                    technician.companyName!,
-                  ),
+                  leading: const Icon(Icons.business),
+                  title: const Text("Company"),
+                  subtitle: Text(technician.companyName!),
                 ),
               ),
             ],
@@ -285,10 +216,7 @@ class TechnicianProfileScreen
 
             const Text(
               "Recent Customer Reviews",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 12),
@@ -309,12 +237,8 @@ class TechnicianProfileScreen
               width: double.infinity,
               height: 55,
               child: FilledButton.icon(
-                icon: const Icon(
-                  Icons.calendar_month,
-                ),
-                label: const Text(
-                  "Book Technician",
-                ),
+                icon: const Icon(Icons.calendar_month),
+                label: const Text("Post Service Request"),
                 onPressed: technician.available
                     ? () async {
                         if (!await requireRegisteredUser(
@@ -328,9 +252,8 @@ class TechnicianProfileScreen
                         Navigator.push(
                           context,
                           HDCPageRoute(
-                            page: BookingSummaryScreen(
-                              technician: technician,
-                              draft: draft,
+                            page: CreateServiceRequestScreen(
+                              initialDraft: draft,
                             ),
                           ),
                         );
@@ -342,9 +265,7 @@ class TechnicianProfileScreen
             if (!technician.available) ...[
               const SizedBox(height: 10),
               const Center(
-                child: Text(
-                  "This technician is currently unavailable.",
-                ),
+                child: Text("This technician is currently unavailable."),
               ),
             ],
 

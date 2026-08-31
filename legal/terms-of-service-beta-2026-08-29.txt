@@ -1,0 +1,113 @@
+HELPDESK CONNECT BETA TERMS OF SERVICE
+Version: beta-2026-08-29
+Effective: 29 August 2026
+
+1. WHO OPERATES THIS BETA
+
+HelpDesk Connect (HDC) is a controlled beta technology-support and marketplace project operated by the HDC beta project and represented by the HDC Owner. HDC is not yet presented as a separately incorporated company. These Terms apply to the HDC website, API, Windows or Android test builds, and related beta services.
+
+For legal, privacy, or account concerns, registered members may use the Privacy Request option in Account Security. A person who cannot sign in may contact the HDC Owner through the verified channel from which the beta invitation or access instructions were received.
+
+2. ACCEPTANCE AND ELIGIBILITY
+
+By creating an account, renewing acceptance after a material update, or using an account after acceptance, you agree to these Terms and acknowledge the current Privacy Notice. You must be at least 18 years old and legally able to enter contracts, or act through a parent or legal guardian who accepts responsibility for the account and transaction.
+
+Guest access is limited to the public or preview features HDC makes available. Posting requests, making offers, starting a transaction, messaging a participant, or requesting a product requires a registered account and may require an approved role.
+
+3. BETA STATUS
+
+HDC is under active development. Features may change, become temporarily unavailable, or be removed after notice. The beta may contain defects. HDC will use reasonable care to preserve authoritative account and transaction data, but this beta is not an emergency service, safety dispatch service, payment institution, bank, insurer, employer, or substitute for professional advice.
+
+HDC may place the service in read-only, maintenance, or incident mode to protect users or data. Planned changes will preserve records where reasonably possible. Non-critical failures should not disable unrelated core functions.
+
+4. ACCOUNTS, SECURITY, AND ROLES
+
+You must provide accurate account information, protect your password and recovery answers, and promptly report suspected unauthorized access. You may not share credentials, impersonate another person, create deceptive identities, or attempt to obtain internal HDC permissions.
+
+Public registration grants only the Customer role. Technician, Business, Seller, Supplier, and Store capabilities require an application and approval. Internal Owner, Super Admin, Admin, and Moderator authority is private and cannot be self-assigned.
+
+HDC may suspend a role or account when reasonably necessary to investigate fraud, abuse, unsafe activity, security incidents, legal obligations, or serious violations. Where appropriate, HDC will preserve relevant evidence and provide a review path.
+
+5. HDC AS A CONNECTING PLATFORM
+
+HDC helps customers discover independent technicians, businesses, sellers, suppliers, and stores. Unless HDC expressly identifies itself as the provider or seller, the service or product contract is between the participating customer and provider or merchant. HDC does not employ, control, or guarantee independent participants merely because they appear on the platform.
+
+Profiles, approvals, badges, counts, rankings, or status labels are informational controls and are not guarantees of identity, skill, licensing, availability, product condition, or outcome. Participants must perform their own reasonable checks. Nothing in these Terms removes rights or remedies that cannot lawfully be waived under Philippine consumer law.
+
+6. AUTHORITATIVE TRANSACTION RECORDS
+
+HDC records the lifecycle of service and marketplace activity to support tracking, receipts, accountability, safety reviews, and disputes. Depending on the feature, the authoritative record may include service requests, proposals, acceptance decisions, participant identities and snapshots, schedules, change orders, exceptions, status changes, transaction messages, external-payment attestations, confirmations, refunds, receipts, structured documents, dispute evidence, and resolution events.
+
+Participants must not falsify, backdate, conceal, or manipulate transaction records. A dashboard shortcut or local display may be removed without deleting the authoritative backend record. Completed, cancelled, or disputed records may remain available when needed for participant history, security, legal compliance, backup integrity, or dispute handling.
+
+HDC records are evidence of actions reported or performed through HDC. They do not automatically prove that physical work, delivery, payment, product quality, or legal obligations were completed outside the platform.
+
+7. SERVICE REQUESTS, OFFERS, AND WORK
+
+Customers must describe problems, locations, timing, and known safety concerns honestly. Technicians must provide realistic diagnoses, prices, parts arrangements, schedules, warranties, and qualifications. An accepted offer creates an HDC service transaction between its recorded participants.
+
+Changes to price, scope, schedule, or completion should be recorded through the transaction workspace. Participants should not use private side arrangements to defeat HDC safety, evidence, or dispute controls.
+
+Do not rely on HDC for emergencies. Stop troubleshooting and contact qualified emergency services or licensed professionals where there is fire, smoke, exposed mains electricity, gas, structural danger, violence, medical risk, or another immediate threat. Technology-related power guidance is limited to appropriate device, UPS, PoE, and low-risk diagnostics; regulated or high-risk electrical work must be handled by a properly qualified person.
+
+8. PRODUCTS AND MARKETPLACE ACTIVITY
+
+Listings and purchase requests must accurately describe the item, price, quantity, condition, compatibility, stock, ownership, warranty, and material limitations. Prohibited, stolen, counterfeit, unsafe, regulated, or non-technology items may not be listed.
+
+Current beta purchase requests and stock allocations are not payment-confirmed checkout or proof of delivery. Future order and fulfillment features may add additional terms before activation. Merchants and consumers remain responsible for applicable disclosures, warranties, receipts, taxes, delivery obligations, and remedies under law.
+
+9. PAYMENTS, RECEIPTS, AND REFUNDS
+
+HDC currently records participant statements about payments completed through external channels; it does not collect card, bank, wallet, PIN, OTP, or online-banking credentials. Never send those credentials through HDC chat, documents, or notes.
+
+A payment record, confirmation, refund record, or HDC receipt reflects the information and decisions recorded by participants. It is not a bank statement and does not replace a legally required merchant receipt, tax invoice, or external provider record. Participants must correct errors promptly and use the dispute process when they disagree.
+
+10. MESSAGING, DOCUMENTS, AND CONDUCT
+
+Private transaction messaging is available only to authorized transaction participants. Offensive language may require an explicit warning acknowledgment. Threats, targeted harassment, fraud, credential theft, illegal content, sexual exploitation, malicious code, and attempts to evade safety controls are prohibited.
+
+Do not upload or send secrets, passwords, payment credentials, unnecessary identification documents, or another person's personal data without authority. HDC may preserve, restrict, or disclose relevant records when reasonably necessary for participant safety, moderation, disputes, security, or legal compliance.
+
+11. DISPUTES
+
+Participants should first use the transaction workspace to record the issue and preserve relevant evidence. Opening a dispute may freeze mutable service or payment actions. Authorized HDC reviewers may record a platform resolution based on available evidence, including continuation, completion, cancellation, or refund-related outcomes.
+
+An HDC resolution governs the platform record and available HDC actions. It does not prevent either party from exercising non-waivable consumer rights, reporting unlawful conduct, or pursuing a remedy before an appropriate government agency, court, payment provider, or other authority.
+
+12. ACCEPTABLE USE
+
+You may not use HDC to break the law; harm people or systems; gain unauthorized access; distribute malware; scrape private data; interfere with availability; manipulate reviews, offers, inventory, or disputes; evade account restrictions; infringe intellectual property; or offer work, goods, or advice you are not legally permitted or qualified to provide.
+
+Security research must not access another person's data or disrupt the service. Report suspected vulnerabilities privately to the HDC Owner.
+
+13. CONTENT AND INTELLECTUAL PROPERTY
+
+You retain ownership of content you lawfully submit. You grant HDC a limited, non-exclusive license to store, process, reproduce, and display that content only as needed to operate, secure, improve, back up, and administer the beta and its transactions. You must have the right to submit the content.
+
+HDC software, branding, interfaces, and original platform materials remain protected by applicable intellectual-property law. These Terms do not grant permission to copy, resell, reverse engineer, or misuse them except where law expressly permits.
+
+14. AVAILABILITY, WARRANTIES, AND LIABILITY
+
+HDC will use reasonable care appropriate to a controlled beta but provides the beta on an as-available basis. To the fullest extent permitted by law, HDC does not promise uninterrupted availability or guarantee the conduct, identity, work, goods, statements, or outcomes of independent participants.
+
+Nothing in these Terms excludes liability or a remedy that Philippine law does not allow to be excluded. Subject to that rule, each participant remains responsible for their own conduct, representations, products, services, taxes, licenses, safety obligations, and agreements with other participants.
+
+15. ENDING USE
+
+You may stop using HDC at any time. Account deletion, privacy, and data-access requests may be submitted through Account Security. HDC may retain limited records where necessary for security, fraud prevention, active disputes, transaction integrity, backup recovery, or legal obligations, as explained in the Privacy Notice.
+
+16. CHANGES TO THESE TERMS
+
+HDC may update these Terms as the beta develops. Material changes require a new version and renewed acceptance before protected account functions continue. The accepted version and time are recorded. Editorial changes that do not alter rights or purposes may be clarified without retroactively changing an accepted transaction.
+
+17. GOVERNING LAW
+
+These Terms are governed by the laws of the Republic of the Philippines, without removing mandatory rights or jurisdiction available to consumers or data subjects. Electronic records and acceptances may be recognized as electronic documents under applicable Philippine law.
+
+LEGAL REFERENCES
+
+Data Privacy Act of 2012 (Republic Act No. 10173): https://privacy.gov.ph/data-privacy-act/
+Electronic Commerce Act of 2000 (Republic Act No. 8792): https://lawphil.net/statutes/repacts/ra2000/ra_8792_2000.html
+Consumer Act of the Philippines (Republic Act No. 7394): https://lawphil.net/statutes/repacts/ra1992/ra_7394_1992.html
+Internet Transactions Act of 2023 (Republic Act No. 11967): https://lawphil.net/statutes/repacts/ra2023/ra_11967_2023.html
+
