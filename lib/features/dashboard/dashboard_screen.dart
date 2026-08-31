@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/navigation/hdc_page_route.dart';
 import '../../core/proposals/customer_offer_catalog.dart';
+import '../../core/ui/hdc_app_shell.dart';
 import '../../core/ui/hdc_colors.dart';
 import '../../models/account_identity.dart';
 import '../../models/proposal.dart';
@@ -393,71 +394,103 @@ class DashboardScreen extends StatelessWidget {
           )
         : const <DashboardActivityItem>[];
 
-    return Scaffold(
-      backgroundColor: HDCColors.background,
-      appBar: AppBar(
-        title: const Text('HelpDesk Connect'),
-        actions: [
-          if (hasPrivateWorkspace)
-            IconButton(
-              tooltip: 'Switch to Private Dashboard',
-              icon: const Icon(Icons.swap_horizontal_circle_outlined),
-              onPressed: () => _openPrivateDashboard(context),
-            ),
-          if (auth.authenticated &&
-              auth.identity?.hasPlatformRole(HDCPlatformRole.technician) ==
-                  true)
-            IconButton(
-              tooltip: 'Browse Technician Jobs',
-              icon: const Icon(Icons.engineering_outlined),
-              onPressed: () => _openTechnicianMarketplace(context, auth),
-            ),
-          IconButton(
-            tooltip: 'Active Services',
-            icon: const Icon(Icons.handshake_outlined),
-            onPressed: () => _openTransactions(context, actorId),
-          ),
-          IconButton(
-            tooltip: 'My Service Requests',
-            icon: const Icon(Icons.campaign_outlined),
-            onPressed: () => _openMyRequests(context),
-          ),
-          IconButton(
-            tooltip: 'Shop Technology',
-            icon: const Icon(Icons.storefront_outlined),
-            onPressed: () => _openProductMarketplace(context),
-          ),
-          IconButton(
-            tooltip: 'Notifications',
-            icon: Badge(
-              isLabelVisible: notificationCenter.unreadCount > 0,
-              label: Text(
-                notificationCenter.unreadCount > 99
-                    ? '99+'
-                    : '${notificationCenter.unreadCount}',
-              ),
-              child: const Icon(Icons.notifications_none),
-            ),
-            onPressed: () => _openNotifications(context),
-          ),
-          IconButton(
-            tooltip: 'Profiles & Workspaces',
-            icon: const Icon(Icons.account_circle_outlined),
-            onPressed: () => _openProfiles(context),
-          ),
-          IconButton(
-            tooltip: 'Role Center',
-            icon: const Icon(Icons.badge_outlined),
-            onPressed: () => _openRoleCenter(context),
-          ),
-          IconButton(
-            tooltip: auth.guestMode ? 'Exit Guest Session' : 'Sign Out',
-            icon: const Icon(Icons.logout),
-            onPressed: auth.isBusy ? null : () => _signOut(context, auth),
-          ),
-        ],
+    final isTechnician =
+        auth.authenticated &&
+        auth.identity?.hasPlatformRole(HDCPlatformRole.technician) == true;
+    final primaryNavigation = <HDCNavigationItem>[
+      HDCNavigationItem(
+        label: 'Overview',
+        icon: Icons.space_dashboard_outlined,
+        selected: true,
+        onTap: () {},
       ),
-      body: SafeArea(
+      HDCNavigationItem(
+        label: 'Post a Service Request',
+        icon: Icons.add_task_rounded,
+        onTap: () => _openPostRequest(context),
+      ),
+      HDCNavigationItem(
+        label: 'Active Services',
+        icon: Icons.handshake_outlined,
+        badgeCount: activeTransactions,
+        onTap: () => _openTransactions(context, actorId),
+      ),
+      HDCNavigationItem(
+        label: 'My Service Requests',
+        icon: Icons.campaign_outlined,
+        badgeCount: activeRequests,
+        onTap: () => _openMyRequests(context),
+      ),
+      HDCNavigationItem(
+        label: 'Offers',
+        icon: Icons.local_offer_outlined,
+        badgeCount: totalOffers,
+        onTap: () => _openOffers(context),
+      ),
+      HDCNavigationItem(
+        label: 'Find a Technician',
+        icon: Icons.manage_search_rounded,
+        onTap: () => _openTechnicianSearch(context),
+      ),
+      if (isTechnician)
+        HDCNavigationItem(
+          label: 'Technician Jobs',
+          icon: Icons.engineering_outlined,
+          onTap: () => _openTechnicianMarketplace(context, auth),
+        ),
+      HDCNavigationItem(
+        label: 'Shop Technology',
+        icon: Icons.storefront_outlined,
+        onTap: () => _openProductMarketplace(context),
+      ),
+    ];
+    final secondaryNavigation = <HDCNavigationItem>[
+      HDCNavigationItem(
+        label: 'Notifications',
+        icon: Icons.notifications_none_rounded,
+        badgeCount: notificationCenter.unreadCount,
+        onTap: () => _openNotifications(context),
+      ),
+      HDCNavigationItem(
+        label: 'Profiles & Workspaces',
+        icon: Icons.account_circle_outlined,
+        onTap: () => _openProfiles(context),
+      ),
+      HDCNavigationItem(
+        label: 'Role Center',
+        icon: Icons.badge_outlined,
+        onTap: () => _openRoleCenter(context),
+      ),
+      HDCNavigationItem(
+        label: 'HDC Passport',
+        icon: Icons.fingerprint_rounded,
+        onTap: () => _openPassport(context),
+      ),
+      if (hasPrivateWorkspace)
+        HDCNavigationItem(
+          label: 'Private Operations',
+          icon: Icons.admin_panel_settings_outlined,
+          onTap: () => _openPrivateDashboard(context),
+        ),
+    ];
+
+    return HDCAppShell(
+      workspaceLabel: auth.guestMode ? 'Guest Preview' : 'Public Workspace',
+      userLabel: auth.guestMode
+          ? 'Guest session'
+          : platformRoleLabels.isEmpty
+          ? auth.displayName
+          : '${auth.displayName}\n${platformRoleLabels.join(' • ')}',
+      primaryItems: primaryNavigation,
+      secondaryItems: secondaryNavigation,
+      notificationCount: notificationCenter.unreadCount,
+      onNotifications: () => _openNotifications(context),
+      onSignOut: () {
+        if (!auth.isBusy) {
+          _signOut(context, auth);
+        }
+      },
+      child: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isWide = constraints.maxWidth >= 980;
@@ -649,7 +682,7 @@ class DashboardScreen extends StatelessWidget {
                       const SizedBox(height: 32),
                       const Center(
                         child: Text(
-                          'HelpDesk Connect Beta v0.6.4 Build 22',
+                          'HelpDesk Connect Beta v0.6.4 Build 23',
                           style: TextStyle(color: HDCColors.textSecondary),
                         ),
                       ),

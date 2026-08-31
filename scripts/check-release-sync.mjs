@@ -16,6 +16,9 @@ const expected = {
   app: `${semanticVersion} Beta (Build ${buildNumber})`,
   footer: `HelpDesk Connect Beta v${semanticVersion} Build ${buildNumber}`,
   health: `${semanticVersion}-build${buildNumber}`,
+  startup: `Build ${buildNumber}`,
+  artifact: `hdc-web-build${buildNumber}`,
+  bundleCommit: `Synchronize verified Build ${buildNumber} web bundle`,
 };
 
 const files = {
@@ -23,6 +26,9 @@ const files = {
   app: await read('lib/core/config/app_config.dart'),
   footer: await read('lib/features/dashboard/dashboard_screen.dart'),
   health: await read('netlify/functions/api.mts'),
+  startup: await read('web/index.html'),
+  artifact: await read('.github/workflows/ci.yml'),
+  bundleCommit: await read('.github/workflows/ci.yml'),
 };
 
 for (const [target, marker] of Object.entries(expected)) {

@@ -9,7 +9,7 @@ async function api(
   init: RequestInit = {},
 ): Promise<{ response: Response; body: Record<string, unknown> }> {
   const response = await handleHdcApiRequest(
-    new Request(`https://hdc-build22.test${path}`, {
+    new Request(`https://hdc-build23.test${path}`, {
       ...init,
       headers: {
         accept: 'application/json',
@@ -25,7 +25,7 @@ async function api(
 describe.skipIf(!runLiveIntegration)('isolated service-request integration', () => {
   it('registers, signs in, and reloads complete request history', async () => {
     const unique = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const email = `hdc-build22-${unique}@example.invalid`;
+    const email = `hdc-build23-${unique}@example.invalid`;
     const password = 'Build20!Isolated-Test-4829';
 
     const registration = await api('/api/auth/register', {
@@ -33,7 +33,7 @@ describe.skipIf(!runLiveIntegration)('isolated service-request integration', () 
       body: JSON.stringify({
         email,
         password,
-        displayName: 'Build 22 Integration Tester',
+        displayName: 'Build 23 Integration Tester',
         recoveryAnswers: [
           { questionCode: 'first_meal', answer: 'ginger rice porridge' },
           { questionCode: 'childhood_nickname', answer: 'quiet comet' },
