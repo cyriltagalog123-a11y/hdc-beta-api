@@ -1,3 +1,9 @@
+export const PORTABLE_BACKUP_EXCLUDED_EXTENSIONS = Object.freeze([
+  // Neon installs this when its Data API is enabled. HDC does not depend on
+  // the extension, and standard PostgreSQL restore targets do not ship it.
+  'pg_session_jwt',
+]);
+
 export function parseBackupDatabaseUrl(databaseUrl) {
   let parsed;
   try {
@@ -35,6 +41,9 @@ export function pgDumpArguments(databaseUrl, outputPath) {
     '--format=custom',
     '--no-owner',
     '--no-password',
+    ...PORTABLE_BACKUP_EXCLUDED_EXTENSIONS.map(
+      (extension) => `--exclude-extension=${extension}`,
+    ),
     '--file',
     outputPath,
   ];

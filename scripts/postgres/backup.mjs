@@ -19,6 +19,7 @@ import { pipeline } from 'node:stream/promises';
 import postgres from 'postgres';
 
 import {
+  PORTABLE_BACKUP_EXCLUDED_EXTENSIONS,
   parseBackupDatabaseUrl,
   pgDumpArguments,
 } from './backup-command.mjs';
@@ -159,10 +160,11 @@ try {
   const checksumSha256 = await sha256(backupPath);
   const manifest = {
     format: 'HDCBKP1',
-    manifestVersion: 2,
+    manifestVersion: 3,
     encryption: 'AES-256-GCM',
     source: 'postgres',
     sourceDatabase,
+    excludedExtensions: [...PORTABLE_BACKUP_EXCLUDED_EXTENSIONS],
     createdAt: new Date().toISOString(),
     backupFile: basename(backupPath),
     checksumSha256,

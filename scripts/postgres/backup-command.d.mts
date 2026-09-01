@@ -1,3 +1,5 @@
+export const PORTABLE_BACKUP_EXCLUDED_EXTENSIONS: readonly string[];
+
 export function parseBackupDatabaseUrl(databaseUrl: string): URL;
 
 export function pgDumpArguments(
