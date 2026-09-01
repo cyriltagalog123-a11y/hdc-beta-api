@@ -38,12 +38,12 @@ jobs:
       PGPASSWORD: postgres
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
@@ -89,6 +89,7 @@ jobs:
           npm run verify:backup -- --backup "${{ steps.backup.outputs.file }}"
 
       - name: Upload encrypted backup and manifest
+        if: ${{ always() && steps.backup.outputs.directory != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: hdc-encrypted-backup-${{ github.run_id }}-${{ github.run_attempt }}

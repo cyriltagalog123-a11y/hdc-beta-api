@@ -48,6 +48,7 @@ export function pgDumpArguments(databaseUrl, outputPath) {
     databaseUrl,
     '--format=custom',
     '--no-owner',
+    '--no-acl',
     '--no-password',
     ...PORTABLE_BACKUP_EXCLUDED_EXTENSIONS.map(
       (extension) => `--exclude-extension=${extension}`,

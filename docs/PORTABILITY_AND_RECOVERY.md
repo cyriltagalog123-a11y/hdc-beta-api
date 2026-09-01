@@ -78,7 +78,7 @@ answer rows still reference its key ID.
 
 ## Encrypted PostgreSQL backups
 
-Requirements: Node.js 20+, `pg_dump`, `pg_restore`, a direct (unpooled)
+Requirements: Node.js 22.12+, `pg_dump`, `pg_restore`, a direct (unpooled)
 database URL, and a base64-encoded 32-byte encryption key stored separately
 from the backup. For Neon, the backup URL hostname must not contain
 `-pooler`; application runtimes may continue using their separate pooled URL.
@@ -87,7 +87,12 @@ and the `auth`, `neon_auth`, and `pgrst` schemas. HDC does not use these JWT,
 Neon Auth, or Data API objects, and they cannot be restored cleanly to a
 provider-neutral PostgreSQL server. HDC's required portable extensions
 (`pgcrypto` and `citext`) and every authoritative `public.hdc_*` object remain
-in the archive. The manifest records every exclusion explicitly.
+in the archive. Provider ownership, grants, and default privileges are never
+placed in the portable archive. Instead, the manifest records the effective
+`PUBLIC` and `hdc_app` privilege contract for every HDC object. The manifest is
+authenticated with HMAC-SHA-256 using the backup encryption key, and restore
+first removes destination defaults before applying only that allow-listed
+contract. The manifest records every exclusion explicitly.
 
 Generate an encryption key once and put it in the secret manager, not source:
 
@@ -102,10 +107,13 @@ npm run backup:postgres -- --output /absolute/secure/backup-directory
 npm run verify:backup -- --backup /absolute/path/file.hdcbackup
 ```
 
-Verification checks the encrypted-file checksum, AES-256-GCM authentication,
-and the PostgreSQL archive catalog. A backup is not considered valid until this
-verification succeeds. Keep the encryption key in a different account/location
-from the backup.
+Before dumping, the backup checks schemas, extensions, constraints, indexes,
+triggers, publications, policy roles, and provider references. Verification
+checks the manifest HMAC, encrypted-file checksum, AES-256-GCM authentication,
+the PostgreSQL archive catalog, a full clean restore, every HDC row count, and
+the complete HDC privilege/RLS contract. A backup is not considered valid until
+this verification succeeds. Keep the encryption key in a different
+account/location from the backup.
 
 Recommended low-cost schedule during beta:
 
@@ -162,9 +170,9 @@ Every adapter must satisfy these rules before activation:
 ## Current limitations
 
 - No email, SMS, phone-verification, object-storage, or payment adapter is active.
-- Private conversations remain device-local and are not yet authoritative
-  backend records.
-- Backups are tool-assisted but not yet scheduled by infrastructure.
+- Private transaction conversations are authoritative PostgreSQL records.
+- The encrypted backup and clean-restore workflow is scheduled nightly and can
+  also be dispatched manually.
 - `/api/health` is liveness only; `/api/health/ready` verifies PostgreSQL.
 - Netlify and the active PostgreSQL host remain the current live providers until
   an explicitly approved migration.
