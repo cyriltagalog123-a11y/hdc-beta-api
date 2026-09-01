@@ -82,10 +82,12 @@ Requirements: Node.js 20+, `pg_dump`, `pg_restore`, a direct (unpooled)
 database URL, and a base64-encoded 32-byte encryption key stored separately
 from the backup. For Neon, the backup URL hostname must not contain
 `-pooler`; application runtimes may continue using their separate pooled URL.
-HDC portable backups exclude Neon's Data API-owned `pg_session_jwt` extension,
-which is not used by HDC and is unavailable on a standard PostgreSQL restore
-target. HDC's required portable extensions (`pgcrypto` and `citext`) remain in
-the archive. The manifest records the excluded extension explicitly.
+HDC portable backups exclude Neon's service-owned `pg_session_jwt` extension
+and the `auth`, `neon_auth`, and `pgrst` schemas. HDC does not use these JWT,
+Neon Auth, or Data API objects, and they cannot be restored cleanly to a
+provider-neutral PostgreSQL server. HDC's required portable extensions
+(`pgcrypto` and `citext`) and every authoritative `public.hdc_*` object remain
+in the archive. The manifest records every exclusion explicitly.
 
 Generate an encryption key once and put it in the secret manager, not source:
 

@@ -4,6 +4,14 @@ export const PORTABLE_BACKUP_EXCLUDED_EXTENSIONS = Object.freeze([
   'pg_session_jwt',
 ]);
 
+export const PORTABLE_BACKUP_EXCLUDED_SCHEMAS = Object.freeze([
+  // These schemas are managed by Neon's JWT, Data API, and Auth services.
+  // HDC's authoritative schema is public and does not reference them.
+  'auth',
+  'neon_auth',
+  'pgrst',
+]);
+
 export function parseBackupDatabaseUrl(databaseUrl) {
   let parsed;
   try {
@@ -43,6 +51,9 @@ export function pgDumpArguments(databaseUrl, outputPath) {
     '--no-password',
     ...PORTABLE_BACKUP_EXCLUDED_EXTENSIONS.map(
       (extension) => `--exclude-extension=${extension}`,
+    ),
+    ...PORTABLE_BACKUP_EXCLUDED_SCHEMAS.map(
+      (schema) => `--exclude-schema=${schema}`,
     ),
     '--file',
     outputPath,

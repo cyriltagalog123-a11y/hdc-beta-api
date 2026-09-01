@@ -20,7 +20,10 @@ import { spawnSync } from 'node:child_process';
 import { pipeline } from 'node:stream/promises';
 import postgres from 'postgres';
 
-import { PORTABLE_BACKUP_EXCLUDED_EXTENSIONS } from './backup-command.mjs';
+import {
+  PORTABLE_BACKUP_EXCLUDED_EXTENSIONS,
+  PORTABLE_BACKUP_EXCLUDED_SCHEMAS,
+} from './backup-command.mjs';
 
 const MAGIC = Buffer.from('HDCBKP1\n', 'utf8');
 const HEADER_BYTES = MAGIC.length + 12;
@@ -77,11 +80,13 @@ if (!existsSync(manifestPath)) {
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 if (
   manifest.format !== 'HDCBKP1' ||
-  manifest.manifestVersion !== 3 ||
+  manifest.manifestVersion !== 4 ||
   manifest.encryption !== 'AES-256-GCM' ||
   manifest.source !== 'postgres' ||
   JSON.stringify(manifest.excludedExtensions) !==
     JSON.stringify(PORTABLE_BACKUP_EXCLUDED_EXTENSIONS) ||
+  JSON.stringify(manifest.excludedSchemas) !==
+    JSON.stringify(PORTABLE_BACKUP_EXCLUDED_SCHEMAS) ||
   manifest.backupFile !== backupPath.split(/[\\/]/).at(-1) ||
   !/^[a-f0-9]{64}$/.test(String(manifest.checksumSha256 ?? '')) ||
   !manifest.inventory ||

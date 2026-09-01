@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   PORTABLE_BACKUP_EXCLUDED_EXTENSIONS,
+  PORTABLE_BACKUP_EXCLUDED_SCHEMAS,
   parseBackupDatabaseUrl,
   pgDumpArguments,
 } from '../scripts/postgres/backup-command.mjs';
@@ -29,19 +30,30 @@ describe('encrypted PostgreSQL restore rehearsal', () => {
       '--no-owner',
       '--no-password',
       '--exclude-extension=pg_session_jwt',
+      '--exclude-schema=auth',
+      '--exclude-schema=neon_auth',
+      '--exclude-schema=pgrst',
       '--file',
       outputPath,
     ]);
   });
 
-  it('excludes Neon Data API metadata but retains HDC extensions', () => {
+  it('excludes Neon service metadata but retains HDC extensions', () => {
     const arguments_ = pgDumpArguments(
       'postgresql://hdc@ep-hdc-backup.us-east-2.aws.neon.tech/hdc',
       '/tmp/hdc-postgres.dump',
     );
 
     expect(PORTABLE_BACKUP_EXCLUDED_EXTENSIONS).toEqual(['pg_session_jwt']);
+    expect(PORTABLE_BACKUP_EXCLUDED_SCHEMAS).toEqual([
+      'auth',
+      'neon_auth',
+      'pgrst',
+    ]);
     expect(arguments_).toContain('--exclude-extension=pg_session_jwt');
+    expect(arguments_).toContain('--exclude-schema=auth');
+    expect(arguments_).toContain('--exclude-schema=neon_auth');
+    expect(arguments_).toContain('--exclude-schema=pgrst');
     expect(arguments_).not.toContain('--exclude-extension=pgcrypto');
     expect(arguments_).not.toContain('--exclude-extension=citext');
   });
@@ -62,11 +74,13 @@ describe('encrypted PostgreSQL restore rehearsal', () => {
     expect(backup).not.toContain("'--no-acl'");
     expect(backup).not.toContain('PGDATABASE: databaseUrl');
     expect(backup).toContain('pgDumpArguments(databaseUrl, plainDumpPath)');
-    expect(backup).toContain('manifestVersion: 3');
+    expect(backup).toContain('manifestVersion: 4');
     expect(backup).toContain('excludedExtensions: [');
+    expect(backup).toContain('excludedSchemas: [');
     expect(restore).not.toContain("'--no-acl'");
-    expect(restore).toContain('manifest.manifestVersion !== 3');
+    expect(restore).toContain('manifest.manifestVersion !== 4');
     expect(restore).toContain('manifest.excludedExtensions');
+    expect(restore).toContain('manifest.excludedSchemas');
     expect(restore).toContain("has_table_privilege(");
     expect(restore).toContain("'hdc_app', 'public.hdc_private_messages', 'INSERT'");
     expect(restore).toContain('AS application_policies');
