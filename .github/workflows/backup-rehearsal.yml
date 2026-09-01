@@ -1,6 +1,9 @@
 name: Encrypted HDC Backup and Restore Rehearsal
 
 on:
+  push:
+    branches:
+      - codex/build24a-request-discovery
   schedule:
     - cron: '17 3 * * *'
   workflow_dispatch:
