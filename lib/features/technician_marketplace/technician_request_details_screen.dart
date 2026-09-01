@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/navigation/hdc_page_route.dart';
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_flow.dart';
 import '../../models/account_identity.dart';
 import '../../models/proposal.dart';
 import '../../models/service_request.dart';
@@ -14,15 +15,22 @@ import 'proposal_studio_screen.dart';
 class TechnicianRequestDetailsScreen extends StatelessWidget {
   final ServiceRequest request;
 
-  const TechnicianRequestDetailsScreen({
-    required this.request,
-    super.key,
-  });
+  const TechnicianRequestDetailsScreen({required this.request, super.key});
 
   String _dateLabel(DateTime date) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
@@ -39,26 +47,22 @@ class TechnicianRequestDetailsScreen extends StatelessWidget {
       );
       return;
     }
-    Navigator.of(context).push(
-      HDCPageRoute<void>(
-        page: ProposalStudioScreen(request: request),
-      ),
-    );
+    Navigator.of(context)
+        .push(HDCPageRoute<void>(page: ProposalStudioScreen(request: request)));
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<HDCAuthProvider>();
     final identity = auth.identity;
-    final canAccess = auth.authenticated &&
+    final canAccess =
+        auth.authenticated &&
         identity != null &&
         identity.hasPlatformRole(HDCPlatformRole.technician);
 
     if (!canAccess) {
       return const Scaffold(
-        body: Center(
-          child: Text('Registered technician access required.'),
-        ),
+        body: Center(child: Text('Registered technician access required.')),
       );
     }
 
@@ -73,8 +77,8 @@ class TechnicianRequestDetailsScreen extends StatelessWidget {
     final displayProposalCount = summary.received > 0
         ? summary.received
         : request.id.startsWith('SR-MKT-')
-            ? request.offerCount
-            : 0;
+        ? request.offerCount
+        : 0;
     final isSaved = marketplace.isSaved(request.id);
 
     return Scaffold(
@@ -84,9 +88,7 @@ class TechnicianRequestDetailsScreen extends StatelessWidget {
           IconButton(
             tooltip: isSaved ? 'Remove from saved' : 'Save request',
             onPressed: () => marketplace.toggleSaved(request.id),
-            icon: Icon(
-              isSaved ? Icons.bookmark : Icons.bookmark_border,
-            ),
+            icon: Icon(isSaved ? Icons.bookmark : Icons.bookmark_border),
           ),
         ],
       ),
@@ -100,7 +102,7 @@ class TechnicianRequestDetailsScreen extends StatelessWidget {
                 ownProposal.status.canEdit
                     ? 'Resume this draft. HDC keeps one offer per issue.'
                     : 'Your offer is already recorded. A second offer cannot '
-                        'be created for the same issue.',
+                          'be created for the same issue.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: HDCColors.textSecondary,
@@ -119,15 +121,15 @@ class TechnicianRequestDetailsScreen extends StatelessWidget {
                   ownProposal?.status.canEdit == true
                       ? Icons.edit_outlined
                       : ownProposal == null
-                          ? Icons.send_outlined
-                          : Icons.check_circle_outline,
+                      ? Icons.send_outlined
+                      : Icons.check_circle_outline,
                 ),
                 label: Text(
                   ownProposal == null
                       ? 'Prepare Offer'
                       : ownProposal.status.canEdit
-                          ? 'Resume Offer Draft'
-                          : 'Offer ${ownProposal.status.label}',
+                      ? 'Resume Offer Draft'
+                      : 'Offer ${ownProposal.status.label}',
                 ),
               ),
             ),
@@ -143,6 +145,37 @@ class TechnicianRequestDetailsScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  HDCFlowHero(
+                    eyebrow: 'Service opportunity',
+                    title: request.title,
+                    description:
+                        'Posted by ${request.customerName}. Review '
+                        'the issue, schedule, budget, and current competition '
+                        'before preparing your one allowed offer.',
+                    icon: Icons.work_outline_rounded,
+                    tags: [
+                      HDCFlowTag(
+                        label: request.urgency.label,
+                        icon: Icons.priority_high_rounded,
+                        color:
+                            request.urgency == ServiceRequestUrgency.urgent ||
+                                request.urgency ==
+                                    ServiceRequestUrgency.emergency
+                            ? HDCColors.danger
+                            : HDCColors.info,
+                      ),
+                      HDCFlowTag(
+                        label: request.categoryName,
+                        icon: Icons.category_outlined,
+                      ),
+                      HDCFlowTag(
+                        label: request.status.label,
+                        icon: Icons.fact_check_outlined,
+                        color: HDCColors.success,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
                   Card(
                     margin: EdgeInsets.zero,
                     child: Padding(
@@ -150,35 +183,16 @@ class TechnicianRequestDetailsScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Wrap(
-                            spacing: 9,
-                            runSpacing: 9,
-                            children: [
-                              _Badge(
-                                label: request.urgency.label,
-                                emphasized: request.urgency ==
-                                        ServiceRequestUrgency.urgent ||
-                                    request.urgency ==
-                                        ServiceRequestUrgency.emergency,
-                              ),
-                              _Badge(label: request.categoryName),
-                              _Badge(label: request.status.label),
-                            ],
-                          ),
-                          const SizedBox(height: 18),
                           Text(
-                            request.title,
-                            style: Theme.of(context).textTheme.headlineMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Posted by ${request.customerName} • ${request.id}',
+                            'REQUEST DETAILS • ${request.id}',
                             style: const TextStyle(
-                              color: HDCColors.textSecondary,
-                              fontSize: 12,
+                              color: HDCColors.secondary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.1,
                             ),
                           ),
-                          const SizedBox(height: 22),
+                          const SizedBox(height: 14),
                           Text(
                             request.description,
                             style: const TextStyle(height: 1.6),
@@ -258,9 +272,7 @@ class TechnicianRequestDetailsScreen extends StatelessWidget {
                               children: [
                                 const Text(
                                   'Nexus Opportunity Insight',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                  ),
+                                  style: TextStyle(fontWeight: FontWeight.w800),
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
@@ -288,10 +300,7 @@ class TechnicianRequestDetailsScreen extends StatelessWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.shield_outlined,
-                            color: HDCColors.info,
-                          ),
+                          Icon(Icons.shield_outlined, color: HDCColors.info),
                           SizedBox(width: 14),
                           Expanded(
                             child: Text(
@@ -309,36 +318,6 @@ class TechnicianRequestDetailsScreen extends StatelessWidget {
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Badge extends StatelessWidget {
-  final String label;
-  final bool emphasized;
-
-  const _Badge({
-    required this.label,
-    this.emphasized = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = emphasized ? HDCColors.danger : HDCColors.secondary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
         ),
       ),
     );

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/navigation/hdc_page_route.dart';
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_flow.dart';
 import '../../core/workflow/hdc_workflow_refresh.dart';
 import '../../models/proposal.dart';
 import '../../models/proposal_request_summary.dart';
@@ -73,8 +74,11 @@ class _CustomerProposalInboxScreenState
     final proposals = source
         .where((proposal) => proposal.status != ProposalStatus.draft)
         .where((proposal) => proposal.status != ProposalStatus.withdrawn)
-        .where((proposal) => !_shortlistedOnly ||
-            proposal.status == ProposalStatus.shortlisted)
+        .where(
+          (proposal) =>
+              !_shortlistedOnly ||
+              proposal.status == ProposalStatus.shortlisted,
+        )
         .toList();
 
     switch (_sort) {
@@ -94,7 +98,9 @@ class _CustomerProposalInboxScreenState
         );
         break;
       case ProposalInboxSort.fastestArrival:
-        proposals.sort((a, b) => a.earliestArrival.compareTo(b.earliestArrival));
+        proposals.sort(
+          (a, b) => a.earliestArrival.compareTo(b.earliestArrival),
+        );
         break;
       case ProposalInboxSort.longestWarranty:
         proposals.sort((a, b) => b.warrantyDays.compareTo(a.warrantyDays));
@@ -104,14 +110,14 @@ class _CustomerProposalInboxScreenState
         break;
       case ProposalInboxSort.mostExperienced:
         proposals.sort(
-          (a, b) => a.reputation.memberSinceYear
-              .compareTo(b.reputation.memberSinceYear),
+          (a, b) => a.reputation.memberSinceYear.compareTo(
+            b.reputation.memberSinceYear,
+          ),
         );
         break;
     }
     return proposals;
   }
-
 
   void _toggleComparisonSelection(Proposal proposal) {
     if (!proposal.status.isActive) {
@@ -182,9 +188,7 @@ class _CustomerProposalInboxScreenState
         actions: [
           IconButton(
             tooltip: 'Refresh proposals',
-            onPressed: isRefreshing
-                ? null
-                : () => refreshHdcWorkflow(context),
+            onPressed: isRefreshing ? null : () => refreshHdcWorkflow(context),
             icon: isRefreshing
                 ? const SizedBox(
                     width: 20,
@@ -224,9 +228,8 @@ class _CustomerProposalInboxScreenState
                           const SizedBox(height: 12),
                           _ComparisonSelectionBar(
                             selectedCount: _selectedProposalIds.length,
-                            onClear: () => setState(
-                              () => _selectedProposalIds.clear(),
-                            ),
+                            onClear: () =>
+                                setState(() => _selectedProposalIds.clear()),
                             onCompare: _openComparison,
                           ),
                         ],
@@ -248,12 +251,15 @@ class _CustomerProposalInboxScreenState
                                       _ProposalCard(
                                         proposal: proposal,
                                         highlights: _highlights(proposal, all),
-                                        selected: _selectedProposalIds
-                                            .contains(proposal.id),
+                                        selected: _selectedProposalIds.contains(
+                                          proposal.id,
+                                        ),
                                         comparisonEligible:
                                             proposal.status.isActive,
                                         onToggleCompare: () =>
-                                            _toggleComparisonSelection(proposal),
+                                            _toggleComparisonSelection(
+                                              proposal,
+                                            ),
                                         onOpen: () => _open(proposal),
                                       ),
                                       const SizedBox(height: 14),
@@ -270,16 +276,18 @@ class _CustomerProposalInboxScreenState
                                         width: (constraints.maxWidth - 16) / 2,
                                         child: _ProposalCard(
                                           proposal: proposal,
-                                          highlights:
-                                              _highlights(proposal, all),
+                                          highlights: _highlights(
+                                            proposal,
+                                            all,
+                                          ),
                                           selected: _selectedProposalIds
                                               .contains(proposal.id),
                                           comparisonEligible:
                                               proposal.status.isActive,
                                           onToggleCompare: () =>
                                               _toggleComparisonSelection(
-                                            proposal,
-                                          ),
+                                                proposal,
+                                              ),
                                           onOpen: () => _open(proposal),
                                         ),
                                       ),
@@ -345,110 +353,34 @@ class _RequestHeader extends StatelessWidget {
   final ServiceRequest request;
   final ProposalRequestSummary summary;
 
-  const _RequestHeader({
-    required this.request,
-    required this.summary,
-  });
+  const _RequestHeader({required this.request, required this.summary});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            HDCColors.primary,
-            HDCColors.secondary.withValues(alpha: 0.92),
-          ],
+    return HDCFlowHero(
+      eyebrow: 'Customer offer inbox',
+      title: request.title,
+      description:
+          '${request.categoryName} • ${request.location}. Review '
+          'complete terms, compare active offers, and accept only after the '
+          'final confirmation step.',
+      icon: Icons.mark_email_unread_outlined,
+      tags: [
+        HDCFlowTag(
+          label: '${summary.received} received',
+          icon: Icons.local_offer_outlined,
         ),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Wrap(
-        spacing: 24,
-        runSpacing: 18,
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'CUSTOMER PROPOSAL INBOX',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  request.title,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                      ),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  '${request.categoryName} • ${request.location}',
-                  style: const TextStyle(color: Colors.white70),
-                ),
-              ],
-            ),
-          ),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _HeaderMetric(label: 'Received', value: '${summary.received}'),
-              _HeaderMetric(
-                label: 'Viewed',
-                value: '${summary.viewedOrBeyond}',
-              ),
-              _HeaderMetric(
-                label: 'Shortlisted',
-                value: '${summary.shortlisted}',
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeaderMetric extends StatelessWidget {
-  final String label;
-  final String value;
-  const _HeaderMetric({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 104,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white24),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
-        ],
-      ),
+        HDCFlowTag(
+          label: '${summary.viewedOrBeyond} viewed',
+          icon: Icons.visibility_outlined,
+          color: HDCColors.info,
+        ),
+        HDCFlowTag(
+          label: '${summary.shortlisted} shortlisted',
+          icon: Icons.favorite_outline_rounded,
+          color: HDCColors.warm,
+        ),
+      ],
     );
   }
 }
@@ -514,7 +446,6 @@ class _Toolbar extends StatelessWidget {
   }
 }
 
-
 class _ComparisonSelectionBar extends StatelessWidget {
   final int selectedCount;
   final VoidCallback onClear;
@@ -534,38 +465,41 @@ class _ComparisonSelectionBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: HDCColors.secondary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: HDCColors.secondary.withValues(alpha: 0.18),
-        ),
+        border: Border.all(color: HDCColors.secondary.withValues(alpha: 0.18)),
       ),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 10,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        alignment: WrapAlignment.spaceBetween,
-        children: [
-          Text(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final label = Text(
             '$selectedCount of 3 proposals selected',
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextButton(
-                onPressed: onClear,
-                child: const Text('Clear'),
-              ),
-              const SizedBox(width: 8),
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          );
+          final actions = HDCResponsiveActions(
+            breakpoint: 300,
+            actions: [
+              TextButton(onPressed: onClear, child: const Text('Clear')),
               FilledButton.icon(
                 onPressed: selectedCount >= 2 ? onCompare : null,
                 icon: const Icon(Icons.compare_arrows),
                 label: const Text('Compare'),
               ),
             ],
-          ),
-        ],
+          );
+
+          if (constraints.maxWidth < 560) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [label, const SizedBox(height: 10), actions],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: label),
+              const SizedBox(width: 16),
+              SizedBox(width: 300, child: actions),
+            ],
+          );
+        },
       ),
     );
   }
@@ -605,11 +539,15 @@ class _ProposalCard extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 25,
-                    backgroundColor: HDCColors.secondary.withValues(alpha: 0.10),
+                    backgroundColor: HDCColors.secondary.withValues(
+                      alpha: 0.10,
+                    ),
                     child: Text(
                       reputation.technicianName.isEmpty
                           ? 'T'
-                          : reputation.technicianName.substring(0, 1).toUpperCase(),
+                          : reputation.technicianName
+                                .substring(0, 1)
+                                .toUpperCase(),
                       style: const TextStyle(
                         color: HDCColors.secondary,
                         fontWeight: FontWeight.w900,
@@ -811,7 +749,11 @@ class _ProposalStatusChip extends StatelessWidget {
       ),
       child: Text(
         status.label,
-        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w900),
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }
@@ -823,38 +765,16 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 56),
-        child: Center(
-          child: Column(
-            children: [
-              Icon(
-                shortlistedOnly
-                    ? Icons.favorite_border
-                    : Icons.mark_email_unread_outlined,
-                size: 54,
-                color: HDCColors.secondary,
-              ),
-              const SizedBox(height: 15),
-              Text(
-                shortlistedOnly
-                    ? 'No shortlisted proposals yet'
-                    : 'No professional proposals yet',
-                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                shortlistedOnly
-                    ? 'Open a proposal and shortlist the technicians you are considering.'
-                    : 'Submitted technician proposals will appear here for review.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: HDCColors.textSecondary),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return HDCEmptyState(
+      icon: shortlistedOnly
+          ? Icons.favorite_border
+          : Icons.mark_email_unread_outlined,
+      title: shortlistedOnly
+          ? 'No shortlisted proposals yet'
+          : 'No professional proposals yet',
+      description: shortlistedOnly
+          ? 'Open a proposal and shortlist the technicians you are considering.'
+          : 'Submitted technician proposals will appear here for review.',
     );
   }
 }
@@ -868,7 +788,11 @@ class _ErrorState extends StatelessWidget {
     return Center(
       child: Column(
         children: [
-          const Icon(Icons.cloud_off_outlined, size: 48, color: HDCColors.danger),
+          const Icon(
+            Icons.cloud_off_outlined,
+            size: 48,
+            color: HDCColors.danger,
+          ),
           const SizedBox(height: 12),
           const Text('Proposals could not be loaded.'),
           const SizedBox(height: 12),

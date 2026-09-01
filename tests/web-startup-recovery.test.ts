@@ -11,6 +11,7 @@ describe('Flutter web startup recovery', () => {
     expect(index).toContain('id="hdc-startup"');
     expect(index).toContain('Build 24');
     expect(index).toContain('Opening your secure workspace');
+    expect(index).toContain('src="hdc_mark.png"');
     expect(index).toContain('src="hdc_startup.js"');
     expect(index.indexOf('src="hdc_startup.js"')).toBeLessThan(
       index.indexOf('src="flutter_bootstrap.js"'),
@@ -53,5 +54,6 @@ describe('Flutter web startup recovery', () => {
     expect(preparation).toContain('src="hdc_startup.js"');
     expect(preparation).toContain("new URL('hdc_startup.css', buildDirectory)");
     expect(preparation).toContain("new URL('hdc_startup.js', buildDirectory)");
+    expect(preparation).toContain("new URL('hdc_mark.png', buildDirectory)");
   });
 });

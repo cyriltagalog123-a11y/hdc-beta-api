@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_flow.dart';
 import '../../models/account_identity.dart';
 import '../../models/proposal.dart';
 import '../../models/proposal_draft.dart';
@@ -14,10 +15,7 @@ import '../../providers/proposal_provider.dart';
 class ProposalStudioScreen extends StatefulWidget {
   final ServiceRequest request;
 
-  const ProposalStudioScreen({
-    required this.request,
-    super.key,
-  });
+  const ProposalStudioScreen({required this.request, super.key});
 
   @override
   State<ProposalStudioScreen> createState() => _ProposalStudioScreenState();
@@ -67,8 +65,7 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
   final _notesController = TextEditingController();
   final _customWarrantyController = TextEditingController();
 
-  ProposalPartsArrangement _partsArrangement =
-      ProposalPartsArrangement.none;
+  ProposalPartsArrangement _partsArrangement = ProposalPartsArrangement.none;
   ProposalWarrantyType _warrantyType = ProposalWarrantyType.thirtyDays;
   DateTime _earliestArrival = DateTime.now().add(const Duration(days: 1));
   TimeOfDay _arrivalTime = const TimeOfDay(hour: 9, minute: 0);
@@ -131,7 +128,8 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
     _diagnosisController.text = proposal.diagnosis;
     _repairApproachController.text = proposal.repairApproach;
     _notesController.text = proposal.professionalNotes;
-    _customWarrantyController.text = proposal.customWarrantyDays?.toString() ?? '';
+    _customWarrantyController.text =
+        proposal.customWarrantyDays?.toString() ?? '';
     _partsArrangement = proposal.partsArrangement;
     _warrantyType = proposal.warrantyType;
     _earliestArrival = proposal.earliestArrival;
@@ -164,12 +162,12 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
   }
 
   DateTime get _arrivalDateTime => DateTime(
-        _earliestArrival.year,
-        _earliestArrival.month,
-        _earliestArrival.day,
-        _arrivalTime.hour,
-        _arrivalTime.minute,
-      );
+    _earliestArrival.year,
+    _earliestArrival.month,
+    _earliestArrival.day,
+    _arrivalTime.hour,
+    _arrivalTime.minute,
+  );
 
   ProposalDraft _buildDraft() {
     return ProposalDraft(
@@ -180,8 +178,8 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
       partsArrangement: _partsArrangement,
       estimatedPartsCost:
           _partsArrangement == ProposalPartsArrangement.technicianSupplies
-              ? _numberFrom(_partsCostController) ?? 0
-              : null,
+          ? _numberFrom(_partsCostController) ?? 0
+          : null,
       earliestArrival: _arrivalDateTime,
       estimatedDurationMinutes: _durationMinutes,
       warrantyType: _warrantyType,
@@ -211,14 +209,13 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
     final revision = _editRevision;
     final draft = _buildDraft();
     late final Future<Proposal> pending;
-    pending = _persistRevision(
-      draft: draft,
-      revision: revision,
-    ).whenComplete(() {
-      if (identical(_saveInFlight, pending)) {
-        _saveInFlight = null;
-      }
-    });
+    pending = _persistRevision(draft: draft, revision: revision).whenComplete(
+      () {
+        if (identical(_saveInFlight, pending)) {
+          _saveInFlight = null;
+        }
+      },
+    );
     _saveInFlight = pending;
     return pending;
   }
@@ -228,9 +225,9 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
     required int revision,
   }) async {
     final proposal = await context.read<ProposalProvider>().saveDraft(
-          draft: draft,
-          reputation: _reputation,
-        );
+      draft: draft,
+      reputation: _reputation,
+    );
     if (!mounted) return proposal;
 
     setState(() {
@@ -263,9 +260,9 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
     } on Object catch (error) {
       if (!mounted) return null;
       if (showMessage) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not save draft: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not save draft: $error')));
       }
       return null;
     }
@@ -278,8 +275,7 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
     try {
       Proposal? saved;
       while (mounted &&
-          (_proposalId == null ||
-              _lastPersistedRevision != _editRevision)) {
+          (_proposalId == null || _lastPersistedRevision != _editRevision)) {
         saved = await _saveCurrentRevision();
       }
       if (!mounted) return;
@@ -293,7 +289,11 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          icon: const Icon(Icons.check_circle, color: HDCColors.success, size: 42),
+          icon: const Icon(
+            Icons.check_circle,
+            color: HDCColors.success,
+            size: 42,
+          ),
           title: const Text('Proposal submitted'),
           content: Text(
             '${submitted.reputation.technicianName}\'s proposal was sent to '
@@ -311,7 +311,9 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
     } on Object catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Bad state: ', '')),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -348,8 +350,18 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
 
   String _dateLabel(DateTime date) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
@@ -358,7 +370,9 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
     if (minutes < 60) return '$minutes minutes';
     final hours = minutes ~/ 60;
     final remainder = minutes % 60;
-    return remainder == 0 ? '$hours hour${hours == 1 ? '' : 's'}' : '$hours hr $remainder min';
+    return remainder == 0
+        ? '$hours hour${hours == 1 ? '' : 's'}'
+        : '$hours hr $remainder min';
   }
 
   String get _saveStatus {
@@ -390,20 +404,21 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<HDCAuthProvider>();
     final identity = auth.identity;
-    final canAccess = auth.authenticated &&
+    final canAccess =
+        auth.authenticated &&
         identity != null &&
         identity.hasPlatformRole(HDCPlatformRole.technician);
 
     if (!canAccess) {
       return const Scaffold(
-        body: Center(
-          child: Text('Registered technician access required.'),
-        ),
+        body: Center(child: Text('Registered technician access required.')),
       );
     }
 
     final draft = _buildDraft();
-    final quality = context.read<ProposalProvider>().calculateQualityScore(draft);
+    final quality = context.read<ProposalProvider>().calculateQualityScore(
+      draft,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -411,9 +426,7 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 10),
-            child: Center(
-              child: _SaveStatus(label: _saveStatus),
-            ),
+            child: Center(child: _SaveStatus(label: _saveStatus)),
           ),
         ],
       ),
@@ -460,11 +473,7 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
             return SingleChildScrollView(
               padding: const EdgeInsets.all(18),
               child: Column(
-                children: [
-                  editor,
-                  const SizedBox(height: 22),
-                  preview,
-                ],
+                children: [editor, const SizedBox(height: 22), preview],
               ),
             );
           },
@@ -472,30 +481,25 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
       ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _isSubmitting
-                    ? null
-                    : () => _saveDraft(showMessage: true),
-                icon: const Icon(Icons.save_outlined),
-                label: const Text('Save Draft'),
-              ),
+        child: HDCResponsiveActions(
+          actions: [
+            OutlinedButton.icon(
+              onPressed: _isSubmitting
+                  ? null
+                  : () => _saveDraft(showMessage: true),
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('Save Draft'),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: _isSubmitting ? null : _submit,
-                icon: _isSubmitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.send_outlined),
-                label: Text(_isSubmitting ? 'Submitting...' : 'Submit Proposal'),
-              ),
+            FilledButton.icon(
+              onPressed: _isSubmitting ? null : _submit,
+              icon: _isSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.send_outlined),
+              label: Text(_isSubmitting ? 'Submitting...' : 'Submit Proposal'),
             ),
           ],
         ),
@@ -509,6 +513,41 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          HDCFlowHero(
+            eyebrow: 'Technician proposal studio',
+            title: widget.request.title,
+            description:
+                'Build one transparent offer for this issue. Your '
+                'draft stays editable until submission; submitted offers '
+                'cannot be duplicated for the same request.',
+            icon: Icons.edit_note_rounded,
+            tags: [
+              HDCFlowTag(
+                label: widget.request.categoryName,
+                icon: Icons.category_outlined,
+              ),
+              HDCFlowTag(
+                label: widget.request.budgetLabel,
+                icon: Icons.payments_outlined,
+                color: HDCColors.warm,
+              ),
+              HDCFlowTag(
+                label: widget.request.location,
+                icon: Icons.location_on_outlined,
+                color: HDCColors.success,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          HDCFlowProgress(
+            steps: const ['Assess', 'Price and schedule', 'Review and submit'],
+            currentStep: quality >= 65
+                ? 3
+                : quality >= 35
+                ? 2
+                : 1,
+          ),
+          const SizedBox(height: 18),
           _RequestSummary(request: widget.request),
           const SizedBox(height: 18),
           _SectionCard(
@@ -542,13 +581,16 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
           const SizedBox(height: 18),
           _SectionCard(
             title: 'Pricing',
-            subtitle: 'Give the customer a transparent estimate before work begins.',
+            subtitle:
+                'Give the customer a transparent estimate before work begins.',
             icon: Icons.payments_outlined,
             child: Column(
               children: [
                 TextField(
                   controller: _serviceFeeController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: const InputDecoration(
                     labelText: 'Service fee',
                     prefixText: 'PHP ',
@@ -557,7 +599,9 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
                 const SizedBox(height: 14),
                 DropdownButtonFormField<ProposalPartsArrangement>(
                   initialValue: _partsArrangement,
-                  decoration: const InputDecoration(labelText: 'Parts arrangement'),
+                  decoration: const InputDecoration(
+                    labelText: 'Parts arrangement',
+                  ),
                   items: ProposalPartsArrangement.values
                       .map(
                         (value) => DropdownMenuItem(
@@ -575,11 +619,14 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
                     _scheduleAutoSave();
                   },
                 ),
-                if (_partsArrangement == ProposalPartsArrangement.technicianSupplies) ...[
+                if (_partsArrangement ==
+                    ProposalPartsArrangement.technicianSupplies) ...[
                   const SizedBox(height: 14),
                   TextField(
                     controller: _partsCostController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     decoration: const InputDecoration(
                       labelText: 'Estimated parts cost',
                       prefixText: 'PHP ',
@@ -589,7 +636,9 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
                 const SizedBox(height: 16),
                 _TotalEstimate(
                   serviceFee: _numberFrom(_serviceFeeController) ?? 0,
-                  partsCost: _partsArrangement == ProposalPartsArrangement.technicianSupplies
+                  partsCost:
+                      _partsArrangement ==
+                          ProposalPartsArrangement.technicianSupplies
                       ? _numberFrom(_partsCostController) ?? 0
                       : 0,
                   budgetLabel: widget.request.budgetLabel,
@@ -626,7 +675,9 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
                 const SizedBox(height: 14),
                 DropdownButtonFormField<int>(
                   initialValue: _durationMinutes,
-                  decoration: const InputDecoration(labelText: 'Estimated repair duration'),
+                  decoration: const InputDecoration(
+                    labelText: 'Estimated repair duration',
+                  ),
                   items: const [30, 60, 90, 120, 180, 240, 480]
                       .map(
                         (minutes) => DropdownMenuItem(
@@ -647,7 +698,9 @@ class _ProposalStudioScreenState extends State<ProposalStudioScreen> {
                 const SizedBox(height: 14),
                 DropdownButtonFormField<ProposalWarrantyType>(
                   initialValue: _warrantyType,
-                  decoration: const InputDecoration(labelText: 'Service warranty'),
+                  decoration: const InputDecoration(
+                    labelText: 'Service warranty',
+                  ),
                   items: ProposalWarrantyType.values
                       .map(
                         (value) => DropdownMenuItem(
@@ -769,9 +822,8 @@ class _SectionCard extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
+                        style: Theme.of(context).textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -821,9 +873,8 @@ class _RequestSummary extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               request.title,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             Text(request.description, style: const TextStyle(height: 1.5)),
@@ -859,7 +910,10 @@ class _MiniBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: HDCColors.border),
       ),
-      child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+      ),
     );
   }
 }
@@ -889,7 +943,10 @@ class _TotalEstimate extends StatelessWidget {
       child: Row(
         children: [
           const Expanded(
-            child: Text('Estimated total', style: TextStyle(fontWeight: FontWeight.w700)),
+            child: Text(
+              'Estimated total',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -897,13 +954,16 @@ class _TotalEstimate extends StatelessWidget {
               Text(
                 'PHP ${total.toStringAsFixed(0)}',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: HDCColors.secondary,
-                      fontWeight: FontWeight.w900,
-                    ),
+                  color: HDCColors.secondary,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               Text(
                 'Customer: $budgetLabel',
-                style: const TextStyle(color: HDCColors.textSecondary, fontSize: 11),
+                style: const TextStyle(
+                  color: HDCColors.textSecondary,
+                  fontSize: 11,
+                ),
               ),
             ],
           ),
@@ -922,10 +982,14 @@ class _QualityCard extends StatelessWidget {
   List<String> get suggestions {
     final values = <String>[];
     if (draft.serviceFee <= 0) values.add('Add a clear service fee.');
-    if (draft.diagnosis.trim().length < 30) values.add('Explain your initial diagnosis in more detail.');
-    if (draft.repairApproach.trim().length < 30) values.add('Describe your repair or diagnostic plan.');
-    if (draft.professionalNotes.trim().length < 20) values.add('Add a professional customer message.');
-    if (draft.warrantyType == ProposalWarrantyType.none) values.add('Consider adding a service warranty.');
+    if (draft.diagnosis.trim().length < 30)
+      values.add('Explain your initial diagnosis in more detail.');
+    if (draft.repairApproach.trim().length < 30)
+      values.add('Describe your repair or diagnostic plan.');
+    if (draft.professionalNotes.trim().length < 20)
+      values.add('Add a professional customer message.');
+    if (draft.warrantyType == ProposalWarrantyType.none)
+      values.add('Consider adding a service warranty.');
     return values;
   }
 
@@ -940,30 +1004,59 @@ class _QualityCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.auto_awesome_outlined, color: HDCColors.secondary),
+                const Icon(
+                  Icons.auto_awesome_outlined,
+                  color: HDCColors.secondary,
+                ),
                 const SizedBox(width: 10),
                 const Expanded(
-                  child: Text('Proposal quality', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+                  child: Text(
+                    'Proposal quality',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+                  ),
                 ),
-                Text('$score%', style: const TextStyle(color: HDCColors.secondary, fontWeight: FontWeight.w900, fontSize: 20)),
+                Text(
+                  '$score%',
+                  style: const TextStyle(
+                    color: HDCColors.secondary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 20,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 14),
-            LinearProgressIndicator(value: score / 100, minHeight: 9, borderRadius: BorderRadius.circular(999)),
+            LinearProgressIndicator(
+              value: score / 100,
+              minHeight: 9,
+              borderRadius: BorderRadius.circular(999),
+            ),
             const SizedBox(height: 14),
             Text(
-              score >= 85 ? 'Excellent proposal' : score >= 65 ? 'Strong proposal' : score >= 40 ? 'Ready, but can improve' : 'Add more detail before submitting',
+              score >= 85
+                  ? 'Excellent proposal'
+                  : score >= 65
+                  ? 'Strong proposal'
+                  : score >= 40
+                  ? 'Ready, but can improve'
+                  : 'Add more detail before submitting',
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
             if (suggestions.isNotEmpty) ...[
               const SizedBox(height: 12),
-              ...suggestions.take(3).map(
+              ...suggestions
+                  .take(3)
+                  .map(
                     (suggestion) => Padding(
                       padding: const EdgeInsets.only(bottom: 7),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.lightbulb_outline, size: 18, color: HDCColors.warning),
+                          const Icon(
+                            Icons.lightbulb_outline,
+                            size: 18,
+                            color: HDCColors.warning,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(child: Text(suggestion)),
                         ],
@@ -998,7 +1091,8 @@ class _ProposalPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final total = draft.serviceFee + (draft.estimatedPartsCost ?? 0);
-    final warrantyDays = draft.warrantyType.fixedDays ?? draft.customWarrantyDays ?? 0;
+    final warrantyDays =
+        draft.warrantyType.fixedDays ?? draft.customWarrantyDays ?? 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1006,7 +1100,14 @@ class _ProposalPreview extends StatelessWidget {
         Row(
           children: [
             const Expanded(
-              child: Text('LIVE CUSTOMER PREVIEW', style: TextStyle(color: HDCColors.secondary, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+              child: Text(
+                'LIVE CUSTOMER PREVIEW',
+                style: TextStyle(
+                  color: HDCColors.secondary,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.0,
+                ),
+              ),
             ),
             _MiniBadge(label: '$qualityScore% quality'),
           ],
@@ -1023,17 +1124,34 @@ class _ProposalPreview extends StatelessWidget {
                   children: [
                     CircleAvatar(
                       radius: 25,
-                      backgroundColor: HDCColors.secondary.withValues(alpha: 0.10),
-                      child: const Icon(Icons.engineering_outlined, color: HDCColors.secondary),
+                      backgroundColor: HDCColors.secondary.withValues(
+                        alpha: 0.10,
+                      ),
+                      child: const Icon(
+                        Icons.engineering_outlined,
+                        color: HDCColors.secondary,
+                      ),
                     ),
                     const SizedBox(width: 13),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(reputation.technicianName, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                          Text(
+                            reputation.technicianName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
+                          ),
                           const SizedBox(height: 3),
-                          Text('★ ${reputation.rating.toStringAsFixed(1)} • ${reputation.completedJobs} completed jobs', style: const TextStyle(color: HDCColors.textSecondary, fontSize: 12)),
+                          Text(
+                            '★ ${reputation.rating.toStringAsFixed(1)} • ${reputation.completedJobs} completed jobs',
+                            style: const TextStyle(
+                              color: HDCColors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1042,19 +1160,54 @@ class _ProposalPreview extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 20),
-                Text(request.title, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                Text(
+                  request.title,
+                  style: Theme.of(context).textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
                 const SizedBox(height: 16),
-                _PreviewValue(label: 'Estimated total', value: 'PHP ${total.toStringAsFixed(0)}', emphasized: true),
-                _PreviewValue(label: 'Earliest arrival', value: '${dateLabel(draft.earliestArrival)} • ${TimeOfDay.fromDateTime(draft.earliestArrival).format(context)}'),
-                _PreviewValue(label: 'Estimated duration', value: durationLabel(draft.estimatedDurationMinutes)),
-                _PreviewValue(label: 'Warranty', value: warrantyDays == 0 ? 'No warranty' : '$warrantyDays days'),
-                _PreviewValue(label: 'Parts', value: draft.partsArrangement.label),
+                _PreviewValue(
+                  label: 'Estimated total',
+                  value: 'PHP ${total.toStringAsFixed(0)}',
+                  emphasized: true,
+                ),
+                _PreviewValue(
+                  label: 'Earliest arrival',
+                  value:
+                      '${dateLabel(draft.earliestArrival)} • ${TimeOfDay.fromDateTime(draft.earliestArrival).format(context)}',
+                ),
+                _PreviewValue(
+                  label: 'Estimated duration',
+                  value: durationLabel(draft.estimatedDurationMinutes),
+                ),
+                _PreviewValue(
+                  label: 'Warranty',
+                  value: warrantyDays == 0
+                      ? 'No warranty'
+                      : '$warrantyDays days',
+                ),
+                _PreviewValue(
+                  label: 'Parts',
+                  value: draft.partsArrangement.label,
+                ),
                 const Divider(height: 30),
-                _PreviewText(title: 'Initial diagnosis', text: draft.diagnosis, emptyText: 'Your diagnosis will appear here.'),
+                _PreviewText(
+                  title: 'Initial diagnosis',
+                  text: draft.diagnosis,
+                  emptyText: 'Your diagnosis will appear here.',
+                ),
                 const SizedBox(height: 17),
-                _PreviewText(title: 'Repair plan', text: draft.repairApproach, emptyText: 'Your repair plan will appear here.'),
+                _PreviewText(
+                  title: 'Repair plan',
+                  text: draft.repairApproach,
+                  emptyText: 'Your repair plan will appear here.',
+                ),
                 const SizedBox(height: 17),
-                _PreviewText(title: 'Message from technician', text: draft.professionalNotes, emptyText: 'Your customer message will appear here.'),
+                _PreviewText(
+                  title: 'Message from technician',
+                  text: draft.professionalNotes,
+                  emptyText: 'Your customer message will appear here.',
+                ),
                 const SizedBox(height: 20),
                 Container(
                   width: double.infinity,
@@ -1065,7 +1218,11 @@ class _ProposalPreview extends StatelessWidget {
                   ),
                   child: Text(
                     '${reputation.successRate.toStringAsFixed(0)}% success rate • Average response ${reputation.averageResponseMinutes} minutes',
-                    style: const TextStyle(color: HDCColors.success, fontWeight: FontWeight.w700, fontSize: 12),
+                    style: const TextStyle(
+                      color: HDCColors.success,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ],
@@ -1082,7 +1239,11 @@ class _PreviewValue extends StatelessWidget {
   final String value;
   final bool emphasized;
 
-  const _PreviewValue({required this.label, required this.value, this.emphasized = false});
+  const _PreviewValue({
+    required this.label,
+    required this.value,
+    this.emphasized = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1091,7 +1252,12 @@ class _PreviewValue extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: Text(label, style: const TextStyle(color: HDCColors.textSecondary))),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: HDCColors.textSecondary),
+            ),
+          ),
           const SizedBox(width: 14),
           Text(
             value,
@@ -1113,7 +1279,11 @@ class _PreviewText extends StatelessWidget {
   final String text;
   final String emptyText;
 
-  const _PreviewText({required this.title, required this.text, required this.emptyText});
+  const _PreviewText({
+    required this.title,
+    required this.text,
+    required this.emptyText,
+  });
 
   @override
   Widget build(BuildContext context) {

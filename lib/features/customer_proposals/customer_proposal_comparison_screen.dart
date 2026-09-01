@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/navigation/hdc_page_route.dart';
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_flow.dart';
 import '../../models/proposal.dart';
 import '../../models/proposal_comparison.dart';
 import '../../models/service_request.dart';
@@ -33,16 +34,12 @@ class CustomerProposalComparisonScreen extends StatelessWidget {
       );
     } on Object catch (error) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Compare Proposals'),
-        ),
+        appBar: AppBar(title: const Text('Compare Proposals')),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: 520,
-              ),
+              constraints: const BoxConstraints(maxWidth: 520),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -54,10 +51,7 @@ class CustomerProposalComparisonScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   const Text(
                     'Comparison is no longer available',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 10),
                   Text(
@@ -73,9 +67,7 @@ class CustomerProposalComparisonScreen extends StatelessWidget {
                     onPressed: () {
                       Navigator.of(context).pop();
                     },
-                    child: const Text(
-                      'Back to Proposals',
-                    ),
+                    child: const Text('Back to Proposals'),
                   ),
                 ],
               ),
@@ -87,24 +79,13 @@ class CustomerProposalComparisonScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: HDCColors.background,
-      appBar: AppBar(
-        title: const Text(
-          'Professional Proposal Comparison',
-        ),
-      ),
+      appBar: AppBar(title: const Text('Professional Proposal Comparison')),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(
-            20,
-            20,
-            20,
-            40,
-          ),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: 1280,
-              ),
+              constraints: const BoxConstraints(maxWidth: 1280),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -116,9 +97,7 @@ class CustomerProposalComparisonScreen extends StatelessWidget {
                   const SizedBox(height: 16),
 
                   _NexusComparisonInsight(
-                    message: provider.comparisonNexusInsight(
-                      result,
-                    ),
+                    message: provider.comparisonNexusInsight(result),
                   ),
 
                   const SizedBox(height: 16),
@@ -127,56 +106,54 @@ class CustomerProposalComparisonScreen extends StatelessWidget {
 
                   const SizedBox(height: 22),
 
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                        for (
-                          var index = 0;
-                          index < result.entries.length;
-                          index++
-                        ) ...[
-                          SizedBox(
-                            width: 340,
-                            child: _ComparisonColumn(
-                              entry: result.entries[index],
-                              result: result,
-                              onViewProposal: () {
-                                Navigator.of(context).push(
-                                  HDCPageRoute<void>(
-                                    page:
-                                        CustomerProposalDetailsScreen(
-                                      proposalId:
-                                          result
-                                              .entries[index]
-                                              .proposal
-                                              .id,
-                                    ),
-                                  ),
-                                );
-                              },
-                              onAcceptProposal: () {
-                                startProposalAcceptanceFlow(
-                                  context,
-                                  proposal:
-                                      result
-                                          .entries[index]
-                                          .proposal,
-                                );
-                              },
-                            ),
-                          ),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final columnCount = constraints.maxWidth >= 1100
+                          ? result.entries.length
+                          : constraints.maxWidth >= 720
+                          ? 2
+                          : 1;
+                      const gap = 16.0;
+                      final cardWidth =
+                          (constraints.maxWidth - gap * (columnCount - 1)) /
+                          columnCount;
 
-                          if (index !=
-                              result.entries.length - 1)
-                            const SizedBox(
-                              width: 16,
+                      return Wrap(
+                        spacing: gap,
+                        runSpacing: gap,
+                        crossAxisAlignment: WrapCrossAlignment.start,
+                        children: [
+                          for (
+                            var index = 0;
+                            index < result.entries.length;
+                            index++
+                          )
+                            SizedBox(
+                              width: cardWidth,
+                              child: _ComparisonColumn(
+                                entry: result.entries[index],
+                                result: result,
+                                onViewProposal: () {
+                                  Navigator.of(context).push(
+                                    HDCPageRoute<void>(
+                                      page: CustomerProposalDetailsScreen(
+                                        proposalId:
+                                            result.entries[index].proposal.id,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                onAcceptProposal: () {
+                                  startProposalAcceptanceFlow(
+                                    context,
+                                    proposal: result.entries[index].proposal,
+                                  );
+                                },
+                              ),
                             ),
                         ],
-                      ],
-                    ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -192,72 +169,36 @@ class _ComparisonHeader extends StatelessWidget {
   final ServiceRequest request;
   final int count;
 
-  const _ComparisonHeader({
-    required this.request,
-    required this.count,
-  });
+  const _ComparisonHeader({required this.request, required this.count});
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Row(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            const Icon(
-              Icons.compare_arrows,
-              color: HDCColors.secondary,
-              size: 30,
-            ),
-
-            const SizedBox(width: 14),
-
-            Expanded(
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    request.title,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(
-                          fontWeight:
-                              FontWeight.w800,
-                        ),
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  Text(
-                    '$count proposals selected • '
-                    '${request.categoryName}',
-                    style: const TextStyle(
-                      color:
-                          HDCColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+    return HDCFlowHero(
+      eyebrow: 'Offer comparison',
+      title: request.title,
+      description:
+          'Review each technician on the same terms. HDC highlights '
+          'differences but leaves the final choice with you.',
+      icon: Icons.compare_arrows_rounded,
+      tags: [
+        HDCFlowTag(
+          label: '$count proposals selected',
+          icon: Icons.view_column_outlined,
         ),
-      ),
+        HDCFlowTag(
+          label: request.categoryName,
+          icon: Icons.category_outlined,
+          color: HDCColors.warm,
+        ),
+      ],
     );
   }
 }
 
-class _NexusComparisonInsight
-    extends StatelessWidget {
+class _NexusComparisonInsight extends StatelessWidget {
   final String message;
 
-  const _NexusComparisonInsight({
-    required this.message,
-  });
+  const _NexusComparisonInsight({required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -265,35 +206,19 @@ class _NexusComparisonInsight
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: HDCColors.secondary.withValues(
-          alpha: 0.08,
-        ),
+        color: HDCColors.secondary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color:
-              HDCColors.secondary.withValues(
-            alpha: 0.18,
-          ),
-        ),
+        border: Border.all(color: HDCColors.secondary.withValues(alpha: 0.18)),
       ),
       child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.smart_toy_outlined,
-            color: HDCColors.secondary,
-          ),
+          const Icon(Icons.smart_toy_outlined, color: HDCColors.secondary),
 
           const SizedBox(width: 12),
 
           Expanded(
-            child: Text(
-              'Nexus: $message',
-              style: const TextStyle(
-                height: 1.5,
-              ),
-            ),
+            child: Text('Nexus: $message', style: const TextStyle(height: 1.5)),
           ),
         ],
       ),
@@ -311,13 +236,9 @@ class _DecisionNotice extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.all(18),
         child: Row(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.balance_outlined,
-              color: HDCColors.info,
-            ),
+            Icon(Icons.balance_outlined, color: HDCColors.info),
 
             SizedBox(width: 12),
 
@@ -328,9 +249,7 @@ class _DecisionNotice extends StatelessWidget {
                 'warranty, or higher rating does not '
                 'automatically make one proposal the best '
                 'choice for you.',
-                style: TextStyle(
-                  height: 1.5,
-                ),
+                style: TextStyle(height: 1.5),
               ),
             ),
           ],
@@ -340,8 +259,7 @@ class _DecisionNotice extends StatelessWidget {
   }
 }
 
-class _ComparisonColumn
-    extends StatelessWidget {
+class _ComparisonColumn extends StatelessWidget {
   final ProposalComparisonEntry entry;
   final ProposalComparisonResult result;
   final VoidCallback onViewProposal;
@@ -364,34 +282,21 @@ class _ComparisonColumn
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 CircleAvatar(
-                  backgroundColor:
-                      HDCColors.secondary
-                          .withValues(
-                    alpha: 0.10,
-                  ),
+                  backgroundColor: HDCColors.secondary.withValues(alpha: 0.10),
                   child: Text(
-                    reputation
-                            .technicianName
-                            .isEmpty
+                    reputation.technicianName.isEmpty
                         ? 'T'
-                        : reputation
-                            .technicianName
-                            .substring(
-                              0,
-                              1,
-                            )
-                            .toUpperCase(),
+                        : reputation.technicianName
+                              .substring(0, 1)
+                              .toUpperCase(),
                     style: const TextStyle(
-                      color:
-                          HDCColors.secondary,
-                      fontWeight:
-                          FontWeight.w900,
+                      color: HDCColors.secondary,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                 ),
@@ -403,8 +308,7 @@ class _ComparisonColumn
                     reputation.technicianName,
                     style: const TextStyle(
                       fontSize: 18,
-                      fontWeight:
-                          FontWeight.w900,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                 ),
@@ -412,8 +316,7 @@ class _ComparisonColumn
                 if (reputation.isVerified)
                   const Icon(
                     Icons.verified,
-                    color:
-                        HDCColors.secondary,
+                    color: HDCColors.secondary,
                     size: 19,
                   ),
               ],
@@ -423,126 +326,99 @@ class _ComparisonColumn
 
             _MetricRow(
               label: 'Total estimate',
-              value: _money(
-                proposal.estimatedTotal,
-              ),
+              value: _money(proposal.estimatedTotal),
               highlighted: result.isLeader(
                 proposal.id,
-                ProposalComparisonMetric
-                    .estimatedTotal,
+                ProposalComparisonMetric.estimatedTotal,
               ),
             ),
 
             _MetricRow(
               label: 'Earliest arrival',
-              value: _dateTime(
-                proposal.earliestArrival,
-              ),
+              value: _dateTime(proposal.earliestArrival),
               highlighted: result.isLeader(
                 proposal.id,
-                ProposalComparisonMetric
-                    .earliestArrival,
+                ProposalComparisonMetric.earliestArrival,
               ),
             ),
 
             _MetricRow(
               label: 'Warranty',
-              value:
-                  proposal.warrantyDays == 0
-                      ? 'None'
-                      : '${proposal.warrantyDays} days',
+              value: proposal.warrantyDays == 0
+                  ? 'None'
+                  : '${proposal.warrantyDays} days',
               highlighted: result.isLeader(
                 proposal.id,
-                ProposalComparisonMetric
-                    .warranty,
+                ProposalComparisonMetric.warranty,
               ),
             ),
 
             _MetricRow(
               label: 'Rating',
-              value:
-                  '${reputation.rating.toStringAsFixed(1)} / 5.0',
+              value: '${reputation.rating.toStringAsFixed(1)} / 5.0',
               highlighted: result.isLeader(
                 proposal.id,
-                ProposalComparisonMetric
-                    .rating,
+                ProposalComparisonMetric.rating,
               ),
             ),
 
             _MetricRow(
               label: 'HDC tenure',
-              value:
-                  entry.hdcTenureYears == 0
-                      ? 'New HDC member'
-                      : '${entry.hdcTenureYears} '
-                          '${entry.hdcTenureYears == 1 ? 'year' : 'years'}',
+              value: entry.hdcTenureYears == 0
+                  ? 'New HDC member'
+                  : '${entry.hdcTenureYears} '
+                        '${entry.hdcTenureYears == 1 ? 'year' : 'years'}',
               highlighted: result.isLeader(
                 proposal.id,
-                ProposalComparisonMetric
-                    .hdcTenure,
+                ProposalComparisonMetric.hdcTenure,
               ),
             ),
 
             _MetricRow(
               label: 'Completed jobs',
-              value:
-                  '${reputation.completedJobs}',
+              value: '${reputation.completedJobs}',
               highlighted: result.isLeader(
                 proposal.id,
-                ProposalComparisonMetric
-                    .completedJobs,
+                ProposalComparisonMetric.completedJobs,
               ),
             ),
 
             _MetricRow(
               label: 'Proposal quality',
-              value:
-                  '${proposal.qualityScore}%',
+              value: '${proposal.qualityScore}%',
               highlighted: result.isLeader(
                 proposal.id,
-                ProposalComparisonMetric
-                    .quality,
+                ProposalComparisonMetric.quality,
               ),
             ),
 
             _MetricRow(
               label: 'Repair duration',
-              value: _duration(
-                proposal
-                    .estimatedDurationMinutes,
-              ),
+              value: _duration(proposal.estimatedDurationMinutes),
               highlighted: false,
             ),
 
             _MetricRow(
               label: 'Success rate',
-              value:
-                  '${reputation.successRate.toStringAsFixed(0)}%',
+              value: '${reputation.successRate.toStringAsFixed(0)}%',
               highlighted: false,
             ),
 
             const SizedBox(height: 18),
 
-            if (result
-                .leadersFor(proposal.id)
-                .isNotEmpty) ...[
+            if (result.leadersFor(proposal.id).isNotEmpty) ...[
               Wrap(
                 spacing: 7,
                 runSpacing: 7,
                 children: result
-                    .leadersFor(
-                      proposal.id,
-                    )
+                    .leadersFor(proposal.id)
                     .map(
                       (metric) => Chip(
                         avatar: const Icon(
-                          Icons
-                              .check_circle_outline,
+                          Icons.check_circle_outline,
                           size: 16,
                         ),
-                        label: Text(
-                          metric.label,
-                        ),
+                        label: Text(metric.label),
                       ),
                     )
                     .toList(),
@@ -551,38 +427,24 @@ class _ComparisonColumn
               const SizedBox(height: 18),
             ],
 
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: onViewProposal,
-                icon: const Icon(
-                  Icons.description_outlined,
+            HDCResponsiveActions(
+              breakpoint: 520,
+              actions: [
+                OutlinedButton.icon(
+                  onPressed: onViewProposal,
+                  icon: const Icon(Icons.description_outlined),
+                  label: const Text('View Full Proposal'),
                 ),
-                label: const Text(
-                  'View Full Proposal',
+                FilledButton.icon(
+                  onPressed: proposal.status.isActive ? onAcceptProposal : null,
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: Text(
+                    proposal.status == ProposalStatus.accepted
+                        ? 'Accepted'
+                        : 'Accept Proposal',
+                  ),
                 ),
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed:
-                    proposal.status.isActive
-                        ? onAcceptProposal
-                        : null,
-                icon: const Icon(
-                  Icons.check_circle_outline,
-                ),
-                label: Text(
-                  proposal.status ==
-                          ProposalStatus.accepted
-                      ? 'Accepted'
-                      : 'Accept Proposal',
-                ),
-              ),
+              ],
             ),
           ],
         ),
@@ -613,21 +475,12 @@ class _ComparisonColumn
     final hour = value.hour == 0
         ? 12
         : value.hour > 12
-            ? value.hour - 12
-            : value.hour;
+        ? value.hour - 12
+        : value.hour;
 
-    final minute =
-        value.minute
-            .toString()
-            .padLeft(
-              2,
-              '0',
-            );
+    final minute = value.minute.toString().padLeft(2, '0');
 
-    final period =
-        value.hour >= 12
-            ? 'PM'
-            : 'AM';
+    final period = value.hour >= 12 ? 'PM' : 'AM';
 
     return '${months[value.month - 1]} '
         '${value.day}, '
@@ -640,11 +493,9 @@ class _ComparisonColumn
       return '$minutes min';
     }
 
-    final hours =
-        minutes ~/ 60;
+    final hours = minutes ~/ 60;
 
-    final remaining =
-        minutes % 60;
+    final remaining = minutes % 60;
 
     if (remaining == 0) {
       return '$hours '
@@ -670,41 +521,30 @@ class _MetricRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(
-        bottom: 10,
-      ),
+      margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
         color: highlighted
-            ? HDCColors.success.withValues(
-                alpha: 0.08,
-              )
+            ? HDCColors.success.withValues(alpha: 0.08)
             : HDCColors.background,
-        borderRadius:
-            BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(13),
         border: Border.all(
           color: highlighted
-              ? HDCColors.success
-                  .withValues(
-                    alpha: 0.28,
-                  )
+              ? HDCColors.success.withValues(alpha: 0.28)
               : HDCColors.border,
         ),
       ),
       child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
                   style: const TextStyle(
-                    color:
-                        HDCColors.textSecondary,
+                    color: HDCColors.textSecondary,
                     fontSize: 11,
                   ),
                 ),
@@ -713,10 +553,7 @@ class _MetricRow extends StatelessWidget {
 
                 Text(
                   value,
-                  style: const TextStyle(
-                    fontWeight:
-                        FontWeight.w800,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ],
             ),
@@ -724,9 +561,7 @@ class _MetricRow extends StatelessWidget {
 
           if (highlighted)
             const Padding(
-              padding: EdgeInsets.only(
-                left: 8,
-              ),
+              padding: EdgeInsets.only(left: 8),
               child: Icon(
                 Icons.check_circle,
                 color: HDCColors.success,

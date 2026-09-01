@@ -54,57 +54,73 @@ class HDCBrandMark extends StatelessWidget {
   final double size;
   final bool darkSurface;
 
-  const HDCBrandMark({
-    this.size = 52,
-    this.darkSurface = false,
-    super.key,
-  });
+  const HDCBrandMark({this.size = 52, this.darkSurface = false, super.key});
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       image: true,
       label: 'HelpDesk Connect',
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          gradient: darkSurface
-              ? const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [HDCColors.primarySoft, HDCColors.secondary],
-                )
-              : HDCColors.brandGradient,
-          borderRadius: BorderRadius.circular(size * 0.28),
-          border: Border.all(
-            color: HDCColors.accent.withValues(alpha: 0.35),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: HDCColors.primaryDeep.withValues(alpha: 0.28),
-              blurRadius: size * 0.38,
-              offset: Offset(0, size * 0.18),
-            ),
-          ],
+      child: SizedBox.square(
+        dimension: size,
+        child: Image.asset(
+          'assets/branding/hdc_mark.png',
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          excludeFromSemantics: true,
+          errorBuilder: (context, error, stackTrace) =>
+              _LegacyHDCBrandMark(size: size, darkSurface: darkSurface),
         ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            CustomPaint(painter: const _HDCBrandMarkPainter()),
-            Center(
-              child: Text(
-                'HDC',
-                style: TextStyle(
-                  color: HDCColors.textLight,
-                  fontSize: size * 0.25,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: size * 0.018,
-                ),
+      ),
+    );
+  }
+}
+
+class _LegacyHDCBrandMark extends StatelessWidget {
+  final double size;
+  final bool darkSurface;
+
+  const _LegacyHDCBrandMark({required this.size, required this.darkSurface});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: darkSurface
+            ? const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [HDCColors.primarySoft, HDCColors.secondary],
+              )
+            : HDCColors.brandGradient,
+        borderRadius: BorderRadius.circular(size * 0.28),
+        border: Border.all(color: HDCColors.accent.withValues(alpha: 0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: HDCColors.primaryDeep.withValues(alpha: 0.28),
+            blurRadius: size * 0.38,
+            offset: Offset(0, size * 0.18),
+          ),
+        ],
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          CustomPaint(painter: const _HDCBrandMarkPainter()),
+          Center(
+            child: Text(
+              'HDC',
+              style: TextStyle(
+                color: HDCColors.textLight,
+                fontSize: size * 0.25,
+                fontWeight: FontWeight.w900,
+                letterSpacing: size * 0.018,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -259,11 +275,7 @@ class _HDCBrandMarkPainter extends CustomPainter {
       Offset(size.width * 0.82, yBottom),
       line,
     );
-    canvas.drawCircle(
-      Offset(size.width * 0.18, yTop),
-      size.width * 0.035,
-      dot,
-    );
+    canvas.drawCircle(Offset(size.width * 0.18, yTop), size.width * 0.035, dot);
     canvas.drawCircle(
       Offset(size.width * 0.82, yBottom),
       size.width * 0.035,
