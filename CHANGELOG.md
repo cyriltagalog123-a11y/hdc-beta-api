@@ -1,5 +1,26 @@
 # HDC Change Log
 
+## 0.6.4+24 — Build 24A — 2026-08-31
+
+- Adds shared responsive flow primitives for guided stages, working-surface
+  headers, metric cards, adaptive actions, section cards, and empty states.
+- Rebuilds Customer request creation and review around a clear
+  describe-review-publish sequence while preserving validation, registration
+  gates, stable request IDs, editing, and provider-backed publication.
+- Redesigns My Service Requests with account-scoped records, provider-backed
+  offer and transaction indicators, newest-first ordering, and All, Active,
+  With offers, and Closed filters.
+- Reworks request details so every offer remains reachable, accepted work opens
+  the existing service workspace, and action panels adapt safely on mobile.
+- Redesigns Technician discovery with responsive search and result grids,
+  approved-public-profile privacy notices, public contact boundaries, textual
+  area matching, and technician-stated qualifications and service data.
+- Adds Build 24A UI contract and responsive widget coverage. No API route,
+  database schema, authorization rule, payment, document, dispute, or chat
+  behavior changes are included.
+- Synchronizes Flutter, dashboard, API health, package, startup recovery, and
+  CI release markers at numeric Build 24.
+
 ## 0.6.4+23 — 2026-08-31
 
 - Establishes the HDC signal-network design system with shared color, spacing,

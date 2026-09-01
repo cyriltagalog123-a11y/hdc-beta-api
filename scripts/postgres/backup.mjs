@@ -18,6 +18,18 @@ import { once } from 'node:events';
 import { pipeline } from 'node:stream/promises';
 import postgres from 'postgres';
 
+import {
+  authenticateManifest,
+  BACKUP_MANIFEST_VERSION,
+} from './backup-format.mjs';
+import {
+  PORTABLE_BACKUP_EXCLUDED_EXTENSIONS,
+  PORTABLE_BACKUP_EXCLUDED_SCHEMAS,
+  parseBackupDatabaseUrl,
+  pgDumpArguments,
+} from './backup-command.mjs';
+import { capturePortablePrivileges } from './portable-privileges.mjs';
+
 const MAGIC = Buffer.from('HDCBKP1\n', 'utf8');
 
 function option(name) {
@@ -48,7 +60,7 @@ async function sha256(path) {
   return hash.digest('hex');
 }
 
-async function backupInventory(databaseUrl) {
+async function backupMetadata(databaseUrl) {
   const sql = postgres(databaseUrl, {
     max: 1,
     prepare: false,
@@ -79,7 +91,7 @@ async function backupInventory(databaseUrl) {
           FROM public.hdc_schema_migrations) AS migration_versions
     `;
     const row = rows[0];
-    return {
+    const inventory = {
       users: Number(row.users),
       serviceRequests: Number(row.service_requests),
       proposals: Number(row.proposals),
@@ -94,6 +106,180 @@ async function backupInventory(databaseUrl) {
       securityAudit: Number(row.security_audit),
       migrationVersions: [...(row.migration_versions ?? [])].map(String),
     };
+
+    const audits = await sql.unsafe(`
+      WITH definitions AS (
+        SELECT
+          'policy'::text AS object_kind,
+          tablename || '.' || policyname AS object_name,
+          concat_ws(' ', qual, with_check) AS definition
+        FROM pg_policies
+        WHERE schemaname = 'public' AND tablename LIKE 'hdc_%'
+
+        UNION ALL
+
+        SELECT
+          'function',
+          procedure.proname || '(' ||
+            pg_get_function_identity_arguments(procedure.oid) || ')',
+          pg_get_functiondef(procedure.oid)
+        FROM pg_proc procedure
+        JOIN pg_namespace namespace
+          ON namespace.oid = procedure.pronamespace
+        WHERE namespace.nspname = 'public'
+          AND procedure.proname LIKE 'hdc_%'
+          AND procedure.prokind IN ('f', 'p')
+
+        UNION ALL
+
+        SELECT 'view', viewname, definition
+        FROM pg_views
+        WHERE schemaname = 'public' AND viewname LIKE 'hdc_%'
+
+        UNION ALL
+
+        SELECT
+          'default',
+          relation.relname || '.' || attribute.attname,
+          pg_get_expr(default_value.adbin, default_value.adrelid)
+        FROM pg_attrdef default_value
+        JOIN pg_attribute attribute
+          ON attribute.attrelid = default_value.adrelid
+          AND attribute.attnum = default_value.adnum
+        JOIN pg_class relation ON relation.oid = default_value.adrelid
+        JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+        WHERE namespace.nspname = 'public'
+          AND relation.relname LIKE 'hdc_%'
+
+        UNION ALL
+
+        SELECT
+          'constraint',
+          constraint_object.conname,
+          pg_get_constraintdef(constraint_object.oid, true)
+        FROM pg_constraint constraint_object
+        JOIN pg_namespace namespace
+          ON namespace.oid = constraint_object.connamespace
+        JOIN pg_class relation
+          ON relation.oid = constraint_object.conrelid
+        WHERE namespace.nspname = 'public'
+          AND left(relation.relname, 4) = 'hdc_'
+      ),
+      provider_references AS (
+        SELECT object_kind, object_name
+        FROM definitions
+        WHERE lower(definition) ~
+          '(^|[^a-z0-9_])(auth|neon_auth|pgrst|pg_session_jwt|cloud_admin|neon_superuser|authenticator|authenticated|anonymous|neon_service)([^a-z0-9_]|$)'
+      ),
+      nonportable_policy_roles AS (
+        SELECT tablename, policyname
+        FROM pg_policies
+        WHERE schemaname = 'public'
+          AND tablename LIKE 'hdc_%'
+          AND EXISTS (
+            SELECT 1
+            FROM unnest(roles) policy_role
+            WHERE policy_role NOT IN ('public', 'hdc_app')
+          )
+      )
+      SELECT jsonb_build_object(
+        'version', 1,
+        'unknownSchemas', COALESCE((
+          SELECT jsonb_agg(namespace.nspname ORDER BY namespace.nspname)
+          FROM pg_namespace namespace
+          WHERE namespace.nspname NOT LIKE 'pg_%'
+            AND namespace.nspname <> 'information_schema'
+            AND namespace.nspname NOT IN (
+              'public', 'auth', 'neon_auth', 'pgrst'
+            )
+        ), '[]'::jsonb),
+        'unknownExtensions', COALESCE((
+          SELECT jsonb_agg(extension.extname ORDER BY extension.extname)
+          FROM pg_extension extension
+          WHERE extension.extname NOT IN (
+            'plpgsql', 'pgcrypto', 'citext', 'pg_session_jwt'
+          )
+        ), '[]'::jsonb),
+        'providerReferences', COALESCE((
+          SELECT jsonb_agg(to_jsonb(reference) ORDER BY
+            reference.object_kind, reference.object_name)
+          FROM provider_references reference
+        ), '[]'::jsonb),
+        'nonportablePolicyRoles', COALESCE((
+          SELECT jsonb_agg(to_jsonb(policy) ORDER BY
+            policy.tablename, policy.policyname)
+          FROM nonportable_policy_roles policy
+        ), '[]'::jsonb),
+        'unvalidatedConstraints', (
+          SELECT count(*)::int
+          FROM pg_constraint constraint_object
+          JOIN pg_namespace namespace
+            ON namespace.oid = constraint_object.connamespace
+          WHERE namespace.nspname = 'public'
+            AND NOT constraint_object.convalidated
+        ),
+        'invalidIndexes', (
+          SELECT count(*)::int
+          FROM pg_index index_object
+          JOIN pg_class relation ON relation.oid = index_object.indexrelid
+          JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+          WHERE namespace.nspname = 'public' AND NOT index_object.indisvalid
+        ),
+        'disabledUserTriggers', (
+          SELECT count(*)::int
+          FROM pg_trigger trigger_object
+          JOIN pg_class relation ON relation.oid = trigger_object.tgrelid
+          JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+          WHERE namespace.nspname = 'public'
+            AND NOT trigger_object.tgisinternal
+            AND trigger_object.tgenabled = 'D'
+        ),
+        'eventTriggers', (SELECT count(*)::int FROM pg_event_trigger),
+        'hdcForeignTables', (
+          SELECT count(*)::int
+          FROM pg_class relation
+          JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+          WHERE namespace.nspname = 'public'
+            AND relation.relname LIKE 'hdc_%'
+            AND relation.relkind = 'f'
+        ),
+        'hdcPublicationTables', (
+          SELECT count(*)::int
+          FROM pg_publication_rel publication_relation
+          JOIN pg_class relation ON relation.oid = publication_relation.prrelid
+          JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+          WHERE namespace.nspname = 'public'
+            AND relation.relname LIKE 'hdc_%'
+        )
+      ) AS audit
+    `);
+    const portabilityAudit = audits[0]?.audit;
+    const auditArrays = [
+      portabilityAudit?.unknownSchemas,
+      portabilityAudit?.unknownExtensions,
+      portabilityAudit?.providerReferences,
+      portabilityAudit?.nonportablePolicyRoles,
+    ];
+    const auditCounts = [
+      portabilityAudit?.unvalidatedConstraints,
+      portabilityAudit?.invalidIndexes,
+      portabilityAudit?.disabledUserTriggers,
+      portabilityAudit?.eventTriggers,
+      portabilityAudit?.hdcForeignTables,
+      portabilityAudit?.hdcPublicationTables,
+    ];
+    if (
+      portabilityAudit?.version !== 1 ||
+      auditArrays.some((value) => !Array.isArray(value) || value.length > 0) ||
+      auditCounts.some((value) => Number(value) !== 0)
+    ) {
+      throw new Error(
+        `HDC portability preflight failed: ${JSON.stringify(portabilityAudit)}`,
+      );
+    }
+
+    const portablePrivileges = await capturePortablePrivileges(sql);
+    return { inventory, portabilityAudit, portablePrivileges };
   } finally {
     await sql.end({ timeout: 2 });
   }
@@ -113,8 +299,9 @@ const databaseUrl = process.env.HDC_DATABASE_URL?.trim() ||
 if (!databaseUrl) {
   throw new Error('HDC_DATABASE_URL (or legacy DATABASE_URL) is required.');
 }
+const databaseConnection = parseBackupDatabaseUrl(databaseUrl);
 const sourceDatabase = decodeURIComponent(
-  new URL(databaseUrl).pathname.replace(/^\//, ''),
+  databaseConnection.pathname.replace(/^\//, ''),
 );
 
 mkdirSync(outputDirectory, { recursive: true });
@@ -126,17 +313,13 @@ const manifestPath = `${backupPath}.manifest.json`;
 let backupComplete = false;
 
 try {
-  const inventory = await backupInventory(databaseUrl);
+  const key = encryptionKey();
+  const metadata = await backupMetadata(databaseUrl);
   const dump = spawnSync(
     'pg_dump',
-    [
-      '--format=custom',
-      '--no-owner',
-      '--file',
-      plainDumpPath,
-    ],
+    pgDumpArguments(databaseUrl, plainDumpPath),
     {
-      env: { ...process.env, PGDATABASE: databaseUrl },
+      env: { ...process.env },
       stdio: ['ignore', 'inherit', 'inherit'],
     },
   );
@@ -146,7 +329,7 @@ try {
   }
 
   const iv = randomBytes(12);
-  const cipher = createCipheriv('aes-256-gcm', encryptionKey(), iv);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
   const output = createWriteStream(backupPath, { flags: 'wx', mode: 0o600 });
   output.write(MAGIC);
   output.write(iv);
@@ -156,17 +339,22 @@ try {
   await finished;
 
   const checksumSha256 = await sha256(backupPath);
-  const manifest = {
+  const manifest = authenticateManifest({
     format: 'HDCBKP1',
-    manifestVersion: 2,
+    manifestVersion: BACKUP_MANIFEST_VERSION,
     encryption: 'AES-256-GCM',
     source: 'postgres',
     sourceDatabase,
+    privilegeMode: 'authenticated-hdc-allowlist-v1',
+    excludedExtensions: [...PORTABLE_BACKUP_EXCLUDED_EXTENSIONS],
+    excludedSchemas: [...PORTABLE_BACKUP_EXCLUDED_SCHEMAS],
     createdAt: new Date().toISOString(),
     backupFile: basename(backupPath),
     checksumSha256,
-    inventory,
-  };
+    inventory: metadata.inventory,
+    portabilityAudit: metadata.portabilityAudit,
+    portablePrivileges: metadata.portablePrivileges,
+  }, key);
   writeFileSync(
     manifestPath,
     `${JSON.stringify(manifest, null, 2)}\n`,

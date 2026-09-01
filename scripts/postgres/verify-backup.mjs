@@ -20,6 +20,19 @@ import { spawnSync } from 'node:child_process';
 import { pipeline } from 'node:stream/promises';
 import postgres from 'postgres';
 
+import {
+  BACKUP_MANIFEST_VERSION,
+  verifyManifestAuthentication,
+} from './backup-format.mjs';
+import {
+  PORTABLE_BACKUP_EXCLUDED_EXTENSIONS,
+  PORTABLE_BACKUP_EXCLUDED_SCHEMAS,
+} from './backup-command.mjs';
+import {
+  applyPortablePrivileges,
+  normalizePortablePrivileges,
+} from './portable-privileges.mjs';
+
 const MAGIC = Buffer.from('HDCBKP1\n', 'utf8');
 const HEADER_BYTES = MAGIC.length + 12;
 const AUTH_TAG_BYTES = 16;
@@ -72,16 +85,41 @@ const manifestPath = `${backupPath}.manifest.json`;
 if (!existsSync(manifestPath)) {
   throw new Error('The adjacent HDC backup manifest is required.');
 }
+const key = encryptionKey();
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+verifyManifestAuthentication(manifest, key);
+const portablePrivileges = normalizePortablePrivileges(
+  manifest.portablePrivileges,
+);
 if (
   manifest.format !== 'HDCBKP1' ||
-  manifest.manifestVersion !== 2 ||
+  manifest.manifestVersion !== BACKUP_MANIFEST_VERSION ||
   manifest.encryption !== 'AES-256-GCM' ||
   manifest.source !== 'postgres' ||
+  manifest.privilegeMode !== 'authenticated-hdc-allowlist-v1' ||
+  JSON.stringify(manifest.excludedExtensions) !==
+    JSON.stringify(PORTABLE_BACKUP_EXCLUDED_EXTENSIONS) ||
+  JSON.stringify(manifest.excludedSchemas) !==
+    JSON.stringify(PORTABLE_BACKUP_EXCLUDED_SCHEMAS) ||
   manifest.backupFile !== backupPath.split(/[\\/]/).at(-1) ||
   !/^[a-f0-9]{64}$/.test(String(manifest.checksumSha256 ?? '')) ||
   !manifest.inventory ||
-  !Array.isArray(manifest.inventory.migrationVersions)
+  !Array.isArray(manifest.inventory.migrationVersions) ||
+  manifest.portabilityAudit?.version !== 1 ||
+  [
+    manifest.portabilityAudit.unknownSchemas,
+    manifest.portabilityAudit.unknownExtensions,
+    manifest.portabilityAudit.providerReferences,
+    manifest.portabilityAudit.nonportablePolicyRoles,
+  ].some((value) => !Array.isArray(value) || value.length !== 0) ||
+  [
+    manifest.portabilityAudit.unvalidatedConstraints,
+    manifest.portabilityAudit.invalidIndexes,
+    manifest.portabilityAudit.disabledUserTriggers,
+    manifest.portabilityAudit.eventTriggers,
+    manifest.portabilityAudit.hdcForeignTables,
+    manifest.portabilityAudit.hdcPublicationTables,
+  ].some((value) => Number(value) !== 0)
 ) {
   throw new Error('The HDC backup manifest is invalid.');
 }
@@ -113,7 +151,7 @@ if (manifest.checksumSha256 !== checksum) {
 const temporaryDirectory = mkdtempSync(join(tmpdir(), 'hdc-verify-'));
 const plainDumpPath = join(temporaryDirectory, 'verified.dump');
 try {
-  const decipher = createDecipheriv('aes-256-gcm', encryptionKey(), iv);
+  const decipher = createDecipheriv('aes-256-gcm', key, iv);
   decipher.setAuthTag(authTag);
   await pipeline(
     createReadStream(backupPath, {
@@ -147,6 +185,16 @@ try {
         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hdc_app') THEN
           CREATE ROLE hdc_app NOLOGIN;
         END IF;
+        IF EXISTS (
+          SELECT 1 FROM pg_roles
+          WHERE rolname = 'hdc_app'
+            AND (
+              rolcanlogin OR rolsuper OR rolcreaterole OR rolcreatedb OR
+              rolreplication OR rolbypassrls
+            )
+        ) THEN
+          RAISE EXCEPTION 'Existing hdc_app role has unsafe attributes';
+        END IF;
       END
       $$;
       GRANT hdc_app TO CURRENT_USER WITH SET TRUE;
@@ -161,6 +209,7 @@ try {
       '--clean',
       '--if-exists',
       '--no-owner',
+      '--no-acl',
       '--exit-on-error',
       '--dbname',
       restoreUrl,
@@ -180,6 +229,7 @@ try {
     idle_timeout: 10,
   });
   try {
+    await applyPortablePrivileges(verifiedSql, portablePrivileges);
     const rows = await verifiedSql`
       SELECT
         (SELECT count(*)::int FROM public.hdc_users) AS users,
@@ -227,7 +277,25 @@ try {
               'hdc_service_requests', 'hdc_service_transactions',
               'hdc_private_messages', 'hdc_service_payments',
               'hdc_service_disputes'
-            )) AS application_policies
+            )) AS application_policies,
+        (SELECT count(*)::int FROM pg_namespace
+          WHERE nspname IN ('auth', 'neon_auth', 'pgrst'))
+          AS excluded_service_schemas,
+        (SELECT count(*)::int
+          FROM pg_policies
+          WHERE schemaname = 'public'
+            AND EXISTS (
+              SELECT 1 FROM unnest(roles) policy_role
+              WHERE policy_role NOT IN ('public', 'hdc_app')
+            )) AS provider_policy_roles,
+        (SELECT count(*)::int
+          FROM pg_default_acl default_acl
+          JOIN pg_roles owner_role ON owner_role.oid = default_acl.defaclrole
+          CROSS JOIN LATERAL aclexplode(default_acl.defaclacl) acl
+          LEFT JOIN pg_roles grantee_role ON grantee_role.oid = acl.grantee
+          WHERE owner_role.rolname IN ('cloud_admin', 'neon_service')
+             OR grantee_role.rolname IN ('neon_superuser', 'authenticator'))
+          AS provider_default_acl
     `;
     const row = rows[0];
     const restoredInventory = {
@@ -256,7 +324,10 @@ try {
       row.app_messages_insert !== true ||
       row.app_payments_insert !== true ||
       row.app_disputes_insert !== true ||
-      Number(row.application_policies) < 5
+      Number(row.application_policies) < 5 ||
+      Number(row.excluded_service_schemas) !== 0 ||
+      Number(row.provider_policy_roles) !== 0 ||
+      Number(row.provider_default_acl) !== 0
     ) {
       throw new Error(
         'Restored HDC schema failed legal, constraint, ACL, or RLS readiness checks.',

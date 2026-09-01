@@ -1,16 +1,17 @@
 {
   "name": "hdc-beta-api",
-  "version": "0.6.4-build.23",
+  "version": "0.6.4-build.24",
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "backup:postgres": "node scripts/postgres/backup.mjs",
     "db:rehearse-clean": "node scripts/postgres/rehearse-clean-schema.mjs",
     "build:web": "bash scripts/build-netlify-web.sh",
     "test:postgres": "node scripts/postgres/run-integration-tests.mjs",
+    "test:backup-rehearsal": "node scripts/postgres/run-backup-rehearsal-integration.mjs",
     "verify:backup": "node scripts/postgres/verify-backup.mjs",
     "check:migrations": "node scripts/check-migration-checksums.mjs",
     "check:portability": "node scripts/check-portability.mjs",

@@ -41,7 +41,7 @@ describe('provider-neutral environment', () => {
     expect(await response.json()).toMatchObject({
       service: 'hdc-beta-api',
       status: 'ok',
-      build: '0.6.4-build23',
+      build: '0.6.4-build24',
     });
     expect(response.headers.get('x-hdc-request-id')).toMatch(
       /^[0-9a-f-]{36}$/,

@@ -5,7 +5,12 @@ import 'package:provider/provider.dart';
 
 import '../../core/maps/hdc_map_launcher.dart';
 import '../../core/navigation/hdc_page_route.dart';
+import '../../core/ui/hdc_brand.dart';
+import '../../core/ui/hdc_card.dart';
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_flow.dart';
+import '../../core/ui/hdc_spacing.dart';
+import '../../core/ui/hdc_status_badge.dart';
 import '../../models/account_identity.dart';
 import '../../models/service_request_draft.dart';
 import '../../models/technician_directory_entry.dart';
@@ -74,28 +79,45 @@ class _SearchScreenState extends State<SearchScreen> {
     setState(() => _areaController.text = location);
   }
 
+  void _postRequest() {
+    Navigator.of(
+      context,
+    ).push(HDCPageRoute<void>(page: const CreateServiceRequestScreen()));
+  }
+
   void _showContact(TechnicianDirectoryEntry technician) {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(22, 4, 22, 28),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              HDCStatusBadge(
+                label: 'Technician-published details',
+                tone: HDCStatusTone.info,
+                icon: Icons.verified_user_outlined,
+              ),
+              const SizedBox(height: HDCSpacing.md),
               Text(
                 technician.publicName,
-                style: Theme.of(context).textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w800),
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: HDCSpacing.xs),
               const Text(
-                'Public contact details supplied by this technician.',
-                style: TextStyle(color: HDCColors.textSecondary),
+                'These are the public contact details supplied by this '
+                'technician. Private account information is not shown.',
+                style: TextStyle(
+                  color: HDCColors.textSecondary,
+                  height: 1.45,
+                ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: HDCSpacing.md),
               if (technician.contactEmail.isNotEmpty)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -129,7 +151,13 @@ class _SearchScreenState extends State<SearchScreen> {
     final local = value.toLocal();
     final hour = local.hour.toString().padLeft(2, '0');
     final minute = local.minute.toString().padLeft(2, '0');
-    return 'Last updated $hour:$minute';
+    return 'Updated $hour:$minute';
+  }
+
+  void _clearSearch() {
+    _queryController.clear();
+    _areaController.clear();
+    setState(() {});
   }
 
   @override
@@ -159,7 +187,7 @@ class _SearchScreenState extends State<SearchScreen> {
         actions: [
           if (discovery.isLoadingDirectory)
             const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
+              padding: EdgeInsets.symmetric(horizontal: HDCSpacing.md),
               child: Center(
                 child: SizedBox.square(
                   dimension: 20,
@@ -175,207 +203,292 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
         ],
       ),
-      body: discovery.isLoadingDirectory && discovery.technicians.isEmpty
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _refresh,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(20),
-                children: [
-                  Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 980),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const _DirectoryIntroduction(),
-                          if (ownTechnicianProfile != null &&
-                              !ownTechnicianProfile.isPublic) ...[
-                            const SizedBox(height: 14),
-                            _PrivateTechnicianProfileNotice(
-                              onPublish: () {
-                                Navigator.of(context).push(
-                                  HDCPageRoute<void>(
-                                    page: const ProfileCenterScreen(
-                                      initialRole: HDCPlatformRole.technician,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                          if (discovery.directoryError != null) ...[
-                            const SizedBox(height: 14),
-                            _DirectoryError(onRetry: _refresh),
-                          ],
-                          const SizedBox(height: 18),
-                          LayoutBuilder(
-                            builder: (context, constraints) {
-                              final wide = constraints.maxWidth >= 720;
-                              final query = TextField(
-                                controller: _queryController,
-                                onChanged: (_) => setState(() {}),
-                                decoration: InputDecoration(
-                                  labelText: 'Manual search',
-                                  hintText:
-                                      'Name, skill, specialty, or keyword',
-                                  prefixIcon: const Icon(Icons.search),
-                                  suffixIcon: _queryController.text.isEmpty
-                                      ? null
-                                      : IconButton(
-                                          tooltip: 'Clear search',
-                                          onPressed: () {
-                                            _queryController.clear();
-                                            setState(() {});
-                                          },
-                                          icon: const Icon(Icons.close),
-                                        ),
+      body: HDCSignalBackdrop(
+        child: RefreshIndicator(
+          onRefresh: _refresh,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(
+              HDCSpacing.md,
+              HDCSpacing.md,
+              HDCSpacing.md,
+              HDCSpacing.xxl,
+            ),
+            children: [
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: HDCSpacing.contentMaxWidth,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      HDCFlowHero(
+                        eyebrow: 'Technician discovery',
+                        title: 'Find the right expertise for your issue',
+                        description:
+                            'Search approved public profiles by name, skill, '
+                            'specialty, or service area. Results use details '
+                            'published by each technician.',
+                        icon: Icons.person_search_outlined,
+                        tags: const [
+                          HDCFlowTag(
+                            label: 'Approved technicians',
+                            icon: Icons.verified_outlined,
+                            color: HDCColors.success,
+                          ),
+                          HDCFlowTag(
+                            label: 'Public profiles only',
+                            icon: Icons.visibility_outlined,
+                            color: HDCColors.info,
+                          ),
+                          HDCFlowTag(
+                            label: 'Area-aware results',
+                            icon: Icons.near_me_outlined,
+                          ),
+                        ],
+                        action: FilledButton.icon(
+                          key: const Key('hdc-discovery-post-request'),
+                          onPressed: _postRequest,
+                          icon: const Icon(Icons.campaign_outlined),
+                          label: const Text('Post a Service Request'),
+                        ),
+                      ),
+                      if (ownTechnicianProfile != null &&
+                          !ownTechnicianProfile.isPublic) ...[
+                        const SizedBox(height: HDCSpacing.md),
+                        _PrivateTechnicianProfileNotice(
+                          onPublish: () {
+                            Navigator.of(context).push(
+                              HDCPageRoute<void>(
+                                page: const ProfileCenterScreen(
+                                  initialRole: HDCPlatformRole.technician,
                                 ),
-                              );
-                              final area = TextField(
-                                controller: _areaController,
-                                onChanged: (_) => setState(() {}),
-                                decoration: InputDecoration(
-                                  labelText: 'Preferred service area',
-                                  hintText: 'Example: Cebu City',
-                                  prefixIcon: const Icon(
-                                    Icons.location_on_outlined,
-                                  ),
-                                  suffixIcon: IconButton(
-                                    tooltip: 'Use my profile location',
-                                    onPressed: () => _useProfileArea(profiles),
-                                    icon: const Icon(Icons.my_location),
-                                  ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                      if (discovery.directoryError != null) ...[
+                        const SizedBox(height: HDCSpacing.md),
+                        _DirectoryError(onRetry: _refresh),
+                      ],
+                      const SizedBox(height: HDCSpacing.lg),
+                      HDCSectionCard(
+                        title: 'Search the directory',
+                        subtitle:
+                            'Area matches are prioritized; no estimated '
+                            'distance or rating is invented.',
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final wide = constraints.maxWidth >= 720;
+                            final query = TextField(
+                              key: const Key('hdc-technician-query'),
+                              controller: _queryController,
+                              onChanged: (_) => setState(() {}),
+                              textInputAction: TextInputAction.search,
+                              decoration: InputDecoration(
+                                labelText: 'Skill, specialty, or technician',
+                                hintText: 'Example: laptop repair',
+                                prefixIcon: const Icon(Icons.search),
+                                suffixIcon: _queryController.text.isEmpty
+                                    ? null
+                                    : IconButton(
+                                        tooltip: 'Clear search term',
+                                        onPressed: () {
+                                          _queryController.clear();
+                                          setState(() {});
+                                        },
+                                        icon: const Icon(Icons.close),
+                                      ),
+                              ),
+                            );
+                            final area = TextField(
+                              key: const Key('hdc-technician-area'),
+                              controller: _areaController,
+                              onChanged: (_) => setState(() {}),
+                              textInputAction: TextInputAction.search,
+                              decoration: InputDecoration(
+                                labelText: 'Preferred service area',
+                                hintText: 'Example: Cebu City',
+                                prefixIcon: const Icon(
+                                  Icons.location_on_outlined,
                                 ),
-                              );
-                              if (!wide) {
-                                return Column(
-                                  children: [
-                                    query,
-                                    const SizedBox(height: 12),
-                                    area,
-                                  ],
-                                );
-                              }
-                              return Row(
+                                suffixIcon: IconButton(
+                                  tooltip: 'Use my profile location',
+                                  onPressed: () => _useProfileArea(profiles),
+                                  icon: const Icon(Icons.my_location),
+                                ),
+                              ),
+                            );
+
+                            if (!wide) {
+                              return Column(
                                 children: [
-                                  Expanded(child: query),
-                                  const SizedBox(width: 12),
-                                  Expanded(child: area),
+                                  query,
+                                  const SizedBox(height: HDCSpacing.sm),
+                                  area,
                                 ],
                               );
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 8,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              Text(
-                                technicians.length == 1
-                                    ? '1 technician found'
-                                    : '${technicians.length} technicians found',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              Text(
-                                _lastUpdated(discovery.directoryUpdatedAt),
-                                style: const TextStyle(
-                                  color: HDCColors.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              if (_areaController.text.trim().isNotEmpty)
-                                OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _openMap(_areaController.text),
-                                  icon: const Icon(Icons.map_outlined),
-                                  label: const Text('Open area map'),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          if (technicians.isEmpty)
-                            _EmptyDirectory(
-                              directoryIsEmpty: discovery.technicians.isEmpty,
-                              onClear: () {
-                                _queryController.clear();
-                                _areaController.clear();
-                                setState(() {});
-                              },
-                              onPostRequest: () {
-                                Navigator.of(context).push(
-                                  HDCPageRoute<void>(
-                                    page: const CreateServiceRequestScreen(),
-                                  ),
-                                );
-                              },
-                            )
-                          else
-                            ...technicians.map(
-                              (technician) => Padding(
-                                padding: const EdgeInsets.only(bottom: 14),
-                                child: _TechnicianCard(
-                                  technician: technician,
-                                  areaRank:
-                                      TechnicianDiscoveryProvider.areaMatchRank(
-                                        technician.location,
-                                        _areaController.text,
-                                      ),
-                                  onMap: technician.location.isEmpty
-                                      ? null
-                                      : () => _openMap(technician.location),
-                                  onContact: technician.hasPublicContact
-                                      ? () => _showContact(technician)
-                                      : null,
-                                ),
-                              ),
-                            ),
-                        ],
+                            }
+
+                            return Row(
+                              children: [
+                                Expanded(child: query),
+                                const SizedBox(width: HDCSpacing.sm),
+                                Expanded(child: area),
+                              ],
+                            );
+                          },
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: HDCSpacing.lg),
+                      _ResultsHeader(
+                        count: technicians.length,
+                        lastUpdated: _lastUpdated(
+                          discovery.directoryUpdatedAt,
+                        ),
+                        area: _areaController.text.trim(),
+                        onMap: _areaController.text.trim().isEmpty
+                            ? null
+                            : () => _openMap(_areaController.text),
+                        onClear:
+                            _queryController.text.trim().isEmpty &&
+                                _areaController.text.trim().isEmpty
+                            ? null
+                            : _clearSearch,
+                      ),
+                      const SizedBox(height: HDCSpacing.md),
+                      if (discovery.isLoadingDirectory &&
+                          discovery.technicians.isEmpty)
+                        const _DirectoryLoading()
+                      else if (technicians.isEmpty)
+                        _EmptyDirectory(
+                          directoryIsEmpty: discovery.technicians.isEmpty,
+                          onClear: _clearSearch,
+                          onPostRequest: _postRequest,
+                        )
+                      else
+                        _TechnicianGrid(
+                          technicians: technicians,
+                          searchArea: _areaController.text,
+                          onMap: _openMap,
+                          onContact: _showContact,
+                        ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
 
-class _DirectoryIntroduction extends StatelessWidget {
-  const _DirectoryIntroduction();
+class _ResultsHeader extends StatelessWidget {
+  final int count;
+  final String lastUpdated;
+  final String area;
+  final VoidCallback? onMap;
+  final VoidCallback? onClear;
+
+  const _ResultsHeader({
+    required this.count,
+    required this.lastUpdated,
+    required this.area,
+    required this.onMap,
+    required this.onClear,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      color: HDCColors.primary,
-      child: const Padding(
-        padding: EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Search approved technicians',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-              ),
+    return HDCCard(
+      padding: const EdgeInsets.all(HDCSpacing.md),
+      child: Wrap(
+        spacing: HDCSpacing.sm,
+        runSpacing: HDCSpacing.sm,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          HDCStatusBadge(
+            label: count == 1 ? '1 technician found' : '$count technicians found',
+            tone: count > 0 ? HDCStatusTone.success : HDCStatusTone.neutral,
+            icon: Icons.groups_outlined,
+          ),
+          Text(
+            lastUpdated,
+            style: const TextStyle(
+              color: HDCColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
             ),
-            SizedBox(height: 8),
-            Text(
-              'Search manually by name, skill, specialty, or service area. '
-              'Area matches are shown first, and each listed location can be '
-              'opened on the map.',
-              style: TextStyle(color: Colors.white70, height: 1.45),
+          ),
+          if (area.isNotEmpty)
+            OutlinedButton.icon(
+              onPressed: onMap,
+              icon: const Icon(Icons.map_outlined),
+              label: const Text('Open Area Map'),
             ),
-          ],
-        ),
+          if (onClear != null)
+            TextButton.icon(
+              onPressed: onClear,
+              icon: const Icon(Icons.restart_alt),
+              label: const Text('Clear Filters'),
+            ),
+        ],
       ),
+    );
+  }
+}
+
+class _TechnicianGrid extends StatelessWidget {
+  final List<TechnicianDirectoryEntry> technicians;
+  final String searchArea;
+  final Future<void> Function(String location) onMap;
+  final ValueChanged<TechnicianDirectoryEntry> onContact;
+
+  const _TechnicianGrid({
+    required this.technicians,
+    required this.searchArea,
+    required this.onMap,
+    required this.onContact,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 960 ? 2 : 1;
+        final width = columns == 2
+            ? (constraints.maxWidth - HDCSpacing.md) / 2
+            : constraints.maxWidth;
+
+        return Wrap(
+          key: const Key('hdc-technician-results'),
+          spacing: HDCSpacing.md,
+          runSpacing: HDCSpacing.md,
+          children: [
+            for (final technician in technicians)
+              SizedBox(
+                width: width,
+                child: _TechnicianCard(
+                  technician: technician,
+                  areaRank: TechnicianDiscoveryProvider.areaMatchRank(
+                    technician.location,
+                    searchArea,
+                  ),
+                  onMap: technician.location.isEmpty
+                      ? null
+                      : () => onMap(technician.location),
+                  onContact: technician.hasPublicContact
+                      ? () => onContact(technician)
+                      : null,
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -399,131 +512,179 @@ class _TechnicianCard extends StatelessWidget {
       ...technician.skills,
       ...technician.specialties,
     }.take(6).toList(growable: false);
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 25,
-                  backgroundColor: HDCColors.secondary.withValues(alpha: 0.12),
-                  child: const Icon(Icons.engineering_outlined),
+
+    return HDCCard(
+      key: Key('hdc-technician-${technician.profileId}'),
+      elevated: areaRank > 0,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: HDCColors.secondary.withValues(alpha: 0.11),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        technician.publicName,
-                        style: Theme.of(context).textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w800),
+                child: const Icon(
+                  Icons.engineering_outlined,
+                  color: HDCColors.secondary,
+                  size: 27,
+                ),
+              ),
+              const SizedBox(width: HDCSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      technician.publicName,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
                       ),
-                      if (technician.headline.isNotEmpty) ...[
-                        const SizedBox(height: 3),
-                        Text(technician.headline),
-                      ],
-                      const SizedBox(height: 4),
+                    ),
+                    if (technician.headline.isNotEmpty) ...[
+                      const SizedBox(height: 3),
                       Text(
-                        technician.publicMemberId,
-                        style: const TextStyle(
-                          color: HDCColors.textSecondary,
-                          fontSize: 12,
-                        ),
+                        technician.headline,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
-                  ),
+                    const SizedBox(height: 5),
+                    Text(
+                      technician.publicMemberId,
+                      style: const TextStyle(
+                        color: HDCColors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
-                if (areaRank > 0)
-                  const Chip(
-                    avatar: Icon(Icons.near_me_outlined, size: 17),
-                    label: Text('Area match'),
-                  ),
-              ],
-            ),
-            if (technician.description.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              Text(technician.description),
-            ],
-            if (technician.location.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.location_on_outlined,
-                    size: 18,
-                    color: HDCColors.textSecondary,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text(technician.location)),
-                ],
               ),
             ],
-            if (skillLabels.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: skillLabels
-                    .map((skill) => Chip(label: Text(skill)))
-                    .toList(growable: false),
-              ),
-            ],
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              children: [
-                if (technician.yearsExperience != null)
-                  _FactChip(
-                    icon: Icons.workspace_premium_outlined,
-                    label: '${technician.yearsExperience} years experience',
-                  ),
-                if (technician.serviceRadiusKm != null)
-                  _FactChip(
-                    icon: Icons.radar_outlined,
-                    label:
-                        '${technician.serviceRadiusKm!.toStringAsFixed(0)} km stated radius',
-                  ),
-                if (technician.availability.isNotEmpty)
-                  _FactChip(
-                    icon: Icons.schedule_outlined,
-                    label: technician.availability,
-                  ),
-                if (technician.emergencyService)
-                  const _FactChip(
-                    icon: Icons.emergency_outlined,
-                    label: 'Emergency service',
-                  ),
-              ],
+          ),
+          if (areaRank > 0) ...[
+            const SizedBox(height: HDCSpacing.sm),
+            const HDCStatusBadge(
+              label: 'Area match',
+              tone: HDCStatusTone.success,
+              icon: Icons.near_me_outlined,
             ),
-            const SizedBox(height: 16),
+          ],
+          if (technician.description.isNotEmpty) ...[
+            const SizedBox(height: HDCSpacing.md),
+            Text(
+              technician.description,
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(height: 1.5),
+            ),
+          ],
+          if (technician.location.isNotEmpty) ...[
+            const SizedBox(height: HDCSpacing.md),
+            _TechnicianFact(
+              icon: Icons.location_on_outlined,
+              label: technician.location,
+            ),
+          ],
+          if (skillLabels.isNotEmpty) ...[
+            const SizedBox(height: HDCSpacing.md),
             Wrap(
-              spacing: 10,
-              runSpacing: 8,
+              spacing: HDCSpacing.xs,
+              runSpacing: HDCSpacing.xs,
               children: [
-                OutlinedButton.icon(
-                  onPressed: onMap,
-                  icon: const Icon(Icons.map_outlined),
-                  label: const Text('View service area'),
-                ),
-                FilledButton.tonalIcon(
-                  onPressed: onContact,
-                  icon: const Icon(Icons.contact_page_outlined),
-                  label: Text(
-                    onContact == null ? 'No public contact' : 'Public contact',
+                for (final skill in skillLabels)
+                  Chip(
+                    avatar: const Icon(Icons.build_outlined, size: 15),
+                    label: Text(skill),
                   ),
-                ),
               ],
             ),
           ],
-        ),
+          const SizedBox(height: HDCSpacing.md),
+          Wrap(
+            spacing: HDCSpacing.xs,
+            runSpacing: HDCSpacing.xs,
+            children: [
+              if (technician.yearsExperience != null)
+                _FactChip(
+                  icon: Icons.workspace_premium_outlined,
+                  label: '${technician.yearsExperience} years experience',
+                ),
+              if (technician.serviceRadiusKm != null)
+                _FactChip(
+                  icon: Icons.radar_outlined,
+                  label:
+                      '${technician.serviceRadiusKm!.toStringAsFixed(0)} km stated radius',
+                ),
+              if (technician.hourlyRate != null)
+                _FactChip(
+                  icon: Icons.payments_outlined,
+                  label:
+                      'PHP ${technician.hourlyRate!.toStringAsFixed(0)} stated hourly rate',
+                ),
+              if (technician.availability.isNotEmpty)
+                _FactChip(
+                  icon: Icons.schedule_outlined,
+                  label: technician.availability,
+                ),
+              if (technician.emergencyService)
+                const _FactChip(
+                  icon: Icons.emergency_outlined,
+                  label: 'Emergency service',
+                ),
+            ],
+          ),
+          const SizedBox(height: HDCSpacing.lg),
+          HDCResponsiveActions(
+            breakpoint: 430,
+            actions: [
+              OutlinedButton.icon(
+                onPressed: onMap,
+                icon: const Icon(Icons.map_outlined),
+                label: Text(
+                  onMap == null ? 'No public area' : 'View Service Area',
+                ),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: onContact,
+                icon: const Icon(Icons.contact_page_outlined),
+                label: Text(
+                  onContact == null ? 'No Public Contact' : 'Public Contact',
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _TechnicianFact extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _TechnicianFact({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: HDCColors.textSecondary),
+        const SizedBox(width: HDCSpacing.xs),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(color: HDCColors.textSecondary),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -536,7 +697,7 @@ class _FactChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Chip(avatar: Icon(icon, size: 17), label: Text(label));
+    return Chip(avatar: Icon(icon, size: 16), label: Text(label));
   }
 }
 
@@ -547,19 +708,40 @@ class _PrivateTechnicianProfileNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      color: HDCColors.warning.withValues(alpha: 0.10),
-      child: ListTile(
-        leading: const Icon(Icons.visibility_off_outlined),
-        title: const Text(
-          'Your Technician profile is private',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-        subtitle: const Text(
-          'Enable “Publicly discoverable profile” before customers can find it.',
-        ),
-        trailing: TextButton(onPressed: onPublish, child: const Text('Edit')),
+    return HDCCard(
+      color: HDCColors.warning.withValues(alpha: 0.08),
+      borderColor: HDCColors.warning.withValues(alpha: 0.24),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.visibility_off_outlined,
+            color: HDCColors.warning,
+          ),
+          const SizedBox(width: HDCSpacing.sm),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your Technician profile is private',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                SizedBox(height: 5),
+                Text(
+                  'Enable “Publicly discoverable profile” before customers '
+                  'can find it.',
+                  style: TextStyle(
+                    color: HDCColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: HDCSpacing.xs),
+          TextButton(onPressed: onPublish, child: const Text('Edit')),
+        ],
       ),
     );
   }
@@ -572,17 +754,47 @@ class _DirectoryError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      color: HDCColors.danger.withValues(alpha: 0.08),
-      child: ListTile(
-        leading: const Icon(Icons.cloud_off_outlined, color: HDCColors.danger),
-        title: const Text(
-          'Technician directory could not be loaded',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-        subtitle: const Text('Check the connection and try again.'),
-        trailing: TextButton(onPressed: onRetry, child: const Text('Retry')),
+    return HDCCard(
+      color: HDCColors.danger.withValues(alpha: 0.06),
+      borderColor: HDCColors.danger.withValues(alpha: 0.22),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.cloud_off_outlined, color: HDCColors.danger),
+          const SizedBox(width: HDCSpacing.sm),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Technician directory could not be loaded',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Existing profile data was not changed. Check the '
+                  'connection and try again.',
+                  style: TextStyle(color: HDCColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
+      ),
+    );
+  }
+}
+
+class _DirectoryLoading extends StatelessWidget {
+  const _DirectoryLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const HDCCard(
+      child: SizedBox(
+        height: 180,
+        child: Center(child: CircularProgressIndicator()),
       ),
     );
   }
@@ -601,53 +813,28 @@ class _EmptyDirectory extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          children: [
-            const Icon(Icons.person_search_outlined, size: 54),
-            const SizedBox(height: 14),
-            Text(
-              directoryIsEmpty
-                  ? 'No public technicians yet'
-                  : 'No technicians match this search',
-              style: Theme.of(context).textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w800),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              directoryIsEmpty
-                  ? 'Approved technicians remain private until they enable '
-                        '“Publicly discoverable profile” in their Technician profile.'
-                  : 'Try another name, skill, specialty, or service area.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: HDCColors.textSecondary),
-            ),
-            const SizedBox(height: 18),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              alignment: WrapAlignment.center,
-              children: [
-                if (!directoryIsEmpty)
-                  OutlinedButton.icon(
-                    onPressed: onClear,
-                    icon: const Icon(Icons.restart_alt),
-                    label: const Text('Clear search'),
-                  ),
-                FilledButton.icon(
-                  onPressed: onPostRequest,
-                  icon: const Icon(Icons.campaign_outlined),
-                  label: const Text('Post a Service Request'),
-                ),
-              ],
-            ),
-          ],
+    return HDCEmptyState(
+      icon: Icons.person_search_outlined,
+      title: directoryIsEmpty
+          ? 'No public technicians yet'
+          : 'No technicians match this search',
+      description: directoryIsEmpty
+          ? 'Approved technicians remain private until they enable '
+                '“Publicly discoverable profile” in their Technician profile.'
+          : 'Try another name, skill, specialty, or service area.',
+      actions: [
+        if (!directoryIsEmpty)
+          OutlinedButton.icon(
+            onPressed: onClear,
+            icon: const Icon(Icons.restart_alt),
+            label: const Text('Clear Search'),
+          ),
+        FilledButton.icon(
+          onPressed: onPostRequest,
+          icon: const Icon(Icons.campaign_outlined),
+          label: const Text('Post a Service Request'),
         ),
-      ),
+      ],
     );
   }
 }
@@ -659,28 +846,21 @@ class _DirectorySignInRequired extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Find a Technician')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.lock_person_outlined, size: 58),
-                SizedBox(height: 18),
-                Text(
-                  'Registered Account Required',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: 10),
-                Text(
-                  'Sign in to search approved public Technician profiles. '
-                  'Private profiles and internal account details are never listed.',
-                  textAlign: TextAlign.center,
-                ),
-              ],
+      body: HDCSignalBackdrop(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(HDCSpacing.lg),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: const HDCEmptyState(
+                icon: Icons.lock_person_outlined,
+                title: 'Registered Account Required',
+                description:
+                    'Sign in to search approved public Technician profiles. '
+                    'Private profiles and internal account details are never '
+                    'listed.',
+                color: HDCColors.info,
+              ),
             ),
           ),
         ),

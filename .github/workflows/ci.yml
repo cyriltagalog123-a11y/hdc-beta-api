@@ -15,12 +15,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
@@ -73,17 +73,30 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      restore-postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hdc_restore
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hdc_restore"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       HDC_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/hdc_test
       HDC_ALLOW_TEST_DATABASE_RESET: '1'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
@@ -95,6 +108,28 @@ jobs:
       - name: Offers, acceptance, chat, payment, dispute, and isolation tests
         run: npm run test:postgres
 
+      - name: Install PostgreSQL 18 client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error \
+            -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client-18
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
+
+      - name: Production-shaped encrypted backup and clean restore
+        env:
+          HDC_DATABASE_URL: postgres://postgres:postgres@localhost:5432/hdc_test
+          HDC_RESTORE_DATABASE_URL: postgres://postgres:postgres@localhost:5433/hdc_restore
+          HDC_BACKUP_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+          HDC_ALLOW_RESTORE_RESET: '1'
+        run: npm run test:backup-rehearsal
+
   flutter-web:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -102,7 +137,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.head_ref || github.ref_name }}
 
@@ -123,9 +158,9 @@ jobs:
           cache: true
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Analyze, test, and build Flutter web
         run: npm run build:web
@@ -133,7 +168,7 @@ jobs:
       - name: Upload verified Flutter web bundle
         uses: actions/upload-artifact@v4
         with:
-          name: hdc-web-build23
+          name: hdc-web-build24
           path: build/web
           if-no-files-found: error
           retention-days: 3
@@ -153,5 +188,5 @@ jobs:
             echo "Verified Flutter web bundle is already synchronized."
             exit 0
           fi
-          git commit -m "Synchronize verified Build 23 web bundle"
+          git commit -m "Synchronize verified Build 24 web bundle"
           git push origin "HEAD:${HDC_REVIEW_BRANCH}"

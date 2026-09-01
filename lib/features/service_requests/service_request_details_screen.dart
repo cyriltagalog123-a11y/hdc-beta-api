@@ -4,7 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/navigation/hdc_page_route.dart';
+import '../../core/ui/hdc_brand.dart';
+import '../../core/ui/hdc_card.dart';
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_flow.dart';
+import '../../core/ui/hdc_spacing.dart';
+import '../../core/ui/hdc_status_badge.dart';
 import '../../core/workflow/hdc_workflow_refresh.dart';
 import '../../models/service_request.dart';
 import '../../models/service_transaction.dart';
@@ -86,20 +91,63 @@ class _ServiceRequestDetailsScreenState
 
   String _dateLabel(DateTime date) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
+  void _edit(ServiceRequest request) {
+    Navigator.of(context).push(
+      HDCPageRoute<void>(
+        page: CreateServiceRequestScreen(existingRequest: request),
+      ),
+    );
+  }
+
+  void _reviewProposals(ServiceRequest request) {
+    Navigator.of(context).push(
+      HDCPageRoute<void>(
+        page: CustomerProposalInboxScreen(request: request),
+      ),
+    );
+  }
+
+  void _openWorkspace(
+    ServiceRequest request,
+    ServiceTransaction transaction,
+  ) {
+    Navigator.of(context).push(
+      HDCPageRoute<void>(
+        page: ServiceTransactionWorkspaceScreen(
+          transactionId: transaction.id,
+          actorId: request.customerId,
+          role: ServiceTransactionParticipantRole.customer,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final sync = context.watch<HdcWorkflowSyncProvider?>();
-    final isRefreshing = sync?.isSyncing ?? false;
+    final proposalProvider = context.watch<ProposalProvider>();
+    final isRefreshing =
+        (sync?.isSyncing ?? false) || proposalProvider.isLoading;
+    final refreshError = sync?.lastError ?? proposalProvider.lastError;
     final request = context.select<ServiceRequestProvider, ServiceRequest?>(
       (provider) => provider.byId(widget.requestId),
     );
-    final proposalProvider = context.watch<ProposalProvider>();
     final proposalSummary = proposalProvider.summaryForRequest(
       widget.requestId,
     );
@@ -118,22 +166,37 @@ class _ServiceRequestDetailsScreenState
             ),
           ],
         ),
-        body: isRefreshing
-            ? const Center(child: CircularProgressIndicator())
-            : Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('This service request was not found.'),
-                    const SizedBox(height: 12),
-                    FilledButton.icon(
-                      onPressed: () => refreshHdcWorkflow(context),
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Try Again'),
-                    ),
-                  ],
-                ),
+        body: HDCSignalBackdrop(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(HDCSpacing.lg),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: isRefreshing
+                    ? const HDCCard(
+                        child: SizedBox(
+                          height: 180,
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                      )
+                    : HDCEmptyState(
+                        icon: Icons.search_off_outlined,
+                        title: 'Service request not found',
+                        description:
+                            'The request may not be available to this account, '
+                            'or the latest records have not loaded yet.',
+                        actions: [
+                          FilledButton.icon(
+                            onPressed: () => refreshHdcWorkflow(context),
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Try Again'),
+                          ),
+                        ],
+                      ),
               ),
+            ),
+          ),
+        ),
       );
     }
 
@@ -152,9 +215,8 @@ class _ServiceRequestDetailsScreenState
                 ? null
                 : () => refreshHdcWorkflow(context),
             icon: isRefreshing
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
+                ? const SizedBox.square(
+                    dimension: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.refresh),
@@ -162,368 +224,137 @@ class _ServiceRequestDetailsScreenState
           if (request.status.canEdit)
             IconButton(
               tooltip: 'Edit request',
-              onPressed: () {
-                Navigator.of(context).push(
-                  HDCPageRoute<void>(
-                    page: CreateServiceRequestScreen(
-                      existingRequest: request,
-                    ),
-                  ),
-                );
-              },
+              onPressed: () => _edit(request),
               icon: const Icon(Icons.edit_outlined),
             ),
         ],
       ),
-      body: SafeArea(
+      body: HDCSignalBackdrop(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(
+            HDCSpacing.md,
+            HDCSpacing.md,
+            HDCSpacing.md,
+            HDCSpacing.xxl,
+          ),
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 900),
+              constraints: const BoxConstraints(
+                maxWidth: HDCSpacing.contentMaxWidth,
+              ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (widget.justPublished) ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: HDCColors.success.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: HDCColors.success.withValues(alpha: 0.25),
-                        ),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.check_circle, color: HDCColors.success),
-                          SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Your service request is now open and ready for '
-                              'technician offers.',
-                              style: TextStyle(fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 18),
+                    const _PublishedNotice(),
+                    const SizedBox(height: HDCSpacing.md),
                   ],
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  if (refreshError != null) ...[
+                    _RecordSyncWarning(
+                      onRetry: () => refreshHdcWorkflow(context),
+                    ),
+                    const SizedBox(height: HDCSpacing.md),
+                  ],
+                  HDCFlowHero(
+                    eyebrow: 'Customer request record',
+                    title: request.title,
+                    description:
+                        'Review the issue, compare every tracked offer, and '
+                        'continue into the service workspace after acceptance.',
+                    icon: Icons.assignment_outlined,
+                    tags: [
+                      HDCFlowTag(
+                        label: request.status.label,
+                        icon: _requestStatusIcon(request.status),
+                        color: _requestStatusColor(request.status),
+                      ),
+                      HDCFlowTag(
+                        label: request.categoryName,
+                        icon: Icons.category_outlined,
+                        color: HDCColors.accent,
+                      ),
+                      HDCFlowTag(
+                        label: request.urgency.label,
+                        icon: Icons.priority_high,
+                        color: request.urgency ==
+                                ServiceRequestUrgency.emergency
+                            ? HDCColors.danger
+                            : HDCColors.warning,
+                      ),
+                    ],
+                    action: request.status.canEdit
+                        ? FilledButton.tonalIcon(
+                            key: const Key('hdc-request-details-edit'),
+                            onPressed: () => _edit(request),
+                            icon: const Icon(Icons.edit_outlined),
+                            label: const Text('Edit Request'),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(height: HDCSpacing.lg),
+                  _RequestMetrics(
+                    offerCount: proposalSummary.received,
+                    viewedCount: proposalSummary.viewedOrBeyond,
+                    shortlistedCount: proposalSummary.shortlisted,
+                    transaction: transaction,
+                  ),
+                  const SizedBox(height: HDCSpacing.lg),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final wide = constraints.maxWidth >= 1020;
+                      final details = Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Wrap(
-                            spacing: 9,
-                            runSpacing: 9,
-                            children: [
-                              _StatusBadge(status: request.status),
-                              _SimpleBadge(label: request.categoryName),
-                              _SimpleBadge(label: request.urgency.label),
-                            ],
+                          _RequestInformation(
+                            request: request,
+                            dateLabel: _dateLabel,
                           ),
-                          const SizedBox(height: 18),
-                          Text(
-                            request.title,
-                            style: Theme.of(context).textTheme.headlineMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            request.id,
-                            style: const TextStyle(
-                              color: HDCColors.textSecondary,
-                              fontSize: 12,
+                          const SizedBox(height: HDCSpacing.md),
+                          _NexusInsight(
+                            insight: proposalProvider.customerNexusInsight(
+                              request.id,
                             ),
                           ),
-                          const SizedBox(height: 20),
-                          Text(
-                            request.description,
-                            style: const TextStyle(height: 1.6),
-                          ),
-                          const SizedBox(height: 24),
-                          const Divider(),
-                          const SizedBox(height: 18),
-                          LayoutBuilder(
-                            builder: (context, constraints) {
-                              final width = constraints.maxWidth;
-                              final columns = width >= 650 ? 2 : 1;
-                              final itemWidth = columns == 2
-                                  ? (width - 14) / 2
-                                  : width;
-                              return Wrap(
-                                spacing: 14,
-                                runSpacing: 14,
-                                children: [
-                                  _InfoCard(
-                                    width: itemWidth,
-                                    icon: Icons.location_on_outlined,
-                                    label: 'Location',
-                                    value: request.location,
-                                  ),
-                                  _InfoCard(
-                                    width: itemWidth,
-                                    icon: Icons.event_outlined,
-                                    label: 'Schedule',
-                                    value:
-                                        '${_dateLabel(request.preferredDate)} • '
-                                        '${request.preferredTime}',
-                                  ),
-                                  _InfoCard(
-                                    width: itemWidth,
-                                    icon: Icons.payments_outlined,
-                                    label: 'Budget',
-                                    value: request.budgetLabel,
-                                  ),
-                                  _InfoCard(
-                                    width: itemWidth,
-                                    icon: Icons.local_offer_outlined,
-                                    label: 'Offers received',
-                                    value: '${proposalSummary.received}',
-                                  ),
-                                  _InfoCard(
-                                    width: itemWidth,
-                                    icon: Icons.visibility_outlined,
-                                    label: 'Viewed',
-                                    value: '${proposalSummary.viewedOrBeyond}',
-                                  ),
-                                  _InfoCard(
-                                    width: itemWidth,
-                                    icon: Icons.favorite_outline,
-                                    label: 'Shortlisted',
-                                    value: '${proposalSummary.shortlisted}',
-                                  ),
-                                  _InfoCard(
-                                    width: itemWidth,
-                                    icon: Icons.update_outlined,
-                                    label: 'Last updated',
-                                    value: _dateLabel(request.updatedAt),
-                                  ),
-                                ],
-                              );
-                            },
+                          const SizedBox(height: HDCSpacing.md),
+                          RequestProposalActivityCard(
+                            entries: proposalActivity,
                           ),
                         ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(22),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 54,
-                            height: 54,
-                            decoration: BoxDecoration(
-                              color: HDCColors.secondary.withValues(alpha: 0.10),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Icon(
-                              Icons.mark_email_unread_outlined,
-                              color: HDCColors.secondary,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  proposalSummary.received == 1
-                                      ? '1 professional proposal received'
-                                      : '${proposalSummary.received} professional proposals received',
-                                  style: const TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                const Text(
-                                  'Review technician assessments, pricing, schedules, warranties, and reputation.',
-                                  style: TextStyle(
-                                    color: HDCColors.textSecondary,
-                                    height: 1.4,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          FilledButton.icon(
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                HDCPageRoute<void>(
-                                  page: CustomerProposalInboxScreen(
-                                    request: request,
-                                  ),
-                                ),
-                              );
-                            },
-                            icon: const Icon(Icons.inbox_outlined),
-                            label: const Text('Review Proposals'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (transaction != null) ...[
-                    const SizedBox(height: 18),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(22),
-                        child: Row(
+                      );
+                      final actions = _RequestActions(
+                        request: request,
+                        transaction: transaction,
+                        offerCount: proposalSummary.received,
+                        onReviewProposals: () => _reviewProposals(request),
+                        onOpenWorkspace: transaction == null
+                            ? null
+                            : () => _openWorkspace(request, transaction),
+                        onCancel: request.status.isActive
+                            ? () => _cancel(context, request)
+                            : null,
+                      );
+
+                      if (!wide) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const Icon(
-                              Icons.handshake_outlined,
-                              color: HDCColors.success,
-                              size: 30,
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Service Workspace Ready',
-                                    style: TextStyle(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 5),
-                                  Text(
-                                    '${transaction.status.label} • ${transaction.id}',
-                                    style: const TextStyle(
-                                      color: HDCColors.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            FilledButton.icon(
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  HDCPageRoute<void>(
-                                    page: ServiceTransactionWorkspaceScreen(
-                                      transactionId: transaction.id,
-                                      actorId: request.customerId,
-                                      role: ServiceTransactionParticipantRole.customer,
-                                    ),
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.work_outline),
-                              label: const Text('Open Workspace'),
-                            ),
+                            actions,
+                            const SizedBox(height: HDCSpacing.md),
+                            details,
                           ],
-                        ),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 18),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(22),
-                      child: Row(
+                        );
+                      }
+
+                      return Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(
-                            Icons.smart_toy_outlined,
-                            color: HDCColors.secondary,
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Nexus Request Insight',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 17,
-                                  ),
-                                ),
-                                const SizedBox(height: 7),
-                                Text(
-                                  proposalProvider.customerNexusInsight(
-                                    request.id,
-                                  ),
-                                  style: const TextStyle(
-                                    color: HDCColors.textSecondary,
-                                    height: 1.45,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                          Expanded(child: details),
+                          const SizedBox(width: HDCSpacing.lg),
+                          SizedBox(width: 360, child: actions),
                         ],
-                      ),
-                    ),
+                      );
+                    },
                   ),
-                  const SizedBox(height: 18),
-                  RequestProposalActivityCard(
-                    entries: proposalActivity,
-                  ),
-                  const SizedBox(height: 18),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(22),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(
-                            Icons.info_outline,
-                            color: HDCColors.info,
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'What happens next?',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 17,
-                                  ),
-                                ),
-                                const SizedBox(height: 7),
-                                Text(
-                                  request.status ==
-                                          ServiceRequestStatus.cancelled
-                                      ? 'This request is cancelled and is no '
-                                          'longer visible to technicians.'
-                                      : 'Technicians can submit structured professional proposals. Review each proposal carefully and shortlist the strongest options before comparison.',
-                                  style: const TextStyle(
-                                    color: HDCColors.textSecondary,
-                                    height: 1.45,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (request.status.isActive) ...[
-                    const SizedBox(height: 18),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () => _cancel(context, request),
-                        icon: const Icon(Icons.cancel_outlined),
-                        label: const Text('Cancel Request'),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 16),
                 ],
               ),
             ),
@@ -534,63 +365,240 @@ class _ServiceRequestDetailsScreenState
   }
 }
 
-class _StatusBadge extends StatelessWidget {
-  final ServiceRequestStatus status;
-
-  const _StatusBadge({required this.status});
+class _PublishedNotice extends StatelessWidget {
+  const _PublishedNotice();
 
   @override
   Widget build(BuildContext context) {
-    final color = status == ServiceRequestStatus.cancelled
-        ? HDCColors.danger
-        : HDCColors.success;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        status.label,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-        ),
+    return HDCCard(
+      key: const Key('hdc-request-published-notice'),
+      color: HDCColors.success.withValues(alpha: 0.07),
+      borderColor: HDCColors.success.withValues(alpha: 0.24),
+      child: const Row(
+        children: [
+          Icon(Icons.check_circle, color: HDCColors.success),
+          SizedBox(width: HDCSpacing.sm),
+          Expanded(
+            child: Text(
+              'Your service request is open and ready for technician offers.',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _SimpleBadge extends StatelessWidget {
-  final String label;
-  const _SimpleBadge({required this.label});
+class _RecordSyncWarning extends StatelessWidget {
+  final Future<void> Function() onRetry;
+
+  const _RecordSyncWarning({required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-      decoration: BoxDecoration(
-        color: HDCColors.background,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: HDCColors.border),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+    return HDCCard(
+      color: HDCColors.warning.withValues(alpha: 0.07),
+      borderColor: HDCColors.warning.withValues(alpha: 0.24),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.sync_problem, color: HDCColors.warning),
+          const SizedBox(width: HDCSpacing.sm),
+          const Expanded(
+            child: Text(
+              'The latest offer or service update may be delayed. No request '
+              'record was changed by this loading error.',
+              style: TextStyle(height: 1.4, fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(width: HDCSpacing.xs),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
       ),
     );
   }
 }
 
-class _InfoCard extends StatelessWidget {
-  final double width;
+class _RequestMetrics extends StatelessWidget {
+  final int offerCount;
+  final int viewedCount;
+  final int shortlistedCount;
+  final ServiceTransaction? transaction;
+
+  const _RequestMetrics({
+    required this.offerCount,
+    required this.viewedCount,
+    required this.shortlistedCount,
+    required this.transaction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 1020
+            ? 4
+            : constraints.maxWidth >= 620
+            ? 2
+            : 1;
+        final width =
+            (constraints.maxWidth - (columns - 1) * HDCSpacing.sm) / columns;
+
+        return Wrap(
+          key: const Key('hdc-request-details-metrics'),
+          spacing: HDCSpacing.sm,
+          runSpacing: HDCSpacing.sm,
+          children: [
+            SizedBox(
+              width: width,
+              child: HDCMetricTile(
+                icon: Icons.local_offer_outlined,
+                label: 'Offers received',
+                value: '$offerCount',
+              ),
+            ),
+            SizedBox(
+              width: width,
+              child: HDCMetricTile(
+                icon: Icons.visibility_outlined,
+                label: 'Viewed',
+                value: '$viewedCount',
+                color: HDCColors.info,
+              ),
+            ),
+            SizedBox(
+              width: width,
+              child: HDCMetricTile(
+                icon: Icons.favorite_outline,
+                label: 'Shortlisted',
+                value: '$shortlistedCount',
+                color: HDCColors.warning,
+              ),
+            ),
+            SizedBox(
+              width: width,
+              child: HDCMetricTile(
+                icon: Icons.handshake_outlined,
+                label: 'Service workspace',
+                value: transaction?.status.label ?? 'Not active yet',
+                color: transaction == null
+                    ? HDCColors.textSecondary
+                    : HDCColors.success,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _RequestInformation extends StatelessWidget {
+  final ServiceRequest request;
+  final String Function(DateTime) dateLabel;
+
+  const _RequestInformation({
+    required this.request,
+    required this.dateLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return HDCSectionCard(
+      title: 'Request information',
+      subtitle: 'The published issue details technicians use for their offers.',
+      trailing: HDCStatusBadge(
+        label: request.status.label,
+        tone: _requestStatusTone(request.status),
+        icon: _requestStatusIcon(request.status),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            request.description,
+            style: const TextStyle(height: 1.6),
+          ),
+          const SizedBox(height: HDCSpacing.lg),
+          const Divider(),
+          const SizedBox(height: HDCSpacing.md),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 620 ? 2 : 1;
+              final width = columns == 2
+                  ? (constraints.maxWidth - HDCSpacing.sm) / 2
+                  : constraints.maxWidth;
+
+              return Wrap(
+                spacing: HDCSpacing.sm,
+                runSpacing: HDCSpacing.sm,
+                children: [
+                  SizedBox(
+                    width: width,
+                    child: _RequestDetail(
+                      icon: Icons.location_on_outlined,
+                      label: 'Location',
+                      value: request.location,
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _RequestDetail(
+                      icon: Icons.event_outlined,
+                      label: 'Preferred schedule',
+                      value:
+                          '${dateLabel(request.preferredDate)} • ${request.preferredTime}',
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _RequestDetail(
+                      icon: Icons.payments_outlined,
+                      label: 'Budget',
+                      value: request.budgetLabel,
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _RequestDetail(
+                      icon: Icons.priority_high,
+                      label: 'Urgency',
+                      value: request.urgency.label,
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _RequestDetail(
+                      icon: Icons.update_outlined,
+                      label: 'Last updated',
+                      value: dateLabel(request.updatedAt),
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _RequestDetail(
+                      icon: Icons.fingerprint,
+                      label: 'Request reference',
+                      value: request.id,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RequestDetail extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
 
-  const _InfoCard({
-    required this.width,
+  const _RequestDetail({
     required this.icon,
     required this.label,
     required this.value,
@@ -598,38 +606,282 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: HDCColors.background,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: HDCColors.border),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: HDCColors.secondary),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      color: HDCColors.textSecondary,
-                      fontSize: 11,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
-                ],
-              ),
+    return Container(
+      padding: const EdgeInsets.all(HDCSpacing.md),
+      decoration: BoxDecoration(
+        color: HDCColors.background,
+        borderRadius: BorderRadius.circular(HDCSpacing.radiusSmall),
+        border: Border.all(color: HDCColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: HDCColors.secondary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(11),
             ),
-          ],
-        ),
+            child: Icon(icon, color: HDCColors.secondary, size: 19),
+          ),
+          const SizedBox(width: HDCSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: HDCColors.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                SelectableText(
+                  value,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+class _RequestActions extends StatelessWidget {
+  final ServiceRequest request;
+  final ServiceTransaction? transaction;
+  final int offerCount;
+  final VoidCallback onReviewProposals;
+  final VoidCallback? onOpenWorkspace;
+  final VoidCallback? onCancel;
+
+  const _RequestActions({
+    required this.request,
+    required this.transaction,
+    required this.offerCount,
+    required this.onReviewProposals,
+    required this.onOpenWorkspace,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: const Key('hdc-request-details-actions'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ActionPanel(
+          icon: Icons.mark_email_unread_outlined,
+          color: HDCColors.secondary,
+          title: offerCount == 1
+              ? '1 professional offer'
+              : '$offerCount professional offers',
+          description:
+              'Review technician assessments, pricing, schedules, warranties, '
+              'and reputation before accepting.',
+          action: FilledButton.icon(
+            key: const Key('hdc-request-review-offers'),
+            onPressed: onReviewProposals,
+            icon: const Icon(Icons.inbox_outlined),
+            label: const Text('Review All Offers'),
+          ),
+        ),
+        if (transaction != null) ...[
+          const SizedBox(height: HDCSpacing.md),
+          _ActionPanel(
+            icon: Icons.handshake_outlined,
+            color: HDCColors.success,
+            title: 'Service workspace ready',
+            description:
+                '${transaction!.status.label} • ${transaction!.id}',
+            action: FilledButton.icon(
+              key: const Key('hdc-request-open-workspace'),
+              onPressed: onOpenWorkspace,
+              icon: const Icon(Icons.work_outline),
+              label: const Text('Open Workspace'),
+            ),
+          ),
+        ],
+        const SizedBox(height: HDCSpacing.md),
+        HDCSectionCard(
+          title: 'What happens next?',
+          child: Text(
+            _nextStepText(request.status, transaction),
+            style: const TextStyle(
+              color: HDCColors.textSecondary,
+              height: 1.5,
+            ),
+          ),
+        ),
+        if (onCancel != null) ...[
+          const SizedBox(height: HDCSpacing.md),
+          OutlinedButton.icon(
+            key: const Key('hdc-request-cancel'),
+            onPressed: onCancel,
+            icon: const Icon(Icons.cancel_outlined),
+            label: const Text('Cancel Request'),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ActionPanel extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String description;
+  final Widget action;
+
+  const _ActionPanel({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.description,
+    required this.action,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return HDCCard(
+      elevated: true,
+      borderColor: color.withValues(alpha: 0.22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Icon(icon, color: color),
+            ),
+          ),
+          const SizedBox(height: HDCSpacing.md),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            style: const TextStyle(
+              color: HDCColors.textSecondary,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: HDCSpacing.md),
+          SizedBox(width: double.infinity, child: action),
+        ],
+      ),
+    );
+  }
+}
+
+class _NexusInsight extends StatelessWidget {
+  final String insight;
+
+  const _NexusInsight({required this.insight});
+
+  @override
+  Widget build(BuildContext context) {
+    return HDCCard(
+      color: HDCColors.secondary.withValues(alpha: 0.05),
+      borderColor: HDCColors.secondary.withValues(alpha: 0.20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.smart_toy_outlined, color: HDCColors.secondary),
+          const SizedBox(width: HDCSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Nexus Request Insight',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  insight,
+                  style: const TextStyle(
+                    color: HDCColors.textSecondary,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _nextStepText(
+  ServiceRequestStatus status,
+  ServiceTransaction? transaction,
+) {
+  if (transaction != null) {
+    return 'An offer has been accepted. Open the service workspace to '
+        'coordinate work, chat, documents, payments, and any dispute record.';
+  }
+  if (status == ServiceRequestStatus.cancelled) {
+    return 'This request is cancelled and is no longer visible to technicians.';
+  }
+  if (status == ServiceRequestStatus.completed) {
+    return 'This request is complete. Its details and proposal activity remain '
+        'available as part of the transaction record.';
+  }
+  if (status == ServiceRequestStatus.expired) {
+    return 'This request has expired. Create a new request if the service is '
+        'still needed.';
+  }
+  return 'Technicians can submit structured professional offers. Review each '
+      'offer and shortlist the strongest options before acceptance.';
+}
+
+HDCStatusTone _requestStatusTone(ServiceRequestStatus status) {
+  return switch (status) {
+    ServiceRequestStatus.draft => HDCStatusTone.neutral,
+    ServiceRequestStatus.open => HDCStatusTone.info,
+    ServiceRequestStatus.receivingOffers => HDCStatusTone.warning,
+    ServiceRequestStatus.technicianSelected => HDCStatusTone.success,
+    ServiceRequestStatus.inProgress => HDCStatusTone.success,
+    ServiceRequestStatus.completed => HDCStatusTone.success,
+    ServiceRequestStatus.cancelled => HDCStatusTone.danger,
+    ServiceRequestStatus.expired => HDCStatusTone.neutral,
+  };
+}
+
+Color _requestStatusColor(ServiceRequestStatus status) {
+  return switch (_requestStatusTone(status)) {
+    HDCStatusTone.neutral => HDCColors.textSecondary,
+    HDCStatusTone.info => HDCColors.info,
+    HDCStatusTone.success => HDCColors.success,
+    HDCStatusTone.warning => HDCColors.warning,
+    HDCStatusTone.danger => HDCColors.danger,
+  };
+}
+
+IconData _requestStatusIcon(ServiceRequestStatus status) {
+  return switch (status) {
+    ServiceRequestStatus.draft => Icons.edit_note_outlined,
+    ServiceRequestStatus.open => Icons.campaign_outlined,
+    ServiceRequestStatus.receivingOffers => Icons.mark_email_unread_outlined,
+    ServiceRequestStatus.technicianSelected => Icons.person_pin_outlined,
+    ServiceRequestStatus.inProgress => Icons.build_circle_outlined,
+    ServiceRequestStatus.completed => Icons.task_alt_outlined,
+    ServiceRequestStatus.cancelled => Icons.cancel_outlined,
+    ServiceRequestStatus.expired => Icons.timer_off_outlined,
+  };
 }

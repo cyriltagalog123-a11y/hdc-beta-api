@@ -1,6 +1,17 @@
 HDC BETA API CHANGELOG
 ======================
 
+2026-08-31 - Build 24A customer requests and technician discovery redesign
+- Adds a guided Customer request intake, review, list, and record experience
+  backed by the existing request, proposal, and transaction providers.
+- Keeps all offers reachable and exposes an accepted service workspace through
+  responsive action panels that do not overflow on compact screens.
+- Redesigns Technician discovery around approved public profiles, textual area
+  matches, and technician-stated information without synthetic distance or
+  reputation claims.
+- Adds no API, database, authorization, payment, document, dispute, or chat
+  behavior changes.
+
 2026-08-27 - Build 20 workflow refresh, proposal reliability, and private chat
 - Refreshes all account-authorized requests, proposals, and transactions when
   Customers open their request list, request details, or proposal inbox.

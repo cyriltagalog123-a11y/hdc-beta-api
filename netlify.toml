@@ -2,7 +2,7 @@
   publish = "build/web"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "24"
 
 [functions]
   directory = "netlify/functions"
