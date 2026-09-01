@@ -981,15 +981,21 @@ class _QualityCard extends StatelessWidget {
 
   List<String> get suggestions {
     final values = <String>[];
-    if (draft.serviceFee <= 0) values.add('Add a clear service fee.');
-    if (draft.diagnosis.trim().length < 30)
+    if (draft.serviceFee <= 0) {
+      values.add('Add a clear service fee.');
+    }
+    if (draft.diagnosis.trim().length < 30) {
       values.add('Explain your initial diagnosis in more detail.');
-    if (draft.repairApproach.trim().length < 30)
+    }
+    if (draft.repairApproach.trim().length < 30) {
       values.add('Describe your repair or diagnostic plan.');
-    if (draft.professionalNotes.trim().length < 20)
+    }
+    if (draft.professionalNotes.trim().length < 20) {
       values.add('Add a professional customer message.');
-    if (draft.warrantyType == ProposalWarrantyType.none)
+    }
+    if (draft.warrantyType == ProposalWarrantyType.none) {
       values.add('Consider adding a service warranty.');
+    }
     return values;
   }
 
