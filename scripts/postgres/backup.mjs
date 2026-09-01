@@ -18,6 +18,11 @@ import { once } from 'node:events';
 import { pipeline } from 'node:stream/promises';
 import postgres from 'postgres';
 
+import {
+  parseBackupDatabaseUrl,
+  pgDumpArguments,
+} from './backup-command.mjs';
+
 const MAGIC = Buffer.from('HDCBKP1\n', 'utf8');
 
 function option(name) {
@@ -113,8 +118,9 @@ const databaseUrl = process.env.HDC_DATABASE_URL?.trim() ||
 if (!databaseUrl) {
   throw new Error('HDC_DATABASE_URL (or legacy DATABASE_URL) is required.');
 }
+const databaseConnection = parseBackupDatabaseUrl(databaseUrl);
 const sourceDatabase = decodeURIComponent(
-  new URL(databaseUrl).pathname.replace(/^\//, ''),
+  databaseConnection.pathname.replace(/^\//, ''),
 );
 
 mkdirSync(outputDirectory, { recursive: true });
@@ -129,14 +135,9 @@ try {
   const inventory = await backupInventory(databaseUrl);
   const dump = spawnSync(
     'pg_dump',
-    [
-      '--format=custom',
-      '--no-owner',
-      '--file',
-      plainDumpPath,
-    ],
+    pgDumpArguments(databaseUrl, plainDumpPath),
     {
-      env: { ...process.env, PGDATABASE: databaseUrl },
+      env: { ...process.env },
       stdio: ['ignore', 'inherit', 'inherit'],
     },
   );

@@ -78,8 +78,10 @@ answer rows still reference its key ID.
 
 ## Encrypted PostgreSQL backups
 
-Requirements: Node.js 20+, `pg_dump`, `pg_restore`, the database URL, and a
-base64-encoded 32-byte encryption key stored separately from the backup.
+Requirements: Node.js 20+, `pg_dump`, `pg_restore`, a direct (unpooled)
+database URL, and a base64-encoded 32-byte encryption key stored separately
+from the backup. For Neon, the backup URL hostname must not contain
+`-pooler`; application runtimes may continue using their separate pooled URL.
 
 Generate an encryption key once and put it in the secret manager, not source:
 
