@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui/hdc_brand.dart';
+import '../../core/ui/hdc_card.dart';
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_flow.dart';
+import '../../core/ui/hdc_spacing.dart';
+import '../../core/ui/hdc_status_badge.dart';
 import '../../models/service_transaction.dart';
 import '../../providers/service_transaction_provider.dart';
 import '../messaging/private_transaction_chat_screen.dart';
@@ -24,102 +29,136 @@ class ServiceTransactionWorkspaceScreen extends StatelessWidget {
     final provider = context.watch<ServiceTransactionProvider>();
     final transaction = provider.byId(transactionId);
 
-    if (transaction == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Service Workspace')),
-        body: const Center(
-          child: Text('This service transaction was not found.'),
-        ),
-      );
+    if (transaction == null) return const _WorkspaceAccessUnavailable();
+
+    final participantRole = transaction.roleFor(actorId);
+    if (participantRole == null || participantRole != role) {
+      return const _WorkspaceAccessUnavailable();
     }
 
     final action = _nextAction(
       transaction: transaction,
-      role: role,
+      role: participantRole,
     );
 
     return Scaffold(
-      backgroundColor: HDCColors.background,
+      key: const Key('hdc-service-workspace'),
       appBar: AppBar(
         title: const Text('Service Workspace'),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1120),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _WorkspaceHeader(
-                    transaction: transaction,
-                    role: role,
-                  ),
-                  const SizedBox(height: 18),
-                  _NexusWorkspaceInsight(
-                    transaction: transaction,
-                    role: role,
-                  ),
-                  const SizedBox(height: 18),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final wide = constraints.maxWidth >= 860;
+      body: HDCSignalBackdrop(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(
+              HDCSpacing.md,
+              HDCSpacing.md,
+              HDCSpacing.md,
+              HDCSpacing.xxl,
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: HDCSpacing.contentMaxWidth,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _WorkspaceHero(
+                      transaction: transaction,
+                      role: participantRole,
+                    ),
+                    const SizedBox(height: HDCSpacing.md),
+                    _ServiceProgress(transaction: transaction),
+                    const SizedBox(height: HDCSpacing.lg),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final wide = constraints.maxWidth >= 1020;
+                        final actionCard = action == null
+                            ? _NoActionCard(
+                                transaction: transaction,
+                                role: participantRole,
+                              )
+                            : _NextActionCard(
+                                action: action,
+                                isSaving: provider.isSaving,
+                                onPressed: () => _performAction(
+                                  context,
+                                  provider,
+                                  transaction,
+                                  action,
+                                ),
+                              );
+                        final insight = _NexusWorkspaceInsight(
+                          transaction: transaction,
+                          role: participantRole,
+                        );
+                        final terms = _AcceptedTermsCard(
+                          transaction: transaction,
+                        );
+                        final participants = _ParticipantsCard(
+                          transaction: transaction,
+                          role: participantRole,
+                        );
+                        final timeline = _TransactionTimeline(
+                          transaction: transaction,
+                        );
 
-                      final terms = _AcceptedTermsCard(
-                        transaction: transaction,
-                      );
-                      final participants = _ParticipantsCard(
-                        transaction: transaction,
-                        role: role,
-                      );
+                        if (!wide) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              actionCard,
+                              const SizedBox(height: HDCSpacing.md),
+                              insight,
+                              const SizedBox(height: HDCSpacing.md),
+                              terms,
+                              const SizedBox(height: HDCSpacing.md),
+                              participants,
+                              const SizedBox(height: HDCSpacing.md),
+                              timeline,
+                            ],
+                          );
+                        }
 
-                      if (wide) {
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(flex: 3, child: terms),
-                            const SizedBox(width: 18),
-                            Expanded(flex: 2, child: participants),
+                            Expanded(
+                              flex: 7,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  insight,
+                                  const SizedBox(height: HDCSpacing.md),
+                                  terms,
+                                  const SizedBox(height: HDCSpacing.md),
+                                  timeline,
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: HDCSpacing.md),
+                            Expanded(
+                              flex: 4,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  actionCard,
+                                  const SizedBox(height: HDCSpacing.md),
+                                  participants,
+                                ],
+                              ),
+                            ),
                           ],
                         );
-                      }
-
-                      return Column(
-                        children: [
-                          terms,
-                          const SizedBox(height: 18),
-                          participants,
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 18),
-                  _TransactionTimeline(transaction: transaction),
-                  const SizedBox(height: 18),
-                  _FutureWorkspaceTools(
-                    transaction: transaction,
-                    actorId: actorId,
-                  ),
-                  const SizedBox(height: 18),
-                  if (action != null)
-                    _NextActionCard(
-                      action: action,
-                      isSaving: provider.isSaving,
-                      onPressed: () => _performAction(
-                        context,
-                        provider,
-                        transaction,
-                        action,
-                      ),
+                      },
                     ),
-                  if (action == null)
-                    _NoActionCard(
+                    const SizedBox(height: HDCSpacing.md),
+                    _FutureWorkspaceTools(
                       transaction: transaction,
-                      role: role,
+                      actorId: actorId,
                     ),
-                  const SizedBox(height: 30),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -182,11 +221,45 @@ class ServiceTransactionWorkspaceScreen extends StatelessWidget {
   }
 }
 
-class _WorkspaceHeader extends StatelessWidget {
+class _WorkspaceAccessUnavailable extends StatelessWidget {
+  const _WorkspaceAccessUnavailable();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Service Workspace')),
+      body: HDCSignalBackdrop(
+        child: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(HDCSpacing.md),
+            children: const [
+              Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: 620),
+                  child: HDCEmptyState(
+                    key: Key('hdc-workspace-access-unavailable'),
+                    icon: Icons.lock_outline,
+                    title: 'Workspace access unavailable',
+                    description:
+                        'This workspace could not be opened for the current '
+                        'account and role. No transaction details were shown.',
+                    color: HDCColors.danger,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WorkspaceHero extends StatelessWidget {
   final ServiceTransaction transaction;
   final ServiceTransactionParticipantRole role;
 
-  const _WorkspaceHeader({
+  const _WorkspaceHero({
     required this.transaction,
     required this.role,
   });
@@ -194,103 +267,118 @@ class _WorkspaceHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = _statusColor(transaction.status);
-
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text(
-                  transaction.requestTitle,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 11,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    transaction.status.label,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${transaction.categoryName} • ${role.label} view',
-              style: const TextStyle(
-                color: HDCColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 18,
-              runSpacing: 10,
-              children: [
-                _HeaderMeta(
-                  icon: Icons.receipt_long_outlined,
-                  label: transaction.id,
-                ),
-                _HeaderMeta(
-                  icon: Icons.location_on_outlined,
-                  label: transaction.serviceLocation,
-                ),
-                _HeaderMeta(
-                  icon: Icons.payments_outlined,
-                  label:
-                      'PHP ${transaction.acceptedTerms.totalEstimate.toStringAsFixed(0)}',
-                ),
-              ],
-            ),
-          ],
+    return HDCFlowHero(
+      eyebrow: 'Participant-protected service workspace',
+      title: transaction.requestTitle,
+      description:
+          '${transaction.categoryName} • ${transaction.serviceLocation}. '
+          'Accepted terms, participant tools, and every status change remain '
+          'connected to this transaction record.',
+      icon: Icons.home_repair_service_outlined,
+      tags: [
+        HDCFlowTag(
+          label: transaction.status.label,
+          icon: _statusIcon(transaction.status),
+          color: statusColor,
         ),
-      ),
+        HDCFlowTag(
+          label: '${role.label} view',
+          icon: role == ServiceTransactionParticipantRole.customer
+              ? Icons.person_outline
+              : Icons.engineering_outlined,
+          color: HDCColors.accent,
+        ),
+        HDCFlowTag(
+          label:
+              'PHP ${transaction.acceptedTerms.totalEstimate.toStringAsFixed(0)} accepted',
+          icon: Icons.payments_outlined,
+          color: HDCColors.signal,
+        ),
+        HDCFlowTag(
+          label: transaction.id,
+          icon: Icons.receipt_long_outlined,
+          color: HDCColors.warm,
+        ),
+      ],
     );
   }
 }
 
-class _HeaderMeta extends StatelessWidget {
-  final IconData icon;
-  final String label;
+class _ServiceProgress extends StatelessWidget {
+  final ServiceTransaction transaction;
 
-  const _HeaderMeta({
-    required this.icon,
-    required this.label,
-  });
+  const _ServiceProgress({required this.transaction});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 17, color: HDCColors.textSecondary),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: const TextStyle(
-            color: HDCColors.textSecondary,
-            fontSize: 12,
-          ),
+    if (transaction.status == ServiceTransactionStatus.cancelled ||
+        transaction.status == ServiceTransactionStatus.disputed) {
+      return HDCCard(
+        key: const Key('hdc-service-progress'),
+        color: _statusColor(transaction.status).withValues(alpha: 0.06),
+        borderColor: _statusColor(transaction.status).withValues(alpha: 0.24),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              _statusIcon(transaction.status),
+              color: _statusColor(transaction.status),
+            ),
+            const SizedBox(width: HDCSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  HDCStatusBadge(
+                    label: transaction.status.label,
+                    tone: HDCStatusTone.danger,
+                    icon: _statusIcon(transaction.status),
+                  ),
+                  const SizedBox(height: HDCSpacing.xs),
+                  Text(
+                    transaction.status == ServiceTransactionStatus.disputed
+                        ? 'Normal service progression is frozen while the '
+                            'dispute remains open.'
+                        : 'This service progression ended when the transaction '
+                            'was cancelled.',
+                    style: const TextStyle(
+                      color: HDCColors.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-      ],
+      );
+    }
+
+    return HDCCard(
+      key: const Key('hdc-service-progress'),
+      padding: const EdgeInsets.all(HDCSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Service progress',
+            style: TextStyle(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: HDCSpacing.sm),
+          HDCFlowProgress(
+            steps: const [
+              'Accepted',
+              'Scheduled',
+              'En Route',
+              'Arrived',
+              'In Service',
+              'Review',
+              'Complete',
+            ],
+            currentStep: _progressStep(transaction.status),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -307,6 +395,7 @@ class _NexusWorkspaceInsight extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      key: const Key('hdc-nexus-workspace-guidance'),
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -385,63 +474,60 @@ class _AcceptedTermsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final terms = transaction.acceptedTerms;
 
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Accepted Service Terms',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            _InfoLine(
-              label: 'Service fee',
-              value: 'PHP ${terms.serviceFee.toStringAsFixed(0)}',
-            ),
-            _InfoLine(
-              label: 'Estimated parts',
-              value: terms.estimatedPartsCost == null
-                  ? 'None listed'
-                  : 'PHP ${terms.estimatedPartsCost!.toStringAsFixed(0)}',
-            ),
-            _InfoLine(
-              label: 'Accepted estimate',
-              value: 'PHP ${terms.totalEstimate.toStringAsFixed(0)}',
-            ),
-            _InfoLine(
-              label: 'Earliest arrival',
-              value: _dateTime(terms.earliestArrival),
-            ),
-            _InfoLine(
-              label: 'Estimated duration',
-              value: _duration(terms.estimatedDurationMinutes),
-            ),
-            _InfoLine(
-              label: 'Warranty',
-              value: terms.warrantyDays == 0
-                  ? 'No warranty'
-                  : '${terms.warrantyDays} days',
-            ),
-            const Divider(height: 30),
-            _TextSection(
-              title: 'Initial diagnosis',
-              value: terms.diagnosis,
-            ),
-            _TextSection(
-              title: 'Repair approach',
-              value: terms.repairApproach,
-            ),
-            _TextSection(
-              title: 'Professional notes',
-              value: terms.professionalNotes,
-            ),
-          ],
-        ),
+    return HDCCard(
+      key: const Key('hdc-accepted-service-terms'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Accepted Service Terms',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+          const SizedBox(height: 16),
+          _InfoLine(
+            label: 'Service fee',
+            value: 'PHP ${terms.serviceFee.toStringAsFixed(0)}',
+          ),
+          _InfoLine(
+            label: 'Estimated parts',
+            value: terms.estimatedPartsCost == null
+                ? 'None listed'
+                : 'PHP ${terms.estimatedPartsCost!.toStringAsFixed(0)}',
+          ),
+          _InfoLine(
+            label: 'Accepted estimate',
+            value: 'PHP ${terms.totalEstimate.toStringAsFixed(0)}',
+          ),
+          _InfoLine(
+            label: 'Earliest arrival',
+            value: _dateTime(terms.earliestArrival),
+          ),
+          _InfoLine(
+            label: 'Estimated duration',
+            value: _duration(terms.estimatedDurationMinutes),
+          ),
+          _InfoLine(
+            label: 'Warranty',
+            value: terms.warrantyDays == 0
+                ? 'No warranty'
+                : '${terms.warrantyDays} days',
+          ),
+          const Divider(height: 30),
+          _TextSection(
+            title: 'Initial diagnosis',
+            value: terms.diagnosis,
+          ),
+          _TextSection(
+            title: 'Repair approach',
+            value: terms.repairApproach,
+          ),
+          _TextSection(
+            title: 'Professional notes',
+            value: terms.professionalNotes,
+          ),
+        ],
       ),
     );
   }
@@ -483,44 +569,42 @@ class _ParticipantsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Participants',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+    return HDCCard(
+      key: const Key('hdc-service-participants'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Participants',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+          const SizedBox(height: 16),
+          _ParticipantTile(
+            icon: Icons.person_outline,
+            role: 'Customer',
+            name: transaction.customerName,
+            isYou: role == ServiceTransactionParticipantRole.customer,
+          ),
+          const SizedBox(height: 12),
+          _ParticipantTile(
+            icon: Icons.engineering_outlined,
+            role: 'Technician',
+            name: transaction.technicianName,
+            isYou: role == ServiceTransactionParticipantRole.technician,
+          ),
+          const SizedBox(height: 18),
+          const Text(
+            'Exact service details in this workspace are intended only for '
+            'authorized transaction participants.',
+            style: TextStyle(
+              color: HDCColors.textSecondary,
+              fontSize: 12,
+              height: 1.4,
             ),
-            const SizedBox(height: 16),
-            _ParticipantTile(
-              icon: Icons.person_outline,
-              role: 'Customer',
-              name: transaction.customerName,
-              isYou: role == ServiceTransactionParticipantRole.customer,
-            ),
-            const SizedBox(height: 12),
-            _ParticipantTile(
-              icon: Icons.engineering_outlined,
-              role: 'Technician',
-              name: transaction.technicianName,
-              isYou: role == ServiceTransactionParticipantRole.technician,
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              'Exact service details in this workspace are intended only for authorized transaction participants.',
-              style: TextStyle(
-                color: HDCColors.textSecondary,
-                fontSize: 12,
-                height: 1.4,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -566,6 +650,8 @@ class _ParticipantTile extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                   ),
@@ -595,27 +681,32 @@ class _TransactionTimeline extends StatelessWidget {
     final activity = [...transaction.activity]
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Transaction Timeline',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-            ),
-            const SizedBox(height: 18),
-            for (var index = 0; index < activity.length; index++)
-              _TimelineEntry(
-                entry: activity[index],
-                showLine: index != activity.length - 1,
+    return HDCCard(
+      key: const Key('hdc-transaction-timeline'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Transaction Timeline',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+          const SizedBox(height: 18),
+          if (activity.isEmpty)
+            const Text(
+              'No recorded activity is available for this workspace yet.',
+              style: TextStyle(
+                color: HDCColors.textSecondary,
+                height: 1.4,
               ),
-          ],
-        ),
+            ),
+          for (var index = 0; index < activity.length; index++)
+            _TimelineEntry(
+              entry: activity[index],
+              showLine: index != activity.length - 1,
+            ),
+        ],
       ),
     );
   }
@@ -700,7 +791,6 @@ class _TimelineEntry extends StatelessWidget {
         '${value.minute.toString().padLeft(2, '0')}';
   }
 }
-
 
 class _FutureWorkspaceTools extends StatelessWidget {
   final ServiceTransaction transaction;
@@ -787,52 +877,49 @@ class _FutureWorkspaceTools extends StatelessWidget {
       ),
     ];
 
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Workspace Tools',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+    return HDCCard(
+      key: const Key('hdc-workspace-tools'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Workspace Tools',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Participant-authorized tools are active. Payment records are '
+            'not payment-provider verification, and disputes freeze the '
+            'transaction until withdrawal or internal resolution.',
+            style: TextStyle(
+              color: HDCColors.textSecondary,
+              height: 1.45,
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Participant-authorized tools are active. Payment records are '
-              'not payment-provider verification, and disputes freeze the '
-              'transaction until withdrawal or internal resolution.',
-              style: TextStyle(
-                color: HDCColors.textSecondary,
-                height: 1.45,
-              ),
-            ),
-            const SizedBox(height: 16),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final width = constraints.maxWidth >= 720
-                    ? (constraints.maxWidth - 12) / 2
-                    : constraints.maxWidth;
+          ),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth >= 720
+                  ? (constraints.maxWidth - 12) / 2
+                  : constraints.maxWidth;
 
-                return Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: items
-                      .map(
-                        (item) => SizedBox(
-                          width: width,
-                          child: _FutureToolTile(item: item),
-                        ),
-                      )
-                      .toList(),
-                );
-              },
-            ),
-          ],
-        ),
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: items
+                    .map(
+                      (item) => SizedBox(
+                        width: width,
+                        child: _FutureToolTile(item: item),
+                      ),
+                    )
+                    .toList(),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -949,56 +1036,75 @@ class _NextActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Next Action',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: HDCColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    action.title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    action.description,
-                    style: const TextStyle(
-                      color: HDCColors.textSecondary,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 18),
-            FilledButton.icon(
-              onPressed: isSaving ? null : onPressed,
-              icon: isSaving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(action.icon),
-              label: Text(action.buttonLabel),
-            ),
-          ],
+    final copy = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'YOUR NEXT ACTION',
+          style: TextStyle(
+            color: HDCColors.warning,
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.1,
+          ),
         ),
+        const SizedBox(height: HDCSpacing.xs),
+        Text(
+          action.title,
+          style: const TextStyle(
+            fontSize: 18,
+            height: 1.25,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: HDCSpacing.xs),
+        Text(
+          action.description,
+          style: const TextStyle(
+            color: HDCColors.textSecondary,
+            height: 1.4,
+          ),
+        ),
+      ],
+    );
+    final button = FilledButton.icon(
+      key: const Key('hdc-workspace-primary-action'),
+      onPressed: isSaving ? null : onPressed,
+      icon: isSaving
+          ? const SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(action.icon),
+      label: Text(action.buttonLabel),
+    );
+
+    return HDCCard(
+      key: const Key('hdc-workspace-next-action'),
+      color: HDCColors.warning.withValues(alpha: 0.06),
+      borderColor: HDCColors.warning.withValues(alpha: 0.32),
+      elevated: true,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 600) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                copy,
+                const SizedBox(height: HDCSpacing.md),
+                SizedBox(width: double.infinity, child: button),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: copy),
+              const SizedBox(width: HDCSpacing.lg),
+              button,
+            ],
+          );
+        },
       ),
     );
   }
@@ -1021,20 +1127,47 @@ class _NoActionCard extends StatelessWidget {
             ? 'Transaction status is frozen while the dispute is unresolved.'
             : 'The next status action belongs to the other transaction participant.';
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: HDCColors.background,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: HDCColors.border),
-      ),
-      child: Text(
-        '${role.label}: $message',
-        style: const TextStyle(
-          color: HDCColors.textSecondary,
-          height: 1.45,
-        ),
+    return HDCCard(
+      key: const Key('hdc-workspace-waiting-state'),
+      color: HDCColors.surfaceMuted,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            transaction.status.isTerminal
+                ? Icons.task_alt_outlined
+                : transaction.status == ServiceTransactionStatus.disputed
+                    ? Icons.gavel_outlined
+                    : Icons.hourglass_top_outlined,
+            color: transaction.status.isTerminal
+                ? HDCColors.success
+                : transaction.status == ServiceTransactionStatus.disputed
+                    ? HDCColors.danger
+                    : HDCColors.secondary,
+          ),
+          const SizedBox(width: HDCSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  transaction.status.isTerminal
+                      ? 'Service status complete'
+                      : 'Waiting for the other participant',
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: HDCSpacing.xs),
+                Text(
+                  '${role.label}: $message',
+                  style: const TextStyle(
+                    color: HDCColors.textSecondary,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1241,3 +1374,28 @@ Color _statusColor(ServiceTransactionStatus status) {
       return HDCColors.secondary;
   }
 }
+
+int _progressStep(ServiceTransactionStatus status) => switch (status) {
+  ServiceTransactionStatus.created || ServiceTransactionStatus.confirmed => 1,
+  ServiceTransactionStatus.scheduled => 2,
+  ServiceTransactionStatus.technicianEnRoute => 3,
+  ServiceTransactionStatus.arrived => 4,
+  ServiceTransactionStatus.inProgress => 5,
+  ServiceTransactionStatus.awaitingCustomerConfirmation => 6,
+  ServiceTransactionStatus.completed => 8,
+  ServiceTransactionStatus.cancelled || ServiceTransactionStatus.disputed => 1,
+};
+
+IconData _statusIcon(ServiceTransactionStatus status) => switch (status) {
+  ServiceTransactionStatus.created => Icons.fiber_new_outlined,
+  ServiceTransactionStatus.confirmed => Icons.handshake_outlined,
+  ServiceTransactionStatus.scheduled => Icons.event_available_outlined,
+  ServiceTransactionStatus.technicianEnRoute => Icons.directions_car_outlined,
+  ServiceTransactionStatus.arrived => Icons.location_on_outlined,
+  ServiceTransactionStatus.inProgress => Icons.build_outlined,
+  ServiceTransactionStatus.awaitingCustomerConfirmation =>
+    Icons.fact_check_outlined,
+  ServiceTransactionStatus.completed => Icons.verified_outlined,
+  ServiceTransactionStatus.cancelled => Icons.cancel_outlined,
+  ServiceTransactionStatus.disputed => Icons.gavel_outlined,
+};

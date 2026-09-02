@@ -1,6 +1,6 @@
 # HelpDesk Connect delivery roadmap
 
-Last updated: 2026-08-31
+Last updated: 2026-09-02
 
 ## Delivered baseline
 
@@ -36,7 +36,7 @@ Acceptance gates:
 5. Flutter analysis/tests, API tests, release synchronization, and the web
    production build pass before deployment.
 
-## Current milestone — Build 24B
+## Delivered responsive milestone — Build 24B
 
 Build 24B continues the same migration through Technician opportunities,
 proposal creation, the Customer offer inbox, comparison, and acceptance. It
@@ -58,7 +58,58 @@ Acceptance gates:
 6. Flutter analysis/tests, API tests, release synchronization, and the web
    production build pass before deployment.
 
-Later bounded releases cover the service workspace, chat, payment evidence,
-documents, disputes, profiles, roles, and commerce. Each release preserves the
-Build 22.1 data-security baseline and ships only after its workflow regression
-suite passes.
+## Current milestone — Build 24C
+
+Build 24C migrates Customer active services, Technician jobs, and the shared
+Service Workspace to the responsive HDC interface. It does not change database
+schemas, workflow transitions, chat, payment evidence, documents, or disputes.
+
+Acceptance gates:
+
+1. Customer, Technician, and combined workspace lists remain account-scoped,
+   retain every active and historical transaction, and sort by latest activity.
+2. All, Active, Your action, and History views clearly identify the recorded
+   participant role without changing transaction status or hiding records.
+3. A workspace fails closed before showing transaction details when the current
+   account is not a participant or the requested role does not match the role
+   recorded on the transaction.
+4. Accepted terms, participants, service progression, Nexus guidance, timeline,
+   existing participant tools, and the correct next action remain reachable on
+   compact and wide layouts without horizontal page scrolling.
+5. Status changes continue through the existing provider and server-authorized
+   transition gateway; compact-screen controls prevent accidental double action
+   while a transition is saving.
+6. Flutter analysis/widget tests, API tests, PostgreSQL workflow isolation,
+   encrypted backup/restore, release synchronization, and the production web
+   build pass before deployment.
+
+## Planned next sprint — Build 24D
+
+Build 24D will migrate private transaction chat to the responsive HDC
+interface. It remains separate from Build 24C and will not change service
+transitions, payments, documents, disputes, profiles, roles, or commerce.
+
+Planned acceptance gates:
+
+1. Chat fails closed before showing transaction context, participant names, or
+   messages when the current account is not a recorded transaction participant.
+2. The existing participant-authorized messaging provider and API remain
+   authoritative for conversation access, refresh, read state, moderation,
+   idempotent sends, and message ordering.
+3. Conversation context, storage usage, message history, retry states, and the
+   composer remain reachable on compact and wide layouts without horizontal
+   page scrolling or obscured send controls.
+4. HDC-managed storage limits and the unavailable user-owned storage connector
+   remain described accurately; Build 24D will not imply an external connector
+   or unlimited retention.
+5. Failed sends preserve the draft and client message identifier, duplicate
+   sends remain disabled while saving, and foreground refresh behavior remains
+   bounded to the existing lifecycle rules.
+6. Focused authorization, moderation, retry, long-content, and responsive
+   regression tests pass together with Flutter, API, PostgreSQL isolation,
+   encrypted backup/restore, release synchronization, and production web-build
+   gates before deployment.
+
+Later bounded releases cover payment evidence, documents, disputes, profiles,
+roles, and commerce. Each release preserves the Build 22.1 data-security
+baseline and ships only after its workflow regression suite passes.
