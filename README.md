@@ -57,6 +57,18 @@ mobile overflow. Technician search continues to use only approved public
 profiles and explicitly labels technician-stated areas, experience,
 availability, and rates; it does not invent distance or reputation data.
 
+Build 24B continues that responsive migration through Technician opportunities,
+proposal creation, the Customer offer inbox, comparison, and acceptance. It
+also packages the approved HDC mark across Flutter, startup, favicon, and PWA
+icons without a remote-image dependency.
+
+Build 24C migrates Customer active services, Technician jobs, and the shared
+Service Workspace to the same responsive interface. Workspaces are sorted by
+recent activity, expose active/action/history filters, keep participant tools
+reachable on compact screens, and fail closed before showing transaction
+details when the current account or role does not match the recorded Customer
+or Technician. Status changes still use the existing authoritative workflow.
+
 Build 23 introduces HDC's shared signal-network interface system. It redesigns
 the startup, authentication, onboarding, dashboard navigation, dashboard hero,
 and primary actions for desktop and mobile while leaving Build 22.1 database,

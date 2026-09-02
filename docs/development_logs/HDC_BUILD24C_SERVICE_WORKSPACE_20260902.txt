@@ -1,0 +1,34 @@
+HDC BUILD 24C - RESPONSIVE SERVICE WORKSPACE
+Date: 2026-09-02
+
+Scope
+- Migrates Customer active services, Technician jobs, and the combined
+  participant workspace list to the responsive HDC flow language.
+- Adds All, Active, Your action, and History views while preserving every
+  account-scoped transaction record.
+- Sorts workspaces by the latest recorded transaction activity.
+- Migrates the shared Service Workspace to compact and wide layouts with the
+  next authorized action prioritized before supporting content on narrow
+  screens.
+- Adds a visible service-progress sequence while retaining the existing
+  accepted terms, participants, Nexus guidance, timeline, chat, schedule,
+  payment, document, and dispute entry points.
+
+Preserved authority and safety boundaries
+- No database schema, migration, API route, authentication, payment, chat,
+  document, dispute, or commerce behavior change.
+- ServiceTransactionProvider and the server-backed transition gateway remain
+  authoritative for service status changes.
+- Workspace data fails closed when the current actor is not a recorded
+  participant or the requested Customer/Technician role does not match.
+- Existing transaction tools remain participant-authorized and unchanged.
+- Saving state continues to disable the primary status action while a
+  transition is in progress.
+
+Required verification
+- Focused Build 24C source-contract and compact/wide widget coverage.
+- Flutter format, analyze, widget tests, and production web build.
+- Node/TypeScript validation, migration checks, portability checks, release
+  synchronization, secret-pattern scan, and PostgreSQL workflow tests.
+- Encrypted production backup and restore rehearsal before production
+  promotion.
