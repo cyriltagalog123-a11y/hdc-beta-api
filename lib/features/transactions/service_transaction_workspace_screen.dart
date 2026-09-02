@@ -232,11 +232,11 @@ class _WorkspaceAccessUnavailable extends StatelessWidget {
         child: SafeArea(
           child: ListView(
             padding: const EdgeInsets.all(HDCSpacing.md),
-            children: const [
+            children: [
               Center(
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: 620),
-                  child: HDCEmptyState(
+                  constraints: const BoxConstraints(maxWidth: 620),
+                  child: const HDCEmptyState(
                     key: Key('hdc-workspace-access-unavailable'),
                     icon: Icons.lock_outline,
                     title: 'Workspace access unavailable',
