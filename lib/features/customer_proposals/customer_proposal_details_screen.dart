@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_flow.dart';
 import '../../models/proposal.dart';
 import '../../providers/proposal_provider.dart';
 import 'proposal_acceptance_flow.dart';
@@ -52,10 +53,8 @@ class _CustomerProposalDetailsScreenState
         proposal: proposal,
         isSaving: provider.isSaving,
         onToggleShortlist: () => _toggleShortlist(proposal),
-        onAccept: () => startProposalAcceptanceFlow(
-          context,
-          proposal: proposal,
-        ),
+        onAccept: () =>
+            startProposalAcceptanceFlow(context, proposal: proposal),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -152,80 +151,36 @@ class _Hero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: HDCColors.primary,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Wrap(
-        spacing: 24,
-        runSpacing: 18,
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'PROFESSIONAL SERVICE PROPOSAL',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.3,
-                ),
-              ),
-              const SizedBox(height: 9),
-              Text(
-                proposal.reputation.technicianName,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                    ),
-              ),
-              const SizedBox(height: 7),
-              Text(
-                'Proposal ${proposal.id}',
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
-              ),
-            ],
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              const Text(
-                'TOTAL ESTIMATE',
-                style: TextStyle(color: Colors.white70, fontSize: 10),
-              ),
-              Text(
-                'PHP ${proposal.estimatedTotal.toStringAsFixed(0)}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 27,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              Text(
-                proposal.status.label,
-                style: const TextStyle(color: Colors.white70),
-              ),
-            ],
-          ),
-        ],
-      ),
+    return HDCFlowHero(
+      eyebrow: 'Professional service proposal',
+      title: proposal.reputation.technicianName,
+      description:
+          'Review the complete technical approach, estimate, '
+          'schedule, warranty, and technician record before accepting.',
+      icon: Icons.description_outlined,
+      tags: [
+        HDCFlowTag(
+          label: 'PHP ${proposal.estimatedTotal.toStringAsFixed(0)} total',
+          icon: Icons.payments_outlined,
+          color: HDCColors.warm,
+        ),
+        HDCFlowTag(
+          label: proposal.status.label,
+          icon: Icons.fact_check_outlined,
+          color: proposal.status == ProposalStatus.accepted
+              ? HDCColors.success
+              : HDCColors.info,
+        ),
+        HDCFlowTag(label: 'Proposal ${proposal.id}', icon: Icons.tag_rounded),
+      ],
     );
   }
 }
 
-
 class _ProposalLifecycleCard extends StatelessWidget {
   final Proposal proposal;
 
-  const _ProposalLifecycleCard({
-    required this.proposal,
-  });
+  const _ProposalLifecycleCard({required this.proposal});
 
   @override
   Widget build(BuildContext context) {
@@ -264,10 +219,7 @@ class _ProposalLifecycleCard extends StatelessWidget {
                 color: color.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(
-                _iconFor(proposal.status),
-                color: color,
-              ),
+              child: Icon(_iconFor(proposal.status), color: color),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -373,19 +325,32 @@ class _TechnicianCard extends StatelessWidget {
                 child: Text(
                   tech.technicianName,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
               if (tech.isVerified) ...[
                 const SizedBox(width: 5),
-                const Icon(Icons.verified, color: HDCColors.secondary, size: 18),
+                const Icon(
+                  Icons.verified,
+                  color: HDCColors.secondary,
+                  size: 18,
+                ),
               ],
             ],
           ),
           const SizedBox(height: 16),
-          _ProfileLine(label: 'Rating', value: '★ ${tech.rating.toStringAsFixed(1)}'),
+          _ProfileLine(
+            label: 'Rating',
+            value: '★ ${tech.rating.toStringAsFixed(1)}',
+          ),
           _ProfileLine(label: 'Completed jobs', value: '${tech.completedJobs}'),
-          _ProfileLine(label: 'Success rate', value: '${tech.successRate.toStringAsFixed(0)}%'),
+          _ProfileLine(
+            label: 'Success rate',
+            value: '${tech.successRate.toStringAsFixed(0)}%',
+          ),
           _ProfileLine(label: 'Experience', value: '$experience years'),
           _ProfileLine(
             label: 'Typical response',
@@ -409,7 +374,10 @@ class _ProfileLine extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(label, style: const TextStyle(color: HDCColors.textSecondary)),
+            child: Text(
+              label,
+              style: const TextStyle(color: HDCColors.textSecondary),
+            ),
           ),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w800)),
         ],
@@ -450,13 +418,20 @@ class _PricingSection extends StatelessWidget {
       icon: Icons.receipt_long_outlined,
       child: Column(
         children: [
-          _PriceRow(label: 'Professional service fee', amount: proposal.serviceFee),
+          _PriceRow(
+            label: 'Professional service fee',
+            amount: proposal.serviceFee,
+          ),
           _PriceRow(
             label: proposal.partsArrangement.label,
             amount: proposal.estimatedPartsCost ?? 0,
           ),
           const Divider(height: 28),
-          _PriceRow(label: 'Estimated total', amount: proposal.estimatedTotal, total: true),
+          _PriceRow(
+            label: 'Estimated total',
+            amount: proposal.estimatedTotal,
+            total: true,
+          ),
         ],
       ),
     );
@@ -467,7 +442,11 @@ class _PriceRow extends StatelessWidget {
   final String label;
   final double amount;
   final bool total;
-  const _PriceRow({required this.label, required this.amount, this.total = false});
+  const _PriceRow({
+    required this.label,
+    required this.amount,
+    this.total = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -534,10 +513,24 @@ class _ScheduleSection extends StatelessWidget {
 
   String _dateTime(DateTime value) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
-    final hour = value.hour == 0 ? 12 : value.hour > 12 ? value.hour - 12 : value.hour;
+    final hour = value.hour == 0
+        ? 12
+        : value.hour > 12
+        ? value.hour - 12
+        : value.hour;
     final minute = value.minute.toString().padLeft(2, '0');
     final suffix = value.hour >= 12 ? 'PM' : 'AM';
     return '${months[value.month - 1]} ${value.day}, ${value.year} • $hour:$minute $suffix';
@@ -556,7 +549,11 @@ class _InfoTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _InfoTile({required this.icon, required this.label, required this.value});
+  const _InfoTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -577,9 +574,21 @@ class _InfoTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(color: HDCColors.textSecondary, fontSize: 10)),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: HDCColors.textSecondary,
+                    fontSize: 10,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
               ],
             ),
           ),
@@ -620,11 +629,24 @@ class _QualityCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text('$score%', style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900)),
+              Text(
+                '$score%',
+                style: const TextStyle(
+                  fontSize: 25,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
               const Spacer(),
               Text(
-                score >= 85 ? 'Excellent' : score >= 65 ? 'Strong' : 'Standard',
-                style: const TextStyle(color: HDCColors.secondary, fontWeight: FontWeight.w800),
+                score >= 85
+                    ? 'Excellent'
+                    : score >= 65
+                    ? 'Strong'
+                    : 'Standard',
+                style: const TextStyle(
+                  color: HDCColors.secondary,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ],
           ),
@@ -633,7 +655,11 @@ class _QualityCard extends StatelessWidget {
           const SizedBox(height: 11),
           const Text(
             'Quality reflects the completeness of pricing, assessment, schedule, warranty, and professional notes.',
-            style: TextStyle(color: HDCColors.textSecondary, fontSize: 12, height: 1.45),
+            style: TextStyle(
+              color: HDCColors.textSecondary,
+              fontSize: 12,
+              height: 1.45,
+            ),
           ),
         ],
       ),
@@ -681,7 +707,14 @@ class _TextBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: HDCColors.textSecondary, fontWeight: FontWeight.w800)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: HDCColors.textSecondary,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
         const SizedBox(height: 7),
         Text(text, style: const TextStyle(height: 1.6)),
       ],
@@ -693,7 +726,11 @@ class _SectionCard extends StatelessWidget {
   final String title;
   final IconData icon;
   final Widget child;
-  const _SectionCard({required this.title, required this.icon, required this.child});
+  const _SectionCard({
+    required this.title,
+    required this.icon,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -707,7 +744,13 @@ class _SectionCard extends StatelessWidget {
               children: [
                 Icon(icon, color: HDCColors.secondary),
                 const SizedBox(width: 9),
-                Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 18),
@@ -735,7 +778,8 @@ class _BottomActionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shortlisted = proposal.status == ProposalStatus.shortlisted;
-    final canShortlist = proposal.status == ProposalStatus.submitted ||
+    final canShortlist =
+        proposal.status == ProposalStatus.submitted ||
         proposal.status == ProposalStatus.viewed ||
         shortlisted;
     return SafeArea(
@@ -743,32 +787,53 @@ class _BottomActionBar extends StatelessWidget {
         elevation: 10,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'PHP ${proposal.estimatedTotal.toStringAsFixed(0)} total estimate',
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: !canShortlist || isSaving ? null : onToggleShortlist,
-                icon: Icon(shortlisted ? Icons.favorite : Icons.favorite_border),
-                label: Text(shortlisted ? 'Remove Shortlist' : 'Shortlist'),
-              ),
-              const SizedBox(width: 10),
-              FilledButton.icon(
-                onPressed: proposal.status.isActive && !isSaving
-                    ? onAccept
-                    : null,
-                icon: const Icon(Icons.check_circle_outline),
-                label: Text(
-                  proposal.status == ProposalStatus.accepted
-                      ? 'Accepted'
-                      : 'Accept Proposal',
-                ),
-              ),
-            ],
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final price = Text(
+                'PHP ${proposal.estimatedTotal.toStringAsFixed(0)} total estimate',
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              );
+              final actions = HDCResponsiveActions(
+                breakpoint: 420,
+                actions: [
+                  OutlinedButton.icon(
+                    onPressed: !canShortlist || isSaving
+                        ? null
+                        : onToggleShortlist,
+                    icon: Icon(
+                      shortlisted ? Icons.favorite : Icons.favorite_border,
+                    ),
+                    label: Text(shortlisted ? 'Remove Shortlist' : 'Shortlist'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: proposal.status.isActive && !isSaving
+                        ? onAccept
+                        : null,
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: Text(
+                      proposal.status == ProposalStatus.accepted
+                          ? 'Accepted'
+                          : 'Accept Proposal',
+                    ),
+                  ),
+                ],
+              );
+
+              if (constraints.maxWidth < 760) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [price, const SizedBox(height: 10), actions],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: price),
+                  const SizedBox(width: 18),
+                  SizedBox(width: 430, child: actions),
+                ],
+              );
+            },
           ),
         ),
       ),

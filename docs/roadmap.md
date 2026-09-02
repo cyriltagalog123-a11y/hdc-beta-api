@@ -16,7 +16,7 @@ Last updated: 2026-08-31
   transaction retention, required integration coverage, automated backups, and
   restore rehearsal support.
 
-## Current milestone — Build 24A
+## Delivered responsive milestone — Build 24A
 
 Build 24A migrates the Customer request and Technician discovery experience to
 the responsive HDC interface foundation. It covers request intake, review,
@@ -36,11 +36,29 @@ Acceptance gates:
 5. Flutter analysis/tests, API tests, release synchronization, and the web
    production build pass before deployment.
 
-## After Build 24A
+## Current milestone — Build 24B
 
 Build 24B continues the same migration through Technician opportunities,
-proposal creation, the Customer offer inbox, comparison, and acceptance. Later
-bounded releases cover the service workspace, chat, payment evidence,
+proposal creation, the Customer offer inbox, comparison, and acceptance. It
+also adopts the approved blue HDC hexagon-and-H mark across the Flutter brand
+lockup, startup shell, favicon, and installable web-app icons.
+
+Acceptance gates:
+
+1. Technician opportunity discovery remains provider-backed, account-scoped,
+   filterable, and usable on compact and wide layouts.
+2. A Technician can save and resume one draft, but cannot submit a second offer
+   for the same issue after the first offer is recorded.
+3. Every Customer offer remains reachable; shortlist, comparison, details, and
+   acceptance retain the existing authoritative proposal workflow.
+4. Comparison cards stack on compact screens instead of requiring horizontal
+   page scrolling, and all offer/acceptance actions remain reachable.
+5. The approved HDC logo is packaged locally with no remote-image dependency;
+   maskable icons retain safe padding around the full hexagon.
+6. Flutter analysis/tests, API tests, release synchronization, and the web
+   production build pass before deployment.
+
+Later bounded releases cover the service workspace, chat, payment evidence,
 documents, disputes, profiles, roles, and commerce. Each release preserves the
 Build 22.1 data-security baseline and ships only after its workflow regression
 suite passes.

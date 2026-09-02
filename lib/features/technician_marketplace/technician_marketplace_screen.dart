@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/maps/hdc_map_launcher.dart';
 import '../../core/navigation/hdc_page_route.dart';
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_flow.dart';
 import '../../models/account_identity.dart';
 import '../../models/proposal.dart';
 import '../../models/proposal_request_summary.dart';
@@ -317,37 +318,34 @@ class _TechnicianMarketplaceScreenState
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Container(
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.all(22),
-                                      decoration: BoxDecoration(
-                                        color: HDCColors.primary,
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: const Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Find your next service job',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 24,
-                                              fontWeight: FontWeight.w800,
-                                            ),
+                                    HDCFlowHero(
+                                      eyebrow: 'Technician opportunities',
+                                      title: 'Find your next service job',
+                                      description:
+                                          'Browse open customer requests, save '
+                                          'good matches, and prepare one clear '
+                                          'offer for each issue.',
+                                      icon: Icons.radar_rounded,
+                                      tags: [
+                                        HDCFlowTag(
+                                          label: requests.length == 1
+                                              ? '1 matching request'
+                                              : '${requests.length} matching requests',
+                                          icon: Icons.work_outline_rounded,
+                                        ),
+                                        HDCFlowTag(
+                                          label:
+                                              '${marketplace.savedCount} saved',
+                                          icon: Icons.bookmark_outline_rounded,
+                                          color: HDCColors.warm,
+                                        ),
+                                        if (technicianLocation.isNotEmpty)
+                                          HDCFlowTag(
+                                            label: technicianLocation,
+                                            icon: Icons.location_on_outlined,
+                                            color: HDCColors.success,
                                           ),
-                                          SizedBox(height: 7),
-                                          Text(
-                                            'Browse open customer requests, save '
-                                            'good matches, and prepare to send an '
-                                            'offer.',
-                                            style: TextStyle(
-                                              color: Colors.white70,
-                                              height: 1.45,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                      ],
                                     ),
                                     const SizedBox(height: 18),
                                     if (discovery.opportunitiesError !=
@@ -900,35 +898,24 @@ class _EmptyMarketplace extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              savedOnly ? Icons.bookmark_border : Icons.search_off,
-              size: 54,
-              color: HDCColors.textSecondary,
-            ),
-            const SizedBox(height: 14),
-            Text(
-              savedOnly ? 'No saved opportunities yet' : 'No matching requests',
-              style: Theme.of(context).textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              savedOnly
-                  ? 'Save promising requests so you can return to them later.'
-                  : 'Try a different search term or clear the active filters.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: HDCColors.textSecondary),
-            ),
-            const SizedBox(height: 18),
-            OutlinedButton.icon(
-              onPressed: onClear,
-              icon: const Icon(Icons.restart_alt),
-              label: const Text('Show All Requests'),
-            ),
-          ],
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 620),
+          child: HDCEmptyState(
+            icon: savedOnly ? Icons.bookmark_border : Icons.search_off,
+            title: savedOnly
+                ? 'No saved opportunities yet'
+                : 'No matching requests',
+            description: savedOnly
+                ? 'Save promising requests so you can return to them later.'
+                : 'Try a different search term or clear the active filters.',
+            actions: [
+              OutlinedButton.icon(
+                onPressed: onClear,
+                icon: const Icon(Icons.restart_alt),
+                label: const Text('Show All Requests'),
+              ),
+            ],
+          ),
         ),
       ),
     );

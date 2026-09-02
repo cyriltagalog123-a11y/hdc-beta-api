@@ -1,0 +1,36 @@
+HDC BUILD 24B - OFFER WORKFLOWS AND OFFICIAL BRAND MARK
+Date: 2026-08-31
+
+Scope
+- Migrates Technician opportunities and request details to the responsive HDC
+  flow language introduced in Build 23 and continued in Build 24A.
+- Adds a guided proposal-studio header, progress state, and compact-safe draft
+  and submission controls.
+- Migrates Customer offer overview, request-specific inbox, proposal details,
+  and proposal comparison to the same responsive flow language.
+- Removes horizontal proposal-comparison scrolling by using responsive stacked
+  or multi-column cards.
+- Adopts the approved blue HDC hexagon/network/H mark in the Flutter lockup,
+  startup shell, favicon, and standard/maskable PWA icons.
+- Optimizes the bundled logo and PWA PNGs to 8-bit delivery assets, reducing
+  their combined footprint from about 3.9 MB to 0.84 MB without changing the
+  approved artwork.
+- Keeps comparison-selection controls stacked below compact breakpoints so the
+  full action bar remains reachable on narrow phones.
+- Aligns PWA theme colors with the HDC navy palette and treats the adjacent
+  startup logo as decorative to avoid duplicate screen-reader announcements.
+
+Preserved authority and safety boundaries
+- No database schema or migration change.
+- No authentication, authorization, transaction, payment, chat, document, or
+  dispute behavior change.
+- ProposalProvider and the existing proposal acceptance flow remain the source
+  of truth for drafts, submission, shortlist, comparison, and acceptance.
+- The one-offer-per-technician-per-request lock remains enforced.
+- The logo is bundled locally; startup and app branding do not depend on a
+  remote image host.
+
+Required verification
+- Flutter analyze, widget tests, and production web build.
+- Node/TypeScript validation, migration checks, portability checks, release
+  synchronization, secret-pattern scan, and PostgreSQL workflow tests.

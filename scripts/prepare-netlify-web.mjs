@@ -19,6 +19,7 @@ if (
 }
 await stat(new URL('hdc_startup.css', buildDirectory));
 await stat(new URL('hdc_startup.js', buildDirectory));
+await stat(new URL('hdc_mark.png', buildDirectory));
 const packageJson = JSON.parse(await readFile(packageFile, 'utf8'));
 
 const escapeHtml = (value) => value

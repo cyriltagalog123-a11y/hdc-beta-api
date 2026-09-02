@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/navigation/hdc_page_route.dart';
 import '../../core/proposals/customer_offer_catalog.dart';
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_flow.dart';
 import '../../core/workflow/hdc_workflow_refresh.dart';
 import '../../models/proposal.dart';
 import '../../providers/hdc_auth_provider.dart';
@@ -38,9 +39,7 @@ class _CustomerOffersScreenState extends State<CustomerOffersScreen> {
     final identity = auth.identity;
     if (!auth.authenticated || auth.guestMode || identity == null) {
       return const Scaffold(
-        body: Center(
-          child: Text('Registered customer access required.'),
-        ),
+        body: Center(child: Text('Registered customer access required.')),
       );
     }
 
@@ -56,10 +55,12 @@ class _CustomerOffersScreenState extends State<CustomerOffersScreen> {
         .map((entry) => entry.request.id)
         .toSet()
         .length;
-    final isRefreshing = requestProvider.isLoading ||
+    final isRefreshing =
+        requestProvider.isLoading ||
         proposalProvider.isLoading ||
         (sync?.isSyncing ?? false);
-    final loadError = requestProvider.lastError ??
+    final loadError =
+        requestProvider.lastError ??
         proposalProvider.lastError ??
         sync?.lastError;
 
@@ -70,9 +71,7 @@ class _CustomerOffersScreenState extends State<CustomerOffersScreen> {
         actions: [
           IconButton(
             tooltip: 'Refresh offers',
-            onPressed: isRefreshing
-                ? null
-                : () => refreshHdcWorkflow(context),
+            onPressed: isRefreshing ? null : () => refreshHdcWorkflow(context),
             icon: isRefreshing
                 ? const SizedBox.square(
                     dimension: 20,
@@ -86,42 +85,39 @@ class _CustomerOffersScreenState extends State<CustomerOffersScreen> {
         child: isRefreshing && entries.isEmpty
             ? const Center(child: CircularProgressIndicator())
             : loadError != null && entries.isEmpty
-                ? _OffersLoadError(
-                    onRetry: () => refreshHdcWorkflow(context),
-                  )
-                : entries.isEmpty
-                    ? const _EmptyOffers()
-                    : RefreshIndicator(
-                        onRefresh: () => refreshHdcWorkflow(context),
-                        child: ListView.separated(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
-                          itemCount: entries.length + 1,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 14),
-                          itemBuilder: (context, index) {
-                            if (index == 0) {
-                              return _OffersHeader(
-                                offerCount: entries.length,
-                                requestCount: requestCount,
-                              );
-                            }
-                            final entry = entries[index - 1];
-                            return _CustomerOfferCard(
-                              entry: entry,
-                              onOpen: () {
-                                Navigator.of(context).push(
-                                  HDCPageRoute<void>(
-                                    page: CustomerProposalDetailsScreen(
-                                      proposalId: entry.proposal.id,
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
-                      ),
+            ? _OffersLoadError(onRetry: () => refreshHdcWorkflow(context))
+            : entries.isEmpty
+            ? const _EmptyOffers()
+            : RefreshIndicator(
+                onRefresh: () => refreshHdcWorkflow(context),
+                child: ListView.separated(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
+                  itemCount: entries.length + 1,
+                  separatorBuilder: (_, _) => const SizedBox(height: 14),
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return _OffersHeader(
+                        offerCount: entries.length,
+                        requestCount: requestCount,
+                      );
+                    }
+                    final entry = entries[index - 1];
+                    return _CustomerOfferCard(
+                      entry: entry,
+                      onOpen: () {
+                        Navigator.of(context).push(
+                          HDCPageRoute<void>(
+                            page: CustomerProposalDetailsScreen(
+                              proposalId: entry.proposal.id,
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
       ),
     );
   }
@@ -131,39 +127,31 @@ class _OffersHeader extends StatelessWidget {
   final int offerCount;
   final int requestCount;
 
-  const _OffersHeader({
-    required this.offerCount,
-    required this.requestCount,
-  });
+  const _OffersHeader({required this.offerCount, required this.requestCount});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: HDCColors.primary,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$offerCount technician ${offerCount == 1 ? 'offer' : 'offers'}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 7),
-          Text(
-            'Across $requestCount service '
-            '${requestCount == 1 ? 'request' : 'requests'}. '
-            'Open any offer to review its full terms and status.',
-            style: const TextStyle(color: Colors.white70, height: 1.45),
-          ),
-        ],
-      ),
+    return HDCFlowHero(
+      eyebrow: 'Customer offers',
+      title: '$offerCount technician ${offerCount == 1 ? 'offer' : 'offers'}',
+      description:
+          'All offers tied to your service requests remain visible '
+          'here. Open one to review its full terms, status, and acceptance '
+          'options.',
+      icon: Icons.local_offer_outlined,
+      tags: [
+        HDCFlowTag(
+          label:
+              '$requestCount service '
+              '${requestCount == 1 ? 'request' : 'requests'}',
+          icon: Icons.assignment_outlined,
+        ),
+        HDCFlowTag(
+          label: '$offerCount total offers',
+          icon: Icons.inbox_outlined,
+          color: HDCColors.warm,
+        ),
+      ],
     );
   }
 }
@@ -333,10 +321,7 @@ class _OfferMeta extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           label,
-          style: const TextStyle(
-            color: HDCColors.textSecondary,
-            fontSize: 12,
-          ),
+          style: const TextStyle(color: HDCColors.textSecondary, fontSize: 12),
         ),
       ],
     );
