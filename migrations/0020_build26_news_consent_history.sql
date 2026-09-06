@@ -86,11 +86,18 @@ BEGIN
   IF NEW.status = 'published' THEN
     NEW.ever_published := true;
     IF NEW.kind = 'recognition' AND NEW.recognition_consent_confirmed = true THEN
-      NEW.recognition_consent_at := COALESCE(
-        NEW.recognition_consent_at,
-        OLD.recognition_consent_at,
-        now()
-      );
+      IF TG_OP = 'INSERT' THEN
+        NEW.recognition_consent_at := COALESCE(
+          NEW.recognition_consent_at,
+          now()
+        );
+      ELSE
+        NEW.recognition_consent_at := COALESCE(
+          NEW.recognition_consent_at,
+          OLD.recognition_consent_at,
+          now()
+        );
+      END IF;
     END IF;
   END IF;
   RETURN NEW;
