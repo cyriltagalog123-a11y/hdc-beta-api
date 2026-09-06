@@ -40,6 +40,8 @@ Build 25 is an interface/interaction redesign and does not weaken the existing b
 
 The temporary Build 25 patch workflow/helper and one-shot release synchronization workflow/helper have been removed from the review branch.
 
+Final validation passed in HDC CI run `34029218139`: release synchronization, typecheck, core tests, secret scan, Flutter analysis/widget/unit tests/web build, PostgreSQL workflow/isolation coverage, and encrypted backup/restore all succeeded. The verified Build 25 web artifact was already synchronized, so the validation run did not alter the review branch. Netlify deploy preview for PR #19 also passed at `https://deploy-preview-19--hdc-beta-api.netlify.app`.
+
 ## Approval boundary
 
-This review record does **not** authorize merge or production deployment. PR #19 remains the Build 25 review gate. Merging to `main`, taking the production backup, and deploying Build 25 to production require explicit approval after the final clean CI and deploy-preview validation are green.
+This review record does **not** authorize merge or production deployment. PR #19 remains the Build 25 review gate. Merging to `main`, taking the production backup, and deploying Build 25 to production require explicit approval.
