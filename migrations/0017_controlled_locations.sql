@@ -5,6 +5,17 @@
 
 BEGIN;
 
+DO $$
+BEGIN
+  IF to_regclass('public.hdc_schema_migrations') IS NULL
+     OR NOT EXISTS (
+       SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0016'
+     ) THEN
+    RAISE EXCEPTION 'HDC migrations 0000 through 0016 must be applied first';
+  END IF;
+END
+$$;
+
 CREATE OR REPLACE FUNCTION public.hdc_is_supported_location(value text)
 RETURNS boolean
 LANGUAGE sql
@@ -52,5 +63,13 @@ ALTER TABLE public.hdc_service_requests
 ALTER TABLE public.hdc_service_requests
   ADD CONSTRAINT hdc_service_requests_controlled_location
   CHECK (public.hdc_is_supported_location(location)) NOT VALID;
+
+
+INSERT INTO public.hdc_schema_migrations (
+  version, migration_name, is_baseline
+) VALUES ('0017', 'controlled_locations', false)
+ON CONFLICT (version) DO UPDATE SET
+  migration_name = EXCLUDED.migration_name,
+  is_baseline = EXCLUDED.is_baseline;
 
 COMMIT;

@@ -5,6 +5,17 @@
 
 BEGIN;
 
+DO $$
+BEGIN
+  IF to_regclass('public.hdc_schema_migrations') IS NULL
+     OR NOT EXISTS (
+       SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0017'
+     ) THEN
+    RAISE EXCEPTION 'HDC migration 0017 must be applied first';
+  END IF;
+END
+$$;
+
 CREATE OR REPLACE FUNCTION public.hdc_is_supported_region(value text)
 RETURNS boolean
 LANGUAGE sql
@@ -59,5 +70,13 @@ ALTER TABLE public.hdc_platform_role_applications
       OR public.hdc_is_supported_region(answers->>'serviceRegions')
     )
   ) NOT VALID;
+
+
+INSERT INTO public.hdc_schema_migrations (
+  version, migration_name, is_baseline
+) VALUES ('0018', 'controlled_role_application_locations', false)
+ON CONFLICT (version) DO UPDATE SET
+  migration_name = EXCLUDED.migration_name,
+  is_baseline = EXCLUDED.is_baseline;
 
 COMMIT;
