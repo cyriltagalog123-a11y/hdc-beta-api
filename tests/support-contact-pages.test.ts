@@ -15,7 +15,7 @@ describe('SaiCore Support HDC and Contact Owner public pages', () => {
     expect(page).toContain('never send passwords');
   });
 
-  it('defines the approved SaiCore PHP support program', () => {
+  it('keeps only the currently approved SaiCore PHP payment channels', () => {
     const page = read('lib/features/support/support_us_screen.dart');
 
     expect(page).toContain('SAICORE SUPPORT PROGRAM');
@@ -32,7 +32,7 @@ describe('SaiCore Support HDC and Contact Owner public pages', () => {
     expect(page).toContain('Corporate arrangement');
   });
 
-  it('discloses that payment providers may still charge fees', () => {
+  it('keeps verified payment destinations open and discloses provider fees', () => {
     const page = read('lib/features/support/support_us_screen.dart');
 
     expect(page).toContain('verified local QR or wallet routes');
