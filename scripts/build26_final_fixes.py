@@ -21,6 +21,22 @@ t=t.replace("                          onPassport: () => _openPassport(context),
 if '_openPassport' in t: raise RuntimeError('remaining Passport callback in dashboard')
 write(p,t)
 
+# Quick Access must not keep an unfinished Passport tile or required callback.
+p='lib/features/dashboard/widgets/dashboard_quick_access.dart'
+t=read(p)
+t=t.replace('  final VoidCallback onPassport;\n', '')
+t=t.replace('    required this.onPassport,\n', '')
+t,n=re.subn(
+    r"\n      _QuickAccessItem\(\n        icon: Icons\.badge_outlined,\n        title: 'HDC Passport',\n        subtitle: 'Manage technology assets and records',\n        onTap: onPassport,\n      \),",
+    '',
+    t,
+    count=1,
+)
+if n != 1: raise RuntimeError('could not remove Passport quick-access tile')
+if 'onPassport' in t or "title: 'HDC Passport'" in t:
+    raise RuntimeError('remaining Passport quick-access contract')
+write(p,t)
+
 # PostgreSQL integration must use the canonical controlled-location registration contract.
 p='tests/postgres-workflows.integration.test.ts'
 t=read(p)
