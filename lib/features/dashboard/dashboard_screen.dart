@@ -23,6 +23,8 @@ import '../customer_proposals/customer_offers_screen.dart';
 import '../internal/internal_dashboard_screen.dart';
 import '../marketplace/marketplace_catalog_screen.dart';
 import '../marketplace/sales_center_screen.dart';
+import '../knowledge_base/knowledge_base_screen.dart';
+import '../news/news_screen.dart';
 import '../notifications/notification_center_screen.dart';
 import '../profiles/profile_center_screen.dart';
 import '../roles/role_center_screen.dart';
@@ -220,6 +222,18 @@ class DashboardScreen extends StatelessWidget {
   void _openContactOwner(BuildContext context) {
     Navigator.of(context).push(
       HDCPageRoute<void>(page: const ContactOwnerScreen()),
+    );
+  }
+
+  void _openNews(BuildContext context) {
+    Navigator.of(context).push(
+      HDCPageRoute<void>(page: const NewsScreen()),
+    );
+  }
+
+  void _openKnowledgeBase(BuildContext context) {
+    Navigator.of(context).push(
+      HDCPageRoute<void>(page: const KnowledgeBaseScreen()),
     );
   }
 
@@ -464,6 +478,16 @@ class DashboardScreen extends StatelessWidget {
         icon: Icons.notifications_none_rounded,
         badgeCount: notificationCenter.unreadCount,
         onTap: () => _openNotifications(context),
+      ),
+      HDCNavigationItem(
+        label: 'HDC News',
+        icon: Icons.newspaper_outlined,
+        onTap: () => _openNews(context),
+      ),
+      HDCNavigationItem(
+        label: 'Knowledge Base',
+        icon: Icons.menu_book_outlined,
+        onTap: () => _openKnowledgeBase(context),
       ),
       HDCNavigationItem(
         label: 'Profiles & Workspaces',
