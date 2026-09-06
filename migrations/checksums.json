@@ -18,7 +18,7 @@
     "0014_build21_payment_receipts.sql": "c349e0e11e9cfcc00e0e34f7977afb42542de4002763461096eecfeee7c31f4f",
     "0015_documents_and_disputes.sql": "b959bb67d21f3269b5a5f4367a3b1cdcbe2331a188e2d4a08d6236d123793f60",
     "0016_build22_1_legal_and_recovery_baseline.sql": "734a0ad99bacfc6a4c20036b1abaf169199d2601f11856986caa25ae89f41de2",
-    "0017_controlled_locations.sql": "f284e16846db4c8f46290c8f0cbf498c88db4cdb671e352090873862e3025c79",
-    "0018_controlled_role_application_locations.sql": "30ee45e2f5e41ba129718821b26d8ad89b7f80a1f234aee14a54990e81720a6f"
+    "0017_controlled_locations.sql": "d0a2dc5ee5e6d71796a907a6b2437e0452e70068ef36c9c9e30316ca923ebb1a",
+    "0018_controlled_role_application_locations.sql": "b25f64502b8d5f50b305e2687663febc769ce874a7cfd0a590aff949bf8feebc"
   }
 }
