@@ -11,6 +11,7 @@ const result = spawnSync(
     'node_modules/vitest/vitest.mjs',
     'run',
     'tests/postgres-workflows.integration.test.ts',
+    'tests/build26-community.integration.test.ts',
   ],
   {
     env: {

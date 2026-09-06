@@ -10,6 +10,7 @@ import 'core/backend/backend_config.dart';
 import 'core/ui/hdc_theme.dart';
 import 'features/splash/splash_screen.dart';
 import 'providers/hdc_auth_provider.dart';
+import 'providers/hdc_community_provider.dart';
 import 'providers/hdc_internal_dashboard_provider.dart';
 import 'providers/hdc_marketplace_provider.dart';
 import 'providers/hdc_news_provider.dart';
@@ -154,6 +155,16 @@ class HDCApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(
           create: (_) => HDCAuthProvider(gateway: authGateway),
+        ),
+        ChangeNotifierProxyProvider<HDCAuthProvider, HdcCommunityProvider>(
+          create: (_) => HdcCommunityProvider(client: roleApiClient),
+          update: (_, auth, communityProvider) {
+            final provider = communityProvider ?? HdcCommunityProvider(client: roleApiClient);
+            provider.bindUser(
+              auth.authenticated && !auth.guestMode ? auth.identity?.id : null,
+            );
+            return provider;
+          },
         ),
         ChangeNotifierProxyProvider<HDCAuthProvider, HdcNewsProvider>(
           create: (_) => HdcNewsProvider(client: roleApiClient),

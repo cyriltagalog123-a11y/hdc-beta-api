@@ -22,6 +22,7 @@
     "0018_controlled_role_application_locations.sql": "557dc31168d3c42d06c08b11fdc44809a9dcafc9d72c419dde4f5c5df78babd9",
     "0019_public_news_and_recognition.sql": "7b8629c288f46c8df6071283742aa75faaaa5282ccb34adb3c71984214b335dc",
     "0020_build26_news_consent_history.sql": "a7afe69aad304eb1358a9d2f531dc56f2ebd321ffa83f4ce51196298f0b6b707",
-    "0021_build26_legal_revision_2026_09_06.sql": "b0be500877c324399c685ecd17e2faed0fcf179fb7925ebb0afc7ef271aa55eb"
+    "0021_build26_legal_revision_2026_09_06.sql": "b0be500877c324399c685ecd17e2faed0fcf179fb7925ebb0afc7ef271aa55eb",
+    "0022_build26_feedback_reputation.sql": "19cc3f2ef8aef66821163aac1c7bf548e03e17b761764357262a12810bd8731b"
   }
 }

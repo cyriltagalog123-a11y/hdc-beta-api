@@ -4,6 +4,8 @@ import 'product_listing.dart';
 enum ProductPurchaseStatus {
   submitted,
   accepted,
+  fulfilled,
+  completed,
   declined,
   cancelled,
 }
@@ -14,6 +16,8 @@ extension ProductPurchaseStatusDetails on ProductPurchaseStatus {
   String get label => switch (this) {
         ProductPurchaseStatus.submitted => 'Awaiting Seller',
         ProductPurchaseStatus.accepted => 'Accepted',
+        ProductPurchaseStatus.fulfilled => 'Fulfilled — awaiting buyer confirmation',
+        ProductPurchaseStatus.completed => 'Completed',
         ProductPurchaseStatus.declined => 'Declined',
         ProductPurchaseStatus.cancelled => 'Cancelled',
       };
