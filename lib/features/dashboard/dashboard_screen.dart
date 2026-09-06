@@ -21,8 +21,8 @@ import '../authentication/login_screen.dart';
 import '../authentication/registered_user_gate.dart';
 import '../customer_proposals/customer_offers_screen.dart';
 import '../community/community_center_screen.dart';
+import '../community/suggestions_screen.dart';
 import '../internal/internal_dashboard_screen.dart';
-import '../internal/suggestion_management_screen.dart';
 import '../marketplace/marketplace_catalog_screen.dart';
 import '../marketplace/sales_center_screen.dart';
 import '../knowledge_base/knowledge_base_screen.dart';
@@ -39,6 +39,7 @@ import '../technician_marketplace/technician_marketplace_screen.dart';
 import '../transactions/my_transactions_screen.dart';
 import 'widgets/dashboard_activity_timeline.dart';
 import 'widgets/dashboard_header.dart';
+import 'widgets/dashboard_focus_panel.dart';
 import 'widgets/dashboard_marketplace_overview.dart';
 import 'widgets/dashboard_primary_actions.dart';
 import 'widgets/dashboard_quick_access.dart';
@@ -218,9 +219,9 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  void _openSuggestionQueue(BuildContext context) {
+  void _openSuggestions(BuildContext context) {
     Navigator.of(context).push(
-      HDCPageRoute<void>(page: const SuggestionManagementScreen()),
+      HDCPageRoute<void>(page: const SuggestionsScreen()),
     );
   }
 
@@ -424,12 +425,6 @@ class DashboardScreen extends StatelessWidget {
     final isTechnician =
         auth.authenticated &&
         auth.identity?.hasPlatformRole(HDCPlatformRole.technician) == true;
-    final canManageSuggestions =
-        auth.authenticated &&
-        auth.identity?.internalRoles.any(
-              (role) => role.hasPrivilegedResourceAccess,
-            ) ==
-            true;
     final primaryNavigation = <HDCNavigationItem>[
       HDCNavigationItem(
         label: 'Overview',
@@ -491,16 +486,15 @@ class DashboardScreen extends StatelessWidget {
       ),
       if (isRegisteredUser)
         HDCNavigationItem(
-          label: 'Ratings & Community',
+          label: 'Ratings & Badges',
           icon: Icons.stars_outlined,
           onTap: () => _openCommunityCenter(context),
         ),
-      if (canManageSuggestions)
-        HDCNavigationItem(
-          label: 'Suggestion Queue',
-          icon: Icons.fact_check_outlined,
-          onTap: () => _openSuggestionQueue(context),
-        ),
+      HDCNavigationItem(
+        label: 'Suggestions',
+        icon: Icons.lightbulb_outline_rounded,
+        onTap: () => _openSuggestions(context),
+      ),
       HDCNavigationItem(
         label: 'Knowledge Base',
         icon: Icons.menu_book_outlined,
@@ -575,6 +569,19 @@ class DashboardScreen extends StatelessWidget {
                         email: auth.identity?.email,
                         accountId:
                             auth.identity?.publicMemberId ?? auth.identity?.id,
+                      ),
+                      const SizedBox(height: 18),
+                      DashboardFocusPanel(
+                        unreadNotifications: notificationCenter.unreadCount,
+                        activeServices: activeTransactions,
+                        newOffers: totalOffers,
+                        hasPrivateWorkspace: hasPrivateWorkspace,
+                        onNotifications: () => _openNotifications(context),
+                        onSuggestions: () => _openSuggestions(context),
+                        onRatings: () => _openCommunityCenter(context),
+                        onPrivateOperations: hasPrivateWorkspace
+                            ? () => _openPrivateDashboard(context)
+                            : null,
                       ),
                       const SizedBox(height: 24),
                       DashboardPrimaryActions(

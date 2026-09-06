@@ -4,7 +4,7 @@ import { json, methodNotAllowed, readJson } from './_lib/http.mjs';
 import { operationMode } from './_lib/env.mjs';
 import { authorizeInternalRequest } from './_lib/internal-auth.mjs';
 
-const privilegedRoles = new Set(['owner', 'super_admin', 'admin']);
+const privilegedRoles = new Set(['owner']);
 const statuses = new Set(['submitted', 'reviewing', 'planned', 'declined', 'implemented']);
 
 function cleanText(value: unknown, max: number): string {

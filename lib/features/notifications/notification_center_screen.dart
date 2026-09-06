@@ -5,6 +5,7 @@ import '../../core/ui/hdc_colors.dart';
 import '../../core/ui/hdc_flow.dart';
 import '../../models/hdc_notification.dart';
 import '../../providers/hdc_notification_center_provider.dart';
+import 'notification_detail_screen.dart';
 
 class NotificationCenterScreen extends StatefulWidget {
   const NotificationCenterScreen({super.key});
@@ -69,7 +70,6 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                       }
                       return _NotificationCard(
                         notification: provider.notifications[index - 1],
-                        onRead: provider.markRead,
                       );
                     },
                   ),
@@ -80,9 +80,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
 
 class _NotificationCard extends StatelessWidget {
   final HdcNotification notification;
-  final Future<void> Function(String id) onRead;
-
-  const _NotificationCard({required this.notification, required this.onRead});
+  const _NotificationCard({required this.notification});
 
   @override
   Widget build(BuildContext context) {
@@ -95,7 +93,11 @@ class _NotificationCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: notification.isUnread ? () => onRead(notification.id) : null,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => NotificationDetailScreen(notification: notification),
+          ),
+        ),
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Row(
@@ -141,6 +143,8 @@ class _NotificationCard extends StatelessWidget {
                     const SizedBox(height: 5),
                     Text(
                       notification.message,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: HDCColors.textSecondary,
                         height: 1.4,

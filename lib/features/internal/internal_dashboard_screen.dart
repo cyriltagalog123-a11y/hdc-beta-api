@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/ui/hdc_colors.dart';
+import '../../models/account_identity.dart';
 import '../../models/hdc_internal_dashboard.dart';
+import '../../providers/hdc_auth_provider.dart';
 import '../../providers/hdc_internal_dashboard_provider.dart';
 import '../roles/internal_role_application_review_screen.dart';
 import 'account_recovery_review_screen.dart';
 import 'dispute_resolution_screen.dart';
 import 'platform_role_management_screen.dart';
+import 'suggestion_management_screen.dart';
 
 class InternalDashboardScreen extends StatefulWidget {
   const InternalDashboardScreen({super.key});
@@ -72,9 +75,20 @@ class _InternalDashboardScreenState extends State<InternalDashboardScreen> {
     );
   }
 
+  void _openSuggestionQueue(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const SuggestionManagementScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final workspace = context.watch<HdcInternalDashboardProvider>();
+    final auth = context.watch<HDCAuthProvider>();
+    final isOwner =
+        auth.identity?.hasInternalRole(HDCInternalRole.owner) == true;
 
     return Scaffold(
       backgroundColor: HDCColors.background,
@@ -111,9 +125,25 @@ class _InternalDashboardScreenState extends State<InternalDashboardScreen> {
                             onSwitchToPublic: () =>
                                 Navigator.of(context).pop(),
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 18),
+                          _OperationsPriorityStrip(
+                            pendingApplications: workspace.statistics['pendingRoleApplications'] ?? 0,
+                            pendingRecoveryReviews: workspace.statistics['pendingRecoveryReviews'] ?? 0,
+                            pendingDisputes: workspace.statistics['pendingDisputes'] ?? 0,
+                            isOwner: isOwner,
+                            canApprovePlatformRoles:
+                                workspace.permissions.canApprovePlatformRoles,
+                            canReviewAccountRecovery:
+                                workspace.permissions.canReviewAccountRecovery,
+                            loading: workspace.isLoading,
+                            onOpenApprovalQueue: () => _openApprovalQueue(context),
+                            onOpenRecoveryQueue: () => _openRecoveryQueue(context),
+                            onOpenDisputeQueue: () => _openDisputeQueue(context),
+                            onOpenSuggestions: () => _openSuggestionQueue(context),
+                          ),
+                          const SizedBox(height: 26),
                           Text(
-                            'Authorized statistics',
+                            'Operations snapshot',
                             style: Theme.of(context)
                                 .textTheme
                                 .headlineSmall
@@ -155,6 +185,9 @@ class _InternalDashboardScreenState extends State<InternalDashboardScreen> {
                                 _openDisputeQueue(context),
                             onOpenPlatformRoleManagement: () =>
                                 _openPlatformRoleManagement(context),
+                            canManageSuggestions: isOwner,
+                            onOpenSuggestions: () =>
+                                _openSuggestionQueue(context),
                           ),
                           if (workspace.assignments.isNotEmpty) ...[
                             const SizedBox(height: 26),
@@ -285,6 +318,138 @@ class _PrivateWorkspaceBanner extends StatelessWidget {
   }
 }
 
+
+class _OperationsPriorityStrip extends StatelessWidget {
+  final int pendingApplications;
+  final int pendingRecoveryReviews;
+  final int pendingDisputes;
+  final bool isOwner;
+  final bool canApprovePlatformRoles;
+  final bool canReviewAccountRecovery;
+  final bool loading;
+  final VoidCallback onOpenApprovalQueue;
+  final VoidCallback onOpenRecoveryQueue;
+  final VoidCallback onOpenDisputeQueue;
+  final VoidCallback onOpenSuggestions;
+
+  const _OperationsPriorityStrip({
+    required this.pendingApplications,
+    required this.pendingRecoveryReviews,
+    required this.pendingDisputes,
+    required this.isOwner,
+    required this.canApprovePlatformRoles,
+    required this.canReviewAccountRecovery,
+    required this.loading,
+    required this.onOpenApprovalQueue,
+    required this.onOpenRecoveryQueue,
+    required this.onOpenDisputeQueue,
+    required this.onOpenSuggestions,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: HDCColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: HDCColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.radar_rounded, color: HDCColors.primary),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  'Operations priority board',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+              ),
+              if (isOwner)
+                const Chip(
+                  avatar: Icon(Icons.key_outlined, size: 17),
+                  label: Text('OWNER'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Open the queues that need attention without searching through the full operations workspace.',
+            style: TextStyle(color: HDCColors.textSecondary),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              if (canApprovePlatformRoles)
+                _PriorityAction(
+                  icon: Icons.fact_check_outlined,
+                  label: 'Role approvals',
+                  count: pendingApplications,
+                  onTap: loading ? null : onOpenApprovalQueue,
+                ),
+              if (canReviewAccountRecovery)
+                _PriorityAction(
+                  icon: Icons.security_outlined,
+                  label: 'Recovery',
+                  count: pendingRecoveryReviews,
+                  onTap: loading ? null : onOpenRecoveryQueue,
+                ),
+              if (canApprovePlatformRoles)
+                _PriorityAction(
+                  icon: Icons.gavel_outlined,
+                  label: 'Disputes',
+                  count: pendingDisputes,
+                  onTap: loading ? null : onOpenDisputeQueue,
+                ),
+              if (isOwner)
+                _PriorityAction(
+                  icon: Icons.lightbulb_outline_rounded,
+                  label: 'Suggestions',
+                  count: null,
+                  onTap: loading ? null : onOpenSuggestions,
+                  ownerOnly: true,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PriorityAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final int? count;
+  final VoidCallback? onTap;
+  final bool ownerOnly;
+
+  const _PriorityAction({
+    required this.icon,
+    required this.label,
+    required this.count,
+    required this.onTap,
+    this.ownerOnly = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final suffix = count == null ? '' : ' ($count)';
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon),
+      label: Text('${ownerOnly ? 'Owner • ' : ''}$label$suffix'),
+    );
+  }
+}
+
 class _StatisticsGrid extends StatelessWidget {
   final Map<String, int> statistics;
 
@@ -399,6 +564,8 @@ class _AuthorizedScope extends StatelessWidget {
   final VoidCallback onOpenRecoveryQueue;
   final VoidCallback onOpenDisputeQueue;
   final VoidCallback onOpenPlatformRoleManagement;
+  final bool canManageSuggestions;
+  final VoidCallback onOpenSuggestions;
 
   const _AuthorizedScope({
     required this.permissions,
@@ -410,6 +577,8 @@ class _AuthorizedScope extends StatelessWidget {
     required this.onOpenRecoveryQueue,
     required this.onOpenDisputeQueue,
     required this.onOpenPlatformRoleManagement,
+    required this.canManageSuggestions,
+    required this.onOpenSuggestions,
   });
 
   @override
@@ -418,7 +587,7 @@ class _AuthorizedScope extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Authorized tools',
+          'Queues & controls',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
               ),
@@ -488,6 +657,18 @@ class _AuthorizedScope extends StatelessWidget {
             title: 'Operational reporting',
             subtitle:
                 'Member, service-request, and transaction statistics are active.',
+          ),
+        if (canManageSuggestions)
+          _ScopeTile(
+            icon: Icons.lightbulb_outline_rounded,
+            title: 'Suggestion Queue',
+            subtitle:
+                'Owner-only access to member suggestions, decisions, responses, and implementation tracking.',
+            action: FilledButton.tonalIcon(
+              onPressed: loading ? null : onOpenSuggestions,
+              icon: const Icon(Icons.lock_open_outlined),
+              label: const Text('Owner Review'),
+            ),
           ),
         if (permissions.canModerateCommunity)
           const _ScopeTile(

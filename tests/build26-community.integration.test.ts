@@ -26,6 +26,7 @@ let buyer: TestAccount;
 let seller: TestAccount;
 let outsider: TestAccount;
 let admin: TestAccount;
+let owner: TestAccount;
 let sequence = 0;
 
 function nextRef(prefix: string): string {
@@ -243,6 +244,7 @@ describe.skipIf(!runPostgresIntegration).sequential(
       const rawSeller = await register('Marketplace Seller');
       const rawOutsider = await register('Rating Outsider');
       const rawAdmin = await register('Suggestion Admin');
+      const rawOwner = await register('Suggestion Owner');
 
       await sql`
         INSERT INTO public.hdc_user_roles(user_id, role, is_active)
@@ -255,9 +257,9 @@ describe.skipIf(!runPostgresIntegration).sequential(
       await sql`
         INSERT INTO public.hdc_internal_role_assignments(
           user_id, role, is_active, assignment_note
-        ) VALUES (
-          ${rawAdmin.id}::uuid, 'admin', true, 'Build 26 community integration test'
-        )
+        ) VALUES
+          (${rawAdmin.id}::uuid, 'admin', true, 'Build 26 admin denial regression'),
+          (${rawOwner.id}::uuid, 'owner', true, 'Build 26 owner suggestion regression')
         ON CONFLICT(user_id, role) DO UPDATE SET is_active = true
       `;
 
@@ -267,6 +269,7 @@ describe.skipIf(!runPostgresIntegration).sequential(
       seller = await login(rawSeller);
       outsider = await login(rawOutsider);
       admin = await login(rawAdmin);
+      owner = await login(rawOwner);
     }, 90_000);
 
     afterAll(async () => {
@@ -501,7 +504,7 @@ describe.skipIf(!runPostgresIntegration).sequential(
       expect(sellerBadgeKeys).toContain('first_marketplace_complete');
     });
 
-    it('tracks suggestions, restricts management, and awards Helpful Contributor only after implementation', async () => {
+    it('tracks suggestions, restricts full management to Owner, and awards Helpful Contributor only after implementation', async () => {
       const submitted = await communityApi('/api/community', {
         method: 'POST',
         body: JSON.stringify({
@@ -520,7 +523,11 @@ describe.skipIf(!runPostgresIntegration).sequential(
       const denied = await adminApi('/api/internal/community', {}, outsider.token);
       expect([403, 404]).toContain(denied.response.status);
 
-      const queue = await adminApi('/api/internal/community', {}, admin.token);
+      const deniedAdmin = await adminApi('/api/internal/community', {}, admin.token);
+      expectStatus(deniedAdmin, 403);
+      expect(deniedAdmin.body.error).toBe('suggestion_management_forbidden');
+
+      const queue = await adminApi('/api/internal/community', {}, owner.token);
       expectStatus(queue, 200);
       const suggestion = (queue.body.suggestions as Record<string, unknown>[])
         .find((item) => String(item.publicSuggestionId) === publicSuggestionId);
@@ -540,7 +547,7 @@ describe.skipIf(!runPostgresIntegration).sequential(
           status: 'implemented',
           staffResponse: 'Implemented and verified in the Build 26 community workflow.',
         }),
-      }, admin.token);
+      }, owner.token);
       expectStatus(implemented, 200);
       expect((implemented.body.suggestion as Record<string, unknown>).status)
         .toBe('implemented');
