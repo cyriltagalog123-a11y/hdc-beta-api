@@ -70,7 +70,7 @@ describe('SaiCore Support HDC and Contact Owner public pages', () => {
     const page = read('lib/features/support/support_us_screen.dart');
 
     expect(page).toContain('Public supporter recognition');
-    expect(page).toContain('only if they agree');
+    expect(page).toContain('agrees to be publicly named');
     expect(page).toContain('Anonymous or private support stays private.');
     expect(page).toContain('Recognition is publicity only.');
   });
