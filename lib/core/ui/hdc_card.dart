@@ -28,18 +28,27 @@ class HDCCard extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: color ?? HDCColors.surface,
+        color: color,
+        gradient: color == null ? HDCColors.surfaceGradient : null,
         borderRadius: radius,
         border: Border.all(color: borderColor ?? HDCColors.border),
         boxShadow: elevated
             ? const [
                 BoxShadow(
-                  color: HDCColors.shadow,
-                  blurRadius: 26,
-                  offset: Offset(0, 12),
+                  color: HDCColors.shadowStrong,
+                  blurRadius: 34,
+                  spreadRadius: -8,
+                  offset: Offset(0, 16),
                 ),
               ]
-            : null,
+            : const [
+                BoxShadow(
+                  color: HDCColors.shadow,
+                  blurRadius: 16,
+                  spreadRadius: -10,
+                  offset: Offset(0, 8),
+                ),
+              ],
       ),
       child: onTap == null
           ? content
