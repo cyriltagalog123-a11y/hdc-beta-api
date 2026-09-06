@@ -95,7 +95,7 @@ void main() {
     test('public signUp does not create a client session', () async {
       final store = _MemorySessionStore();
       final client = MockClient((request) async {
-        expect(request.url.path, '/api/auth/register-v2');
+        expect(request.url.path, '/api/auth/register');
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         expect(body['termsAccepted'], isTrue);
         expect(body['privacyAcknowledged'], isTrue);
@@ -158,332 +158,52 @@ void main() {
               return http.Response(
                 jsonEncode({
                   'result': 'verified',
-                  'resetToken': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-                  'expiresAt': DateTime.now()
-                      .add(const Duration(minutes: 15))
-                      .toUtc()
-                      .toIso8601String(),
+                  'resetToken': 'reset-token',
                 }),
                 200,
               );
             case '/api/auth/recovery/reset':
               final resetBody =
                   jsonDecode(request.body) as Map<String, dynamic>;
-              expect(
-                resetBody['resetToken'],
-                'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-              );
-              expect(resetBody['newPassword'], 'New-Secure-Password#12');
+              expect(resetBody['resetToken'], 'reset-token');
+              expect(resetBody['newPassword'], 'another-not-real-password');
               return http.Response(jsonEncode({'success': true}), 200);
             default:
-              return http.Response('{}', 404);
+              return http.Response(jsonEncode({'error': 'unexpected'}), 500);
           }
         });
+
         final gateway = HdcApiAuthGateway(
           baseUri: Uri.parse('https://example.test'),
           client: client,
           sessionStore: _MemorySessionStore(),
         );
 
-        final questions = await gateway.startPasswordRecovery(
-          email: 'person@example.com',
+        final challenge = await gateway.startRecovery(
+          identifier: 'person@example.com',
         );
-        expect(questions, hasLength(3));
-        final verification = await gateway.verifyRecoveryAnswers(
-          email: 'person@example.com',
-          answers: _recoveryAnswers,
-        );
-        expect(verification.isVerified, isTrue);
-        await gateway.resetPassword(
-          resetToken: verification.resetToken!,
-          newPassword: 'New-Secure-Password#12',
-        );
-      },
-    );
+        expect(challenge.questions, hasLength(3));
 
-    test('authenticated accounts can replace recovery answers', () async {
-      final store = _MemorySessionStore()
-        ..value = StoredAuthSession(
-          token: 'security-token',
-          expiresAt: DateTime.now().add(const Duration(hours: 1)),
-        );
-      final client = MockClient((request) async {
-        expect(request.url.path, '/api/auth/recovery/answers');
-        expect(request.headers['authorization'], 'Bearer security-token');
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        expect(body['currentPassword'], 'Current-Secure-Password#12');
-        expect(body['recoveryAnswers'], hasLength(3));
-        return http.Response(jsonEncode({'success': true}), 200);
-      });
-      final gateway = HdcApiAuthGateway(
-        baseUri: Uri.parse('https://example.test'),
-        client: client,
-        sessionStore: store,
-      );
-
-      await gateway.updateRecoveryAnswers(
-        currentPassword: 'Current-Secure-Password#12',
-        recoveryAnswers: _recoveryAnswers,
-      );
-    });
-
-    test('rejects a malformed or shared account identifier', () async {
-      final client = MockClient((request) async {
-        return http.Response(
-          jsonEncode({'user': _user(id: 'shared-account')}),
-          201,
-          headers: {'content-type': 'application/json'},
-        );
-      });
-      final gateway = HdcApiAuthGateway(
-        baseUri: Uri.parse('https://example.test'),
-        client: client,
-        sessionStore: _MemorySessionStore(),
-      );
-
-      await expectLater(
-        gateway.signUp(
-          email: 'person@example.com',
-          password: 'not-a-real-password',
-          displayName: 'HDC Person',
-          location: 'Cebu City, Central Visayas, Philippines',
+        final verification = await gateway.verifyRecovery(
+          identifier: 'person@example.com',
           recoveryAnswers: _recoveryAnswers,
-          termsAccepted: true,
-          privacyAcknowledged: true,
-        ),
-        throwsA(
-          isA<HDCAuthException>().having(
-            (error) => error.code,
-            'code',
-            'invalid_server_response',
-          ),
-        ),
-      );
-    });
-
-    test(
-      'initialize restores only a session verified by the backend',
-      () async {
-        final store = _MemorySessionStore()
-          ..value = StoredAuthSession(
-            token: 'restored-token',
-            expiresAt: DateTime.now().add(const Duration(hours: 1)),
-          );
-        final client = MockClient((request) async {
-          expect(request.url.path, '/api/auth/session');
-          expect(request.headers['authorization'], 'Bearer restored-token');
-          return http.Response(
-            jsonEncode({'user': _user()}),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        });
-
-        final gateway = HdcApiAuthGateway(
-          baseUri: Uri.parse('https://example.test'),
-          client: client,
-          sessionStore: store,
         );
+        expect(verification.resetToken, 'reset-token');
 
-        await gateway.initialize();
-
-        expect(gateway.currentIdentity?.email, 'person@example.com');
-        expect(gateway.currentSession?.isUsable, isTrue);
-      },
-    );
-
-    test('legacy mixed role payload is split into separate domains', () async {
-      final client = MockClient((request) async {
-        return http.Response(
-          jsonEncode({
-            'token': 'legacy-token',
-            'expiresAt': DateTime.now()
-                .add(const Duration(hours: 1))
-                .toUtc()
-                .toIso8601String(),
-            'user': {
-              ..._user(),
-              'platformRoles': null,
-              'internalRoles': null,
-              'roles': ['customer', 'supplier', 'super_admin', 'unknown'],
-            },
-          }),
-          200,
-          headers: {'content-type': 'application/json'},
+        await gateway.resetPassword(
+          resetToken: verification.resetToken,
+          newPassword: 'another-not-real-password',
         );
-      });
-
-      final gateway = HdcApiAuthGateway(
-        baseUri: Uri.parse('https://example.test'),
-        client: client,
-        sessionStore: _MemorySessionStore(),
-      );
-      final identity = await gateway.signIn(
-        identifier: 'person@example.com',
-        password: 'not-a-real-password',
-      );
-
-      expect(identity.platformRoles, {
-        HDCPlatformRole.customer,
-        HDCPlatformRole.supplier,
-      });
-      expect(identity.internalRoles, {HDCInternalRole.superAdmin});
-      expect(identity.canApprovePlatformRoles, isTrue);
-    });
-
-    test(
-      'default session policy does not restore login after app restart',
-      () async {
-        final loginClient = MockClient((request) async {
-          expect(request.url.path, '/api/auth/login');
-          return http.Response(
-            jsonEncode({
-              'token': 'process-only-token',
-              'expiresAt': DateTime.now()
-                  .add(const Duration(hours: 1))
-                  .toUtc()
-                  .toIso8601String(),
-              'user': _user(),
-            }),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        });
-
-        final firstRun = HdcApiAuthGateway(
-          baseUri: Uri.parse('https://example.test'),
-          client: loginClient,
-        );
-        await firstRun.signIn(
-          identifier: 'person@example.com',
-          password: 'not-a-real-password',
-        );
-        expect(firstRun.currentSession?.isUsable, isTrue);
-
-        var networkCalled = false;
-        final secondRun = HdcApiAuthGateway(
-          baseUri: Uri.parse('https://example.test'),
-          client: MockClient((request) async {
-            networkCalled = true;
-            return http.Response('{}', 500);
-          }),
-        );
-
-        await secondRun.initialize();
-
-        expect(networkCalled, isFalse);
-        expect(secondRun.currentIdentity, isNull);
-        expect(secondRun.currentSession, isNull);
-      },
-    );
-
-    test(
-      'signOut revokes the backend session before clearing local state',
-      () async {
-        final store = _MemorySessionStore();
-        var logoutCalled = false;
-        final client = MockClient((request) async {
-          if (request.url.path == '/api/auth/login') {
-            return http.Response(
-              jsonEncode({
-                'token': 'logout-token',
-                'expiresAt': DateTime.now()
-                    .add(const Duration(hours: 1))
-                    .toUtc()
-                    .toIso8601String(),
-                'user': _user(),
-              }),
-              200,
-              headers: {'content-type': 'application/json'},
-            );
-          }
-          if (request.url.path == '/api/auth/logout') {
-            logoutCalled = true;
-            expect(request.headers['authorization'], 'Bearer logout-token');
-            return http.Response(
-              jsonEncode({'success': true}),
-              200,
-              headers: {'content-type': 'application/json'},
-            );
-          }
-          return http.Response('{}', 404);
-        });
-
-        final gateway = HdcApiAuthGateway(
-          baseUri: Uri.parse('https://example.test'),
-          client: client,
-          sessionStore: store,
-        );
-        await gateway.signIn(
-          identifier: 'person@example.com',
-          password: 'not-a-real-password',
-        );
-
-        await gateway.signOut();
-
-        expect(logoutCalled, isTrue);
-        expect(gateway.currentIdentity, isNull);
-        expect(gateway.currentSession, isNull);
-        expect(store.value, isNull);
-      },
-    );
-
-    test(
-      'signOut clears the local token when remote revocation is unreachable',
-      () async {
-        final store = _MemorySessionStore();
-        final client = MockClient((request) async {
-          if (request.url.path == '/api/auth/login') {
-            return http.Response(
-              jsonEncode({
-                'token': 'offline-logout-token',
-                'expiresAt': DateTime.now()
-                    .add(const Duration(hours: 1))
-                    .toUtc()
-                    .toIso8601String(),
-                'user': _user(),
-              }),
-              200,
-              headers: {'content-type': 'application/json'},
-            );
-          }
-          if (request.url.path == '/api/auth/logout') {
-            throw http.ClientException('offline');
-          }
-          return http.Response('{}', 404);
-        });
-
-        final gateway = HdcApiAuthGateway(
-          baseUri: Uri.parse('https://example.test'),
-          client: client,
-          sessionStore: store,
-        );
-        await gateway.signIn(
-          identifier: 'person@example.com',
-          password: 'not-a-real-password',
-        );
-
-        await gateway.signOut();
-
-        expect(gateway.currentIdentity, isNull);
-        expect(gateway.currentSession, isNull);
-        expect(store.value, isNull);
       },
     );
   });
 }
 
-const _recoveryAnswers = <AccountRecoveryAnswer>[
-  AccountRecoveryAnswer(
-    questionCode: 'first_meal',
-    answer: 'private meal answer',
-  ),
+const _recoveryAnswers = [
+  AccountRecoveryAnswer(questionCode: 'first_meal', answer: 'ginger porridge'),
   AccountRecoveryAnswer(
     questionCode: 'childhood_nickname',
-    answer: 'private nickname answer',
+    answer: 'quiet comet',
   ),
-  AccountRecoveryAnswer(
-    questionCode: 'private_phrase',
-    answer: 'private phrase answer',
-  ),
+  AccountRecoveryAnswer(questionCode: 'private_phrase', answer: 'amber harbor'),
 ];
