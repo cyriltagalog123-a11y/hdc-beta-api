@@ -25,21 +25,23 @@ describe('SaiCore Support HDC and Contact Owner public pages', () => {
     expect(page).toContain('Corporate sponsorship');
     expect(page).toContain('GCash / QR');
     expect(page).toContain('Maya / QR Ph');
-    expect(page).toContain('PayPal');
-    expect(page).toContain('Ko-fi or similar');
+    expect(page).not.toContain('PayPal');
+    expect(page).not.toContain('Ko-fi or similar');
     expect(page).toContain('Bank / transfer route');
+    expect(page).toContain('Not available at the moment');
     expect(page).toContain('Corporate arrangement');
   });
 
   it('discloses that payment providers may still charge fees', () => {
     const page = read('lib/features/support/support_us_screen.dart');
 
-    expect(page).toContain('no required setup or monthly subscription cost');
-    expect(page).toContain('transaction, processor, withdrawal, or conversion fees');
+    expect(page).toContain('verified local QR or wallet routes');
+    expect(page).toContain('transaction or withdrawal fees');
     expect(page).toContain('universally fee-free');
     expect(page).toContain(
-      'Financial intake remains inactive until official SaiCore destination details are verified and published.',
+      'Payment destinations remain open for owner-supplied verified QR or account details.',
     );
+    expect(page).toContain('Bank transfer is not available at the moment.');
   });
 
   it('keeps useful non-financial support available', () => {

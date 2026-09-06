@@ -176,21 +176,9 @@ class _PaymentChannelsCard extends StatelessWidget {
         Icons.account_balance_wallet_outlined,
       ),
       (
-        'PayPal',
-        'Optional online contribution route',
-        'Account/link verification required',
-        Icons.public_rounded,
-      ),
-      (
-        'Ko-fi or similar',
-        'Useful for one-time or recurring support',
-        'SaiCore page/link required',
-        Icons.local_cafe_outlined,
-      ),
-      (
         'Bank / transfer route',
-        'Useful for larger PHP sponsorships',
-        'Published only after owner approval',
+        'Bank-transfer details may be added later after owner verification',
+        'Not available at the moment',
         Icons.account_balance_outlined,
       ),
       (
@@ -228,7 +216,7 @@ class _PaymentChannelsCard extends StatelessWidget {
           ),
           const SizedBox(height: 9),
           Text(
-            'The current policy is PHP-only and prefers channels with no required setup or monthly subscription cost. A provider may still charge transaction, processor, withdrawal, or conversion fees, so HDC will disclose those instead of advertising any route as universally fee-free.',
+            'The current policy is PHP-only and currently prioritizes verified local QR or wallet routes plus direct corporate arrangements. Available providers may still charge transaction or withdrawal fees, so HDC will disclose those instead of advertising any route as universally fee-free.',
             style: TextStyle(
               color: HDCColors.textLight.withValues(alpha: 0.74),
               height: 1.55,
@@ -316,7 +304,7 @@ class _PaymentChannelsCard extends StatelessWidget {
                 label: const Text('Discuss Sponsorship'),
               ),
               Text(
-                'Financial intake remains inactive until official SaiCore destination details are verified and published.',
+                'Payment destinations remain open for owner-supplied verified QR or account details. Bank transfer is not available at the moment.',
                 style: TextStyle(
                   color: HDCColors.textLight.withValues(alpha: 0.68),
                 ),
