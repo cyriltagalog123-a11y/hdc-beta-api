@@ -1,7 +1,7 @@
 -- HDC Build 24.2
 -- Controlled Philippines locations for registration, profiles, and service requests.
--- Existing legacy rows are preserved by NOT VALID; every new or updated row
--- must use an HDC catalog value (member/profile blank is allowed until edited).
+-- Legacy rows remain untouched, while database triggers enforce the HDC catalog
+-- on every new row and every update that changes a controlled location field.
 
 BEGIN;
 
@@ -49,21 +49,60 @@ GRANT EXECUTE ON FUNCTION public.hdc_is_supported_location(text) TO hdc_app;
 
 ALTER TABLE public.hdc_member_profiles
   DROP CONSTRAINT IF EXISTS hdc_member_profiles_controlled_location;
-ALTER TABLE public.hdc_member_profiles
-  ADD CONSTRAINT hdc_member_profiles_controlled_location
-  CHECK (location = '' OR public.hdc_is_supported_location(location)) NOT VALID;
-
 ALTER TABLE public.hdc_platform_role_profiles
   DROP CONSTRAINT IF EXISTS hdc_platform_role_profiles_controlled_location;
-ALTER TABLE public.hdc_platform_role_profiles
-  ADD CONSTRAINT hdc_platform_role_profiles_controlled_location
-  CHECK (location = '' OR public.hdc_is_supported_location(location)) NOT VALID;
-
 ALTER TABLE public.hdc_service_requests
   DROP CONSTRAINT IF EXISTS hdc_service_requests_controlled_location;
-ALTER TABLE public.hdc_service_requests
-  ADD CONSTRAINT hdc_service_requests_controlled_location
-  CHECK (public.hdc_is_supported_location(location)) NOT VALID;
+
+CREATE OR REPLACE FUNCTION public.hdc_require_optional_controlled_location()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.location <> ''
+     AND NOT public.hdc_is_supported_location(NEW.location) THEN
+    RAISE EXCEPTION 'Unsupported HDC location'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION public.hdc_require_controlled_location()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NOT public.hdc_is_supported_location(NEW.location) THEN
+    RAISE EXCEPTION 'Unsupported HDC location'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END
+$$;
+
+REVOKE ALL ON FUNCTION public.hdc_require_optional_controlled_location() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.hdc_require_controlled_location() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.hdc_require_optional_controlled_location() TO hdc_app;
+GRANT EXECUTE ON FUNCTION public.hdc_require_controlled_location() TO hdc_app;
+
+DROP TRIGGER IF EXISTS hdc_member_profiles_controlled_location
+  ON public.hdc_member_profiles;
+CREATE TRIGGER hdc_member_profiles_controlled_location
+BEFORE INSERT OR UPDATE OF location ON public.hdc_member_profiles
+FOR EACH ROW EXECUTE FUNCTION public.hdc_require_optional_controlled_location();
+
+DROP TRIGGER IF EXISTS hdc_platform_role_profiles_controlled_location
+  ON public.hdc_platform_role_profiles;
+CREATE TRIGGER hdc_platform_role_profiles_controlled_location
+BEFORE INSERT OR UPDATE OF location ON public.hdc_platform_role_profiles
+FOR EACH ROW EXECUTE FUNCTION public.hdc_require_optional_controlled_location();
+
+DROP TRIGGER IF EXISTS hdc_service_requests_controlled_location
+  ON public.hdc_service_requests;
+CREATE TRIGGER hdc_service_requests_controlled_location
+BEFORE INSERT OR UPDATE OF location ON public.hdc_service_requests
+FOR EACH ROW EXECUTE FUNCTION public.hdc_require_controlled_location();
 
 INSERT INTO public.hdc_schema_migrations (
   version, migration_name, is_baseline
