@@ -19,7 +19,7 @@ class _CommunityCenterScreenState extends State<CommunityCenterScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this);
+    _tabs = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<HdcCommunityProvider>().refreshAll();
     });
@@ -36,12 +36,11 @@ class _CommunityCenterScreenState extends State<CommunityCenterScreen>
     final provider = context.watch<HdcCommunityProvider>();
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ratings, Suggestions & Badges'),
+        title: const Text('Ratings & Badges'),
         bottom: TabBar(
           controller: _tabs,
           tabs: const [
             Tab(text: 'Ratings', icon: Icon(Icons.star_outline_rounded)),
-            Tab(text: 'Suggestions', icon: Icon(Icons.lightbulb_outline_rounded)),
             Tab(text: 'Badges', icon: Icon(Icons.workspace_premium_outlined)),
           ],
         ),
@@ -57,7 +56,6 @@ class _CommunityCenterScreenState extends State<CommunityCenterScreen>
                 controller: _tabs,
                 children: [
                   _RatingsTab(provider: provider),
-                  _SuggestionsTab(provider: provider),
                   _BadgesTab(provider: provider),
                 ],
               ),
@@ -235,136 +233,6 @@ class _RatingTransactionCard extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
     } finally {
       review.dispose();
-    }
-  }
-}
-
-class _SuggestionsTab extends StatelessWidget {
-  final HdcCommunityProvider provider;
-  const _SuggestionsTab({required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(18),
-      children: [
-        HDCFlowHero(
-          eyebrow: 'HELP IMPROVE HDC',
-          title: 'Send a tracked suggestion.',
-          description:
-              'Suggestions stay linked to your account so you can see whether they are submitted, under review, planned, declined, or implemented. An implemented suggestion can earn the Helpful Contributor badge.',
-          icon: Icons.lightbulb_outline_rounded,
-          action: FilledButton.icon(
-            onPressed: () => _openSuggestionDialog(context),
-            icon: const Icon(Icons.add_comment_outlined),
-            label: const Text('New Suggestion'),
-          ),
-        ),
-        const SizedBox(height: 18),
-        if (provider.suggestions.isEmpty)
-          const HDCEmptyState(
-            icon: Icons.forum_outlined,
-            title: 'No suggestions submitted yet',
-            description: 'Use New Suggestion to send a concrete feature, usability, marketplace, workflow, safety, Knowledge Base, or other improvement idea.',
-          )
-        else
-          for (final suggestion in provider.suggestions) ...[
-            HDCSectionCard(
-              title: suggestion.title,
-              subtitle: '${suggestion.publicSuggestionId} • ${suggestion.category.replaceAll('_', ' ')}',
-              trailing: Chip(label: Text(suggestion.status.toUpperCase())),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(suggestion.body),
-                  if (suggestion.staffResponse.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    const Text('HDC response', style: TextStyle(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 4),
-                    Text(suggestion.staffResponse),
-                  ],
-                  if (suggestion.publicAttributionConsent) ...[
-                    const SizedBox(height: 10),
-                    const Text(
-                      'You allowed HDC to publicly credit you if this suggestion is recognized. This is not automatic publication.',
-                      style: TextStyle(color: HDCColors.textSecondary),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-      ],
-    );
-  }
-
-  Future<void> _openSuggestionDialog(BuildContext context) async {
-    var category = 'feature';
-    var consent = false;
-    final title = TextEditingController();
-    final body = TextEditingController();
-    final submitted = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('New HDC Suggestion'),
-          content: SizedBox(
-            width: 520,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButtonFormField<String>(
-                    initialValue: category,
-                    decoration: const InputDecoration(labelText: 'Category'),
-                    items: const {
-                      'feature': 'Feature',
-                      'usability': 'Usability',
-                      'marketplace': 'Marketplace',
-                      'service_workflow': 'Service workflow',
-                      'safety': 'Safety',
-                      'knowledge_base': 'Knowledge Base',
-                      'other': 'Other',
-                    }.entries.map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value))).toList(),
-                    onChanged: (value) => setState(() => category = value ?? 'feature'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(controller: title, maxLength: 160, decoration: const InputDecoration(labelText: 'Title')),
-                  const SizedBox(height: 12),
-                  TextField(controller: body, maxLength: 5000, maxLines: 7, decoration: const InputDecoration(labelText: 'Suggestion', hintText: 'Describe the problem, your proposed improvement, and why it would help.')),
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: consent,
-                    onChanged: (value) => setState(() => consent = value == true),
-                    title: const Text('Allow public credit if HDC recognizes this suggestion'),
-                    subtitle: const Text('Consent does not guarantee publication or implementation.'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Submit')),
-          ],
-        ),
-      ),
-    );
-    if (submitted != true) return;
-    try {
-      await provider.submitSuggestion(
-        category: category,
-        title: title.text,
-        body: body.text,
-        publicAttributionConsent: consent,
-      );
-    } on Object catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
-    } finally {
-      title.dispose();
-      body.dispose();
     }
   }
 }

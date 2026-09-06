@@ -69,10 +69,10 @@ class _SuggestionManagementScreenState
           padding: const EdgeInsets.all(18),
           children: [
             const HDCFlowHero(
-              eyebrow: 'OWNER / APPROVED ADMIN',
-              title: 'Review HDC suggestions without editing code.',
+              eyebrow: 'OWNER ONLY',
+              title: 'Owner Suggestion Review',
               description:
-                  'Move suggestions through review, planning, decline, or implementation. Marking a suggestion implemented can earn its author the Helpful Contributor badge. Public credit still depends on the member’s separate consent.',
+                  'Only the HDC Owner can view the full suggestion queue. Move suggestions through review, planning, decline, or implementation. Marking a suggestion implemented can earn its author the Helpful Contributor badge. Public credit still depends on the member’s separate consent.',
               icon: Icons.fact_check_outlined,
             ),
             const SizedBox(height: 18),
