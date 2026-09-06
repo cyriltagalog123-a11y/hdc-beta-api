@@ -7,18 +7,22 @@ const read = (path: string) =>
 describe('Build 25 distinctive HDC interface redesign', () => {
   it('synchronizes the public release identity to Build 25', () => {
     const packageJson = read('package.json');
+    const packageLock = read('package-lock.json');
     const pubspec = read('pubspec.yaml');
     const appConfig = read('lib/core/config/app_config.dart');
     const dashboard = read('lib/features/dashboard/dashboard_screen.dart');
     const startup = read('web/index.html');
+    const api = read('netlify/functions/api.mts');
     const ci = read('.github/workflows/ci.yml');
 
     expect(packageJson).toContain('"version": "0.6.4-build.25"');
+    expect(packageLock).toContain('"version": "0.6.4-build.25"');
     expect(pubspec).toContain('version: 0.6.4+25');
     expect(appConfig).toContain('0.6.4 Beta (Build 25)');
     expect(dashboard).toContain('HelpDesk Connect Beta v0.6.4 Build 25');
     expect(startup).toContain('Build 25');
     expect(startup).not.toContain('Build 24');
+    expect(api).toContain("build: '0.6.4-build25'");
     expect(ci).toContain('name: hdc-web-build25');
     expect(ci).toContain('Synchronize verified Build 25 web bundle');
   });
@@ -76,14 +80,16 @@ describe('Build 25 distinctive HDC interface redesign', () => {
     expect(security).toContain('Three protected answers');
   });
 
-  it('does not leave temporary Build 25 patch machinery in the review branch', () => {
-    const workflow = new URL(
+  it('does not leave temporary Build 25 repair machinery in the review branch', () => {
+    const paths = [
       '../.github/workflows/build25-patch.yml',
-      import.meta.url,
-    );
-    const helper = new URL('../scripts/build25_patch.py', import.meta.url);
+      '../scripts/build25_patch.py',
+      '../.github/workflows/build25-release-sync.yml',
+      '../scripts/build25_release_sync.py',
+    ];
 
-    expect(existsSync(workflow)).toBe(false);
-    expect(existsSync(helper)).toBe(false);
+    for (const path of paths) {
+      expect(existsSync(new URL(path, import.meta.url))).toBe(false);
+    }
   });
 });
