@@ -27,6 +27,8 @@ import '../notifications/notification_center_screen.dart';
 import '../profiles/profile_center_screen.dart';
 import '../roles/role_center_screen.dart';
 import '../search/search_screen.dart';
+import '../support/contact_owner_screen.dart';
+import '../support/support_us_screen.dart';
 import '../service_requests/create_service_request_screen.dart';
 import '../service_requests/my_service_requests_screen.dart';
 import '../technician_marketplace/technician_marketplace_screen.dart';
@@ -207,6 +209,18 @@ class DashboardScreen extends StatelessWidget {
     }
     if (!context.mounted) return;
     _showComingSoon(context, 'HDC Passport');
+  }
+
+  void _openSupportUs(BuildContext context) {
+    Navigator.of(context).push(
+      HDCPageRoute<void>(page: const SupportUsScreen()),
+    );
+  }
+
+  void _openContactOwner(BuildContext context) {
+    Navigator.of(context).push(
+      HDCPageRoute<void>(page: const ContactOwnerScreen()),
+    );
   }
 
   List<DashboardActivityItem> _accountActivity({
@@ -465,6 +479,16 @@ class DashboardScreen extends StatelessWidget {
         label: 'HDC Passport',
         icon: Icons.fingerprint_rounded,
         onTap: () => _openPassport(context),
+      ),
+      HDCNavigationItem(
+        label: 'Support HDC',
+        icon: Icons.volunteer_activism_outlined,
+        onTap: () => _openSupportUs(context),
+      ),
+      HDCNavigationItem(
+        label: 'Contact Owner',
+        icon: Icons.alternate_email_rounded,
+        onTap: () => _openContactOwner(context),
       ),
       if (hasPrivateWorkspace)
         HDCNavigationItem(
