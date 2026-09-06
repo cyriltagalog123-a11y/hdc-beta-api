@@ -1,45 +1,50 @@
 from pathlib import Path
 
-STAGE = 'Build 25F: clean obsolete interface helpers'
+STAGE = 'Build 25G: synchronize Build 25 release identity'
 
 
-def replace_once(path: str, old: str, new: str) -> None:
+def replace_exact(path: str, old: str, new: str, expected: int = 1) -> None:
     file_path = Path(path)
     text = file_path.read_text()
     count = text.count(old)
-    if count != 1:
-        raise SystemExit(f'{path}: expected one match, found {count}: {old[:100]!r}')
-    file_path.write_text(text.replace(old, new, 1))
+    if count != expected:
+        raise SystemExit(f'{path}: expected {expected} matches, found {count}: {old!r}')
+    file_path.write_text(text.replace(old, new))
 
 
-def delete_between(path: str, start: str, end: str) -> None:
-    file_path = Path(path)
-    text = file_path.read_text()
-    start_index = text.find(start)
-    if start_index < 0:
-        raise SystemExit(f'{path}: missing start marker {start!r}')
-    end_index = text.find(end, start_index)
-    if end_index < 0:
-        raise SystemExit(f'{path}: missing end marker {end!r}')
-    file_path.write_text(text[:start_index] + text[end_index:])
-
-
-replace_once(
-    'lib/features/internal/internal_dashboard_screen.dart',
-    "import '../../core/ui/hdc_flow.dart';\n",
-    '',
+replace_exact('package.json', '"version": "0.6.4-build.24"', '"version": "0.6.4-build.25"')
+replace_exact(
+    'package-lock.json',
+    '"version": "0.6.4-build.24"',
+    '"version": "0.6.4-build.25"',
+    expected=2,
 )
-
-delete_between(
-    'lib/features/profiles/profile_center_screen.dart',
-    'class _OneAccountBanner extends StatelessWidget {',
-    'class _MemberProfileCard extends StatelessWidget {',
+replace_exact('pubspec.yaml', 'version: 0.6.4+24', 'version: 0.6.4+25')
+replace_exact(
+    'lib/core/config/app_config.dart',
+    '0.6.4 Beta (Build 24)',
+    '0.6.4 Beta (Build 25)',
 )
-
-delete_between(
-    'lib/features/marketplace/marketplace_catalog_screen.dart',
-    'class _CatalogNotice extends StatelessWidget {',
-    'class _ProductCard extends StatelessWidget {',
+replace_exact(
+    'lib/features/dashboard/dashboard_screen.dart',
+    'HelpDesk Connect Beta v0.6.4 Build 24',
+    'HelpDesk Connect Beta v0.6.4 Build 25',
+)
+replace_exact(
+    'netlify/functions/api.mts',
+    '0.6.4-build24',
+    '0.6.4-build25',
+)
+replace_exact('web/index.html', 'Build 24', 'Build 25', expected=2)
+replace_exact(
+    '.github/workflows/ci.yml',
+    'name: hdc-web-build24',
+    'name: hdc-web-build25',
+)
+replace_exact(
+    '.github/workflows/ci.yml',
+    'Synchronize verified Build 24 web bundle',
+    'Synchronize verified Build 25 web bundle',
 )
 
 print(STAGE)
