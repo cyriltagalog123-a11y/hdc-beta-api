@@ -35,7 +35,7 @@ class DashboardFocusPanel extends StatelessWidget {
         border: Border.all(color: HDCColors.border),
         boxShadow: const [
           BoxShadow(
-            color: HDCColors.shadowSoft,
+            color: HDCColors.shadow,
             blurRadius: 18,
             offset: Offset(0, 8),
           ),
@@ -136,10 +136,13 @@ class DashboardFocusPanel extends StatelessWidget {
             children: [
               Expanded(flex: 3, child: header),
               const SizedBox(width: 20),
-              Expanded(flex: 4, child: Align(
-                alignment: Alignment.centerRight,
-                child: actions,
-              )),
+              Expanded(
+                flex: 4,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: actions,
+                ),
+              ),
             ],
           );
         },
