@@ -117,7 +117,6 @@ class HdcNewsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final payload = <String, Object?>{
-        if (id != null) 'id': id,
         'kind': kind.code,
         'title': title.trim(),
         'summary': summary.trim(),
@@ -127,6 +126,7 @@ class HdcNewsProvider extends ChangeNotifier {
         'recognitionSubject': recognitionSubject?.trim(),
         'recognitionConsentConfirmed': recognitionConsentConfirmed,
       };
+      if (id != null) payload['id'] = id;
       final response = id == null
           ? await api.post('/api/internal/news', body: payload)
           : await api.put('/api/internal/news', body: payload);
