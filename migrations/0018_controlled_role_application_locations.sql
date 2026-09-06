@@ -45,6 +45,7 @@ AS $$
 $$;
 
 REVOKE ALL ON FUNCTION public.hdc_is_supported_region(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.hdc_is_supported_region(text) TO hdc_app;
 
 ALTER TABLE public.hdc_platform_role_applications
   DROP CONSTRAINT IF EXISTS hdc_platform_role_applications_controlled_locations;
@@ -70,7 +71,6 @@ ALTER TABLE public.hdc_platform_role_applications
       OR public.hdc_is_supported_region(answers->>'serviceRegions')
     )
   ) NOT VALID;
-
 
 INSERT INTO public.hdc_schema_migrations (
   version, migration_name, is_baseline
