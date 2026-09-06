@@ -41,7 +41,7 @@ describe.skipIf(!runLiveIntegration)('isolated service-request integration', () 
         ],
         termsAccepted: true,
         privacyAcknowledged: true,
-        termsVersion: 'beta-2026-08-29',
+        termsVersion: 'beta-2026-09-06',
       }),
     });
     expect(registration.response.status, JSON.stringify(registration.body))

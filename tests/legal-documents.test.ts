@@ -8,11 +8,11 @@ import { handleHdcApiRequest } from '../netlify/functions/api.mjs';
 
 const expectedDocuments = {
   terms_of_service: {
-    path: '../legal/terms-of-service-beta-2026-08-29.txt',
+    path: '../legal/terms-of-service-beta-2026-09-06.txt',
     publicPath: '/legal/terms/',
   },
   privacy_notice: {
-    path: '../legal/privacy-notice-beta-2026-08-29.txt',
+    path: '../legal/privacy-notice-beta-2026-09-06.txt',
     publicPath: '/legal/privacy/',
   },
 } as const;
@@ -33,7 +33,7 @@ describe('published HDC legal documents', () => {
         publicPath: string;
       }>;
     };
-    expect(body.version).toBe('beta-2026-08-29');
+    expect(body.version).toBe('beta-2026-09-06');
     expect(body.documents).toHaveLength(2);
 
     for (const document of body.documents) {

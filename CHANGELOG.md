@@ -1,5 +1,21 @@
 # HDC Change Log
 
+## 0.6.4+26 — Build 26 — 2026-09-06
+
+- Consolidates public registration on `/api/auth/register` with the controlled-location contract; `/api/auth/register-v2` remains a deprecated compatibility alias for older Build 25 clients.
+- Applies operation-mode enforcement to account creation, equalizes login password-hash work for unknown accounts, and caps JSON request bodies at 64 KiB by default.
+- Adds latest-schema readiness checks through migration 0021 and shared internal-role authorization for privileged standalone functions.
+- Strengthens public News history and supporter-recognition evidence with consent time, method, approved scope, optional internal reference, and an immutable-after-publication lifecycle.
+- Publishes the material 6 September 2026 Terms and Privacy revision covering public News, supporter recognition, SaiCore support identity, future PHP support channels, and owner contact.
+- Reworks release delivery so CI is read-only and Netlify builds the pinned Flutter web bundle from source; generated `build/web` output is no longer committed to review branches.
+- Adds production dependency auditing, Dependabot configuration, CI concurrency, HSTS, CODEOWNERS, and a release-policy document that preserves the owner-authorized build path.
+- Hides unfinished HDC Passport navigation, removes obsolete prototype screens/routes, archives old root build notes, and updates release documentation.
+- Moves Knowledge Base implementation to Build 27; the current Knowledge Base remains an explicit non-fabricating Build 27 shell.
+
+## Post-Build-25 support/news foundation — 2026-09-06
+
+- Adds public HDC News with Owner/Super Admin/Admin authoring, support/recognition consent gating, SaiCore Support HDC and Contact Owner pages, and the Knowledge Base placeholder now assigned to Build 27.
+
 ## 0.6.4+24 — Build 24A — 2026-08-31
 
 - Adds shared responsive flow primitives for guided stages, working-surface

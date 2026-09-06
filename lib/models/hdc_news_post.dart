@@ -65,6 +65,11 @@ class HdcNewsPost {
   final bool isPinned;
   final String? recognitionSubject;
   final bool recognitionConsentConfirmed;
+  final DateTime? recognitionConsentAt;
+  final String? recognitionConsentMethod;
+  final String? recognitionConsentScope;
+  final String? recognitionConsentReference;
+  final bool everPublished;
   final DateTime? publishedAt;
   final DateTime? createdAt;
   final DateTime updatedAt;
@@ -78,7 +83,12 @@ class HdcNewsPost {
     required this.status,
     required this.isPinned,
     required this.recognitionConsentConfirmed,
+    required this.everPublished,
     required this.updatedAt,
+    this.recognitionConsentAt,
+    this.recognitionConsentMethod,
+    this.recognitionConsentScope,
+    this.recognitionConsentReference,
     this.recognitionSubject,
     this.publishedAt,
     this.createdAt,
@@ -100,6 +110,17 @@ class HdcNewsPost {
           : null,
       recognitionConsentConfirmed:
           json['recognitionConsentConfirmed'] == true,
+      recognitionConsentAt: _date(json['recognitionConsentAt']),
+      recognitionConsentMethod: json['recognitionConsentMethod'] is String
+          ? (json['recognitionConsentMethod'] as String).trim()
+          : null,
+      recognitionConsentScope: json['recognitionConsentScope'] is String
+          ? (json['recognitionConsentScope'] as String).trim()
+          : null,
+      recognitionConsentReference: json['recognitionConsentReference'] is String
+          ? (json['recognitionConsentReference'] as String).trim()
+          : null,
+      everPublished: json['everPublished'] == true || json['publishedAt'] != null,
       publishedAt: _date(json['publishedAt']),
       createdAt: _date(json['createdAt']),
       updatedAt: _date(json['updatedAt']) ?? DateTime.now(),

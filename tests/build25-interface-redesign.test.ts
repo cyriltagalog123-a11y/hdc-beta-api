@@ -15,14 +15,14 @@ describe('Build 25 distinctive HDC interface redesign', () => {
     const api = read('netlify/functions/api.mts');
     const ci = read('.github/workflows/ci.yml');
 
-    expect(packageJson).toContain('"version": "0.6.4-build.25"');
-    expect(packageLock).toContain('"version": "0.6.4-build.25"');
-    expect(pubspec).toContain('version: 0.6.4+25');
+    expect(packageJson).toContain('"version": "0.6.4-build.26"');
+    expect(packageLock).toContain('"version": "0.6.4-build.26"');
+    expect(pubspec).toContain('version: 0.6.4+26');
     expect(appConfig).toContain('0.6.4 Beta (Build 25)');
     expect(dashboard).toContain('HelpDesk Connect Beta v0.6.4 Build 25');
     expect(startup).toContain('Build 25');
     expect(startup).not.toContain('Build 24');
-    expect(api).toContain("build: '0.6.4-build25'");
+    expect(api).toContain("build: '0.6.4-build26'");
     expect(ci).toContain('name: hdc-web-build25');
     expect(ci).toContain('Synchronize verified Build 25 web bundle');
   });

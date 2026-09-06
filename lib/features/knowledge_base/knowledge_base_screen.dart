@@ -22,10 +22,10 @@ class KnowledgeBaseScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const HDCFlowHero(
-                    eyebrow: 'BUILD 26 READY',
+                    eyebrow: 'BUILD 27 READY',
                     title: 'HDC Knowledge Base',
                     description:
-                        'The public Knowledge Base entry point is prepared now. Search, troubleshooting articles, guided fixes, authoring, review, feedback, and Nexus knowledge integration will be implemented in Build 26.',
+                        'The public Knowledge Base entry point is prepared now. Search, troubleshooting articles, guided fixes, authoring, review, feedback, and Nexus knowledge integration will be implemented in Build 27.',
                     icon: Icons.menu_book_outlined,
                     tags: [
                       HDCFlowTag(
@@ -44,7 +44,7 @@ class KnowledgeBaseScreen extends StatelessWidget {
                     decoration: InputDecoration(
                       prefixIcon: const Icon(Icons.search_rounded),
                       labelText: 'Search the HDC Knowledge Base',
-                      hintText: 'Search becomes active in Build 26',
+                      hintText: 'Search becomes active in Build 27',
                       suffixIcon: Container(
                         margin: const EdgeInsets.all(8),
                         padding: const EdgeInsets.symmetric(
@@ -58,7 +58,7 @@ class KnowledgeBaseScreen extends StatelessWidget {
                         child: const Center(
                           widthFactor: 1,
                           child: Text(
-                            'BUILD 26',
+                            'BUILD 27',
                             style: TextStyle(
                               color: HDCColors.warning,
                               fontSize: 10,
@@ -78,7 +78,7 @@ class KnowledgeBaseScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'What Build 26 will activate',
+                          'What Build 27 will activate',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w900,
@@ -112,7 +112,7 @@ class KnowledgeBaseScreen extends StatelessWidget {
                   const HDCCard(
                     color: HDCColors.surfaceInteractive,
                     child: Text(
-                      'This page is intentionally a shell only. It does not fabricate articles, search results, or Nexus answers before Build 26 has the backend knowledge authority and review rules in place.',
+                      'This page is intentionally a shell only. It does not fabricate articles, search results, or Nexus answers before Build 27 has the backend knowledge authority and review rules in place.',
                       style: TextStyle(
                         color: HDCColors.textSecondary,
                         height: 1.5,
@@ -188,7 +188,7 @@ class _CategoryGrid extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                       const Text(
-                        'AVAILABLE IN BUILD 26',
+                        'AVAILABLE IN BUILD 27',
                         style: TextStyle(
                           color: HDCColors.warning,
                           fontSize: 9,

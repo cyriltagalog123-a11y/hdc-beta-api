@@ -143,7 +143,7 @@ class HdcApiAuthGateway implements AuthGateway {
     required bool privacyAcknowledged,
   }) async {
     final response = await _post(
-      '/api/auth/register-v2',
+      '/api/auth/register',
       body: {
         'email': email.trim().toLowerCase(),
         'password': password,

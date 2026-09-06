@@ -20,9 +20,36 @@ export function methodNotAllowed(): Response {
   return json({ error: 'method_not_allowed' }, 405);
 }
 
-export async function readJson(req: Request): Promise<Record<string, unknown> | null> {
+export const DEFAULT_MAX_JSON_REQUEST_BYTES = 64 * 1024;
+
+export async function readJson(
+  req: Request,
+  maxBytes = DEFAULT_MAX_JSON_REQUEST_BYTES,
+): Promise<Record<string, unknown> | null> {
+  const contentLength = req.headers.get('content-length');
+  if (contentLength) {
+    const declared = Number(contentLength);
+    if (Number.isFinite(declared) && declared > maxBytes) return null;
+  }
+
   try {
-    const value = await req.json();
+    const reader = req.body?.getReader();
+    if (!reader) return null;
+    const decoder = new TextDecoder();
+    let received = 0;
+    let text = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > maxBytes) {
+        await reader.cancel();
+        return null;
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    const value = JSON.parse(text);
     return value && typeof value === 'object' && !Array.isArray(value)
       ? value as Record<string, unknown>
       : null;

@@ -1,47 +1,20 @@
 import { openDb, closeDb, type DbClient } from './_lib/db.mjs';
 import { corsPreflightResponse, withCors } from './_lib/cors.mjs';
-import { bearerToken, json, methodNotAllowed, readJson } from './_lib/http.mjs';
-import { verifySessionToken } from './_lib/session.mjs';
+import { json, methodNotAllowed, readJson } from './_lib/http.mjs';
 import { operationMode } from './_lib/env.mjs';
+import { authorizeInternalRequest } from './_lib/internal-auth.mjs';
 
 const privilegedInternalRoles = new Set(['owner', 'super_admin', 'admin']);
 const kinds = new Set(['announcement', 'feature', 'maintenance', 'recognition']);
 const statuses = new Set(['draft', 'published', 'archived']);
 
-async function authorize(
-  req: Request,
-  sql: DbClient,
-): Promise<{ userId: string; internalRoles: string[] } | Response> {
-  const token = bearerToken(req);
-  if (!token) return json({ error: 'authentication_required' }, 401);
-  const verified = await verifySessionToken(token);
-  if (!verified) return json({ error: 'invalid_session' }, 401);
-
-  const sessions = await sql`
-    SELECT 1
-    FROM public.hdc_auth_sessions session
-    JOIN public.hdc_users member ON member.id = session.user_id
-    WHERE session.user_id = ${verified.userId}
-      AND session.token_jti = ${verified.jti}
-      AND session.revoked_at IS NULL
-      AND session.expires_at > now()
-      AND member.status = 'active'
-    LIMIT 1
-  `;
-  if (sessions.length === 0) return json({ error: 'invalid_session' }, 401);
-
-  const roleRows = await sql`
-    SELECT role
-    FROM public.hdc_internal_role_assignments
-    WHERE user_id = ${verified.userId}
-      AND is_active = true
-    ORDER BY role
-  `;
-  const internalRoles = roleRows.map((row) => String(row.role));
-  if (!internalRoles.some((role) => privilegedInternalRoles.has(role))) {
-    return json({ error: 'news_management_forbidden' }, 403);
-  }
-  return { userId: verified.userId, internalRoles };
+async function authorize(req: Request, sql: DbClient) {
+  return await authorizeInternalRequest(
+    req,
+    sql,
+    privilegedInternalRoles,
+    'news_management_forbidden',
+  );
 }
 
 function view(row: Record<string, unknown>) {
@@ -57,6 +30,11 @@ function view(row: Record<string, unknown>) {
       ? null
       : String(row.recognition_subject),
     recognitionConsentConfirmed: Boolean(row.recognition_consent_confirmed),
+    recognitionConsentAt: row.recognition_consent_at == null ? null : String(row.recognition_consent_at),
+    recognitionConsentMethod: row.recognition_consent_method == null ? null : String(row.recognition_consent_method),
+    recognitionConsentScope: row.recognition_consent_scope == null ? null : String(row.recognition_consent_scope),
+    recognitionConsentReference: row.recognition_consent_reference == null ? null : String(row.recognition_consent_reference),
+    everPublished: Boolean(row.ever_published),
     publishedAt: row.published_at == null ? null : String(row.published_at),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
@@ -76,6 +54,9 @@ function parsePayload(body: Record<string, unknown>) {
   const status = cleanText(body.status, 24);
   const recognitionSubject = cleanText(body.recognitionSubject, 160);
   const recognitionConsentConfirmed = body.recognitionConsentConfirmed === true;
+  const recognitionConsentMethod = cleanText(body.recognitionConsentMethod, 40);
+  const recognitionConsentScope = cleanText(body.recognitionConsentScope, 500);
+  const recognitionConsentReference = cleanText(body.recognitionConsentReference, 500);
   const isPinned = body.isPinned === true;
 
   if (!kinds.has(kind) || !statuses.has(status)) {
@@ -87,7 +68,8 @@ function parsePayload(body: Record<string, unknown>) {
   if (
     kind === 'recognition' &&
     status === 'published' &&
-    (!recognitionConsentConfirmed || recognitionSubject.length < 2)
+    (!recognitionConsentConfirmed || recognitionSubject.length < 2 ||
+      recognitionConsentMethod.length < 2 || recognitionConsentScope.length < 3)
   ) {
     return { error: 'recognition_consent_required' } as const;
   }
@@ -100,6 +82,9 @@ function parsePayload(body: Record<string, unknown>) {
     status,
     recognitionSubject: recognitionSubject || null,
     recognitionConsentConfirmed,
+    recognitionConsentMethod: recognitionConsentMethod || null,
+    recognitionConsentScope: recognitionConsentScope || null,
+    recognitionConsentReference: recognitionConsentReference || null,
     isPinned,
   } as const;
 }
@@ -108,8 +93,9 @@ async function list(sql: DbClient): Promise<Response> {
   const rows = await sql`
     SELECT
       id, kind, title, summary, body, status, is_pinned,
-      recognition_subject, recognition_consent_confirmed,
-      published_at, created_at, updated_at
+      recognition_subject, recognition_consent_confirmed, recognition_consent_at,
+      recognition_consent_method, recognition_consent_scope, recognition_consent_reference,
+      ever_published, published_at, created_at, updated_at
     FROM public.hdc_public_news_posts
     ORDER BY
       CASE status WHEN 'draft' THEN 0 WHEN 'published' THEN 1 ELSE 2 END,
@@ -137,12 +123,14 @@ async function create(
     const inserted = await tx`
       INSERT INTO public.hdc_public_news_posts (
         kind, title, summary, body, status, is_pinned,
-        recognition_subject, recognition_consent_confirmed,
+        recognition_subject, recognition_consent_confirmed, recognition_consent_method,
+        recognition_consent_scope, recognition_consent_reference,
         published_at, created_by, updated_by
       ) VALUES (
         ${parsed.kind}, ${parsed.title}, ${parsed.summary}, ${parsed.content},
         ${parsed.status}, ${parsed.isPinned}, ${parsed.recognitionSubject},
-        ${parsed.recognitionConsentConfirmed},
+        ${parsed.recognitionConsentConfirmed}, ${parsed.recognitionConsentMethod},
+        ${parsed.recognitionConsentScope}, ${parsed.recognitionConsentReference},
         ${parsed.status === 'published' ? new Date() : null},
         ${actorId}, ${actorId}
       )
@@ -191,6 +179,14 @@ async function update(
         is_pinned = ${parsed.isPinned},
         recognition_subject = ${parsed.recognitionSubject},
         recognition_consent_confirmed = ${parsed.recognitionConsentConfirmed},
+        recognition_consent_method = ${parsed.recognitionConsentMethod},
+        recognition_consent_scope = ${parsed.recognitionConsentScope},
+        recognition_consent_reference = ${parsed.recognitionConsentReference},
+        recognition_consent_at = CASE
+          WHEN ${parsed.kind} = 'recognition' AND ${parsed.recognitionConsentConfirmed} = true
+            THEN COALESCE(recognition_consent_at, now())
+          ELSE recognition_consent_at
+        END,
         published_at = CASE
           WHEN ${parsed.status} = 'published' THEN COALESCE(published_at, now())
           WHEN ${parsed.status} = 'draft' THEN NULL
@@ -235,6 +231,8 @@ async function remove(
       DELETE FROM public.hdc_public_news_posts
       WHERE id = ${id}
         AND status <> 'published'
+        AND published_at IS NULL
+        AND ever_published = false
       RETURNING id, title, status
     `;
     if (deleted.length === 0) return deleted;
@@ -251,7 +249,7 @@ async function remove(
   if (rows.length === 0) {
     return json({
       error: 'news_delete_not_allowed',
-      message: 'Published posts must be archived before deletion.',
+      message: 'Only never-published drafts can be deleted. Published history must be archived and retained.',
     }, 409);
   }
   return json({ deleted: true, id });

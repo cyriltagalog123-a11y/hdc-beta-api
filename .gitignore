@@ -6,9 +6,7 @@ node_modules/
 **/.plugin_symlinks/
 **/ephemeral/
 android/local.properties
-/build/*
-!/build/web/
-!/build/web/**
+/build/
 .env
 .env.*
 !.env.example

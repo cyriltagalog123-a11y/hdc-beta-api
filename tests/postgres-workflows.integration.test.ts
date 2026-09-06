@@ -82,7 +82,7 @@ async function registerAccount(label: string): Promise<{
       ],
       termsAccepted: true,
       privacyAcknowledged: true,
-      termsVersion: 'beta-2026-08-29',
+      termsVersion: 'beta-2026-09-06',
     }),
   });
   expectStatus(registration, 201);
