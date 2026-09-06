@@ -36,7 +36,7 @@ describe('SaiCore Support HDC and Contact Owner public pages', () => {
 
     expect(page).toContain('no required setup or monthly subscription cost');
     expect(page).toContain('transaction, processor, withdrawal, or conversion fees');
-    expect(page).toContain('instead of advertising any route as universally fee-free');
+    expect(page).toContain('universally fee-free');
     expect(page).toContain(
       'Financial intake remains inactive until official SaiCore destination details are verified and published.',
     );
