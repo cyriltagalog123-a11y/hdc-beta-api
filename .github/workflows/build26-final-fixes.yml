@@ -1,0 +1,40 @@
+name: Build 26 final verification fixes
+
+on:
+  push:
+    branches:
+      - codex/build26-hardening
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'Build 26: run final verification fixes'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: codex/build26-hardening
+          fetch-depth: 0
+      - name: Apply final fixes
+        run: python scripts/build26_final_fixes.py
+      - name: Commit verified source corrections
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            lib/features/dashboard/dashboard_screen.dart \
+            lib/features/dashboard/widgets/dashboard_quick_access.dart \
+            netlify/functions/news-admin.mts \
+            tests/build23-ui-foundation.test.ts \
+            tests/build24a-request-discovery.test.ts \
+            tests/build25-interface-redesign.test.ts \
+            tests/build26-hardening.test.ts \
+            tests/news-support-knowledge.test.ts \
+            tests/postgres-workflows.integration.test.ts \
+            tests/web-startup-recovery.test.ts
+          git diff --cached --check
+          git commit -m "Build 26: apply final verification corrections"
+          git push origin HEAD:codex/build26-hardening
