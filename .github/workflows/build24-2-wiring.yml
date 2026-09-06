@@ -1,0 +1,256 @@
+name: Build 24.2 one-time wiring
+
+on:
+  push:
+    branches:
+      - codex/build24-2-location-role-controls
+    paths:
+      - .github/workflows/build24-2-wiring.yml
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/build24-2-location-role-controls
+          fetch-depth: 0
+      - name: Apply Build 24.2 wiring
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}: {old[:80]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          # Authentication contract: registration must carry a catalog location.
+          for path in [
+              'lib/core/auth/auth_gateway.dart',
+              'lib/core/auth/hdc_api_auth_gateway.dart',
+              'lib/core/auth/unavailable_auth_gateway.dart',
+              'lib/core/auth/auth_service.dart',
+              'lib/providers/hdc_auth_provider.dart',
+          ]:
+              replace_once(
+                  path,
+                  '    required String displayName,\n    required List<AccountRecoveryAnswer> recoveryAnswers,',
+                  '    required String displayName,\n    required String location,\n    required List<AccountRecoveryAnswer> recoveryAnswers,',
+              )
+
+          replace_once(
+              'lib/core/auth/auth_service.dart',
+              "import '../../models/account_identity.dart';",
+              "import '../location/hdc_location_catalog.dart';\nimport '../../models/account_identity.dart';",
+          )
+          replace_once(
+              'lib/core/auth/auth_service.dart',
+              '    final normalizedName = displayName.trim();\n',
+              '    final normalizedName = displayName.trim();\n    final normalizedLocation = location.trim();\n',
+          )
+          replace_once(
+              'lib/core/auth/auth_service.dart',
+              "    if (!termsAccepted || !privacyAcknowledged) {",
+              "    if (!HdcLocationCatalog.isCanonicalLocation(normalizedLocation)) {\n      throw ArgumentError('Choose a valid HDC region and province/city.');\n    }\n\n    if (!termsAccepted || !privacyAcknowledged) {",
+          )
+          replace_once(
+              'lib/core/auth/auth_service.dart',
+              '      displayName: normalizedName,\n      recoveryAnswers:',
+              '      displayName: normalizedName,\n      location: normalizedLocation,\n      recoveryAnswers:',
+          )
+
+          replace_once(
+              'lib/core/auth/hdc_api_auth_gateway.dart',
+              "      '/api/auth/register',",
+              "      '/api/auth/register-v2',",
+          )
+          replace_once(
+              'lib/core/auth/hdc_api_auth_gateway.dart',
+              "        'displayName': displayName.trim(),\n        'recoveryAnswers':",
+              "        'displayName': displayName.trim(),\n        'location': location.trim(),\n        'recoveryAnswers':",
+          )
+          replace_once(
+              'lib/providers/hdc_auth_provider.dart',
+              '        displayName: displayName,\n        recoveryAnswers:',
+              '        displayName: displayName,\n        location: location,\n        recoveryAnswers:',
+          )
+
+          # Registration UI.
+          replace_once(
+              'lib/features/authentication/login_screen.dart',
+              "import '../../core/ui/hdc_colors.dart';",
+              "import '../../core/ui/hdc_colors.dart';\nimport '../../core/ui/hdc_location_picker.dart';",
+          )
+          replace_once(
+              'lib/features/authentication/login_screen.dart',
+              '  bool _privacyAcknowledged = false;\n',
+              '  bool _privacyAcknowledged = false;\n  String? _registrationLocation;\n',
+          )
+          replace_once(
+              'lib/features/authentication/login_screen.dart',
+              '              displayName: _displayNameController.text,\n              recoveryAnswers:',
+              "              displayName: _displayNameController.text,\n              location: _registrationLocation ?? '',\n              recoveryAnswers:",
+          )
+          replace_once(
+              'lib/features/authentication/login_screen.dart',
+              '            _privacyAcknowledged = false;\n',
+              '            _privacyAcknowledged = false;\n            _registrationLocation = null;\n',
+          )
+          replace_once(
+              'lib/features/authentication/login_screen.dart',
+              "                    const SizedBox(height: 12),\n                  ],\n                  HDCTextField(\n                    key: const Key('hdc-email-field'),",
+              "                    const SizedBox(height: 12),\n                    HdcLocationPicker(\n                      value: _registrationLocation,\n                      label: 'Account location',\n                      helperText: 'Choose your region and province/city. Typing a location is disabled.',\n                      regionKey: const Key('hdc-registration-region'),\n                      areaKey: const Key('hdc-registration-area'),\n                      onChanged: busy\n                          ? (_) {}\n                          : (value) => setState(() => _registrationLocation = value),\n                    ),\n                    const SizedBox(height: 12),\n                  ],\n                  HDCTextField(\n                    key: const Key('hdc-email-field'),",
+          )
+
+          # Service request location is controlled as well.
+          replace_once(
+              'lib/features/service_requests/create_service_request_screen.dart',
+              "import '../../core/ui/hdc_colors.dart';",
+              "import '../../core/ui/hdc_colors.dart';\nimport '../../core/ui/hdc_location_picker.dart';",
+          )
+          replace_once(
+              'lib/features/service_requests/create_service_request_screen.dart',
+              "      text: existing?.location ?? 'Cebu City',",
+              "      text: existing?.location ?? '',",
+          )
+          replace_once(
+              'lib/features/service_requests/create_service_request_screen.dart',
+              "          TextFormField(\n            key: const Key('hdc-request-location'),\n            controller: _locationController,\n            decoration: const InputDecoration(\n              labelText: 'Service location',\n              hintText: 'City, barangay, or service area',\n              prefixIcon: Icon(Icons.location_on_outlined),\n            ),\n            validator: (value) {\n              if ((value?.trim().length ?? 0) < 3) {\n                return 'Enter the service location.';\n              }\n              return null;\n            },\n          ),",
+              "          HdcLocationPicker(\n            value: _locationController.text.isEmpty ? null : _locationController.text,\n            label: 'Service location',\n            helperText: 'Choose the region and province/city where service is needed.',\n            regionKey: const Key('hdc-request-region'),\n            areaKey: const Key('hdc-request-area'),\n            onChanged: (value) => setState(() => _locationController.text = value ?? ''),\n          ),",
+          )
+
+          # Shared and role profiles cannot store arbitrary locations.
+          replace_once(
+              'lib/features/profiles/member_profile_edit_screen.dart',
+              "import '../../core/ui/hdc_colors.dart';",
+              "import '../../core/ui/hdc_colors.dart';\nimport '../../core/ui/hdc_location_picker.dart';",
+          )
+          replace_once(
+              'lib/features/profiles/member_profile_edit_screen.dart',
+              "                            TextFormField(\n                              controller: _locationController,\n                              maxLength: 200,\n                              decoration: const InputDecoration(\n                                labelText: 'Home location or service base',\n                                prefixIcon: Icon(Icons.location_on_outlined),\n                              ),\n                            ),",
+              "                            HdcLocationPicker(\n                              value: _locationController.text.isEmpty ? null : _locationController.text,\n                              label: 'Home location or service base',\n                              helperText: 'Choose a supported region and province/city.',\n                              onChanged: (value) => setState(() => _locationController.text = value ?? ''),\n                            ),",
+          )
+
+          replace_once(
+              'lib/features/profiles/role_profile_edit_screen.dart',
+              "import '../../core/ui/hdc_colors.dart';",
+              "import '../../core/ui/hdc_colors.dart';\nimport '../../core/ui/hdc_location_picker.dart';",
+          )
+          replace_once(
+              'lib/features/profiles/role_profile_edit_screen.dart',
+              "                        _field(\n                          'location',\n                          label: 'Profile location or service area',\n                          maxLength: 200,\n                          keyboardType: TextInputType.streetAddress,\n                        ),",
+              "                        HdcLocationPicker(\n                          value: _controller('location').text.isEmpty ? null : _controller('location').text,\n                          label: 'Profile location or service area',\n                          helperText: 'Choose a supported region and province/city.',\n                          onChanged: (value) => setState(() => _controller('location').text = value ?? ''),\n                        ),",
+          )
+
+          # Role applications: every location/work-premises field becomes selection-only.
+          replace_once(
+              'lib/features/roles/platform_role_application_form_screen.dart',
+              "import '../../core/ui/hdc_colors.dart';",
+              "import '../../core/location/hdc_location_catalog.dart';\nimport '../../core/ui/hdc_colors.dart';\nimport '../../core/ui/hdc_location_picker.dart';",
+          )
+          replace_once(
+              'lib/features/roles/platform_role_application_form_screen.dart',
+              '  final _confirmations = <String, bool>{};\n',
+              "  final _confirmations = <String, bool>{};\n\n  static const _controlledLocationKeys = <String>{\n    'city',\n    'serviceArea',\n    'businessAddress',\n    'storeAddress',\n  };\n",
+          )
+          replace_once(
+              'lib/features/roles/platform_role_application_form_screen.dart',
+              "        _controllers[field.key] = TextEditingController(\n          text: value == null ? '' : '$value',\n        );",
+              "        final initialText = field.key == 'country'\n            ? HdcLocationCatalog.country\n            : value == null\n                ? ''\n                : '$value';\n        _controllers[field.key] = TextEditingController(text: initialText);",
+          )
+          marker = "    final multiline =\n        field.type == HDCPlatformRoleApplicationFieldType.multiline;"
+          special = """    if (field.key == 'country') {
+      _controllers[field.key]!.text = HdcLocationCatalog.country;
+      return DropdownButtonFormField<String>(
+        initialValue: HdcLocationCatalog.country,
+        decoration: InputDecoration(
+          labelText: field.label,
+          helperText: 'HDC beta currently supports Philippines locations.',
+          border: const OutlineInputBorder(),
+        ),
+        items: const [
+          DropdownMenuItem(value: HdcLocationCatalog.country, child: Text(HdcLocationCatalog.country)),
+        ],
+        onChanged: busy ? null : (_) {},
+      );
+    }
+
+    if (_controlledLocationKeys.contains(field.key)) {
+      return HdcLocationPicker(
+        value: _controllers[field.key]!.text.isEmpty ? null : _controllers[field.key]!.text,
+        label: field.label,
+        helperText: field.helperText.isEmpty
+            ? 'Choose a supported region and province/city.'
+            : field.helperText,
+        onChanged: busy
+            ? (_) {}
+            : (value) => setState(() => _controllers[field.key]!.text = value ?? ''),
+      );
+    }
+
+    if (field.key == 'serviceRegions') {
+      return HdcRegionPicker(
+        value: _controllers[field.key]!.text.isEmpty ? null : _controllers[field.key]!.text,
+        label: field.label,
+        onChanged: busy
+            ? (_) {}
+            : (value) => setState(() => _controllers[field.key]!.text = value ?? ''),
+      );
+    }
+
+""" + marker
+          replace_once(
+              'lib/features/roles/platform_role_application_form_screen.dart',
+              marker,
+              special,
+          )
+
+          # Private dashboard navigation for owner/super-admin/admin role changes.
+          replace_once(
+              'lib/features/internal/internal_dashboard_screen.dart',
+              "import 'dispute_resolution_screen.dart';",
+              "import 'dispute_resolution_screen.dart';\nimport 'platform_role_management_screen.dart';",
+          )
+          replace_once(
+              'lib/features/internal/internal_dashboard_screen.dart',
+              "  Future<void> _openDisputeQueue(BuildContext context) async {\n    await context.read<HdcInternalDashboardProvider>().loadDisputeQueue();\n    if (!context.mounted) return;\n    Navigator.of(context).push(\n      MaterialPageRoute<void>(\n        builder: (_) => const DisputeResolutionScreen(),\n      ),\n    );\n  }\n",
+              "  Future<void> _openDisputeQueue(BuildContext context) async {\n    await context.read<HdcInternalDashboardProvider>().loadDisputeQueue();\n    if (!context.mounted) return;\n    Navigator.of(context).push(\n      MaterialPageRoute<void>(\n        builder: (_) => const DisputeResolutionScreen(),\n      ),\n    );\n  }\n\n  Future<void> _openPlatformRoleManagement(BuildContext context) async {\n    if (!context.mounted) return;\n    Navigator.of(context).push(\n      MaterialPageRoute<void>(\n        builder: (_) => const PlatformRoleManagementScreen(),\n      ),\n    );\n  }\n",
+          )
+          replace_once(
+              'lib/features/internal/internal_dashboard_screen.dart',
+              "                            onOpenDisputeQueue: () =>\n                                _openDisputeQueue(context),\n                          ),",
+              "                            onOpenDisputeQueue: () =>\n                                _openDisputeQueue(context),\n                            onOpenPlatformRoleManagement: () =>\n                                _openPlatformRoleManagement(context),\n                          ),",
+          )
+          replace_once(
+              'lib/features/internal/internal_dashboard_screen.dart',
+              '  final VoidCallback onOpenDisputeQueue;\n',
+              '  final VoidCallback onOpenDisputeQueue;\n  final VoidCallback onOpenPlatformRoleManagement;\n',
+          )
+          replace_once(
+              'lib/features/internal/internal_dashboard_screen.dart',
+              '    required this.onOpenDisputeQueue,\n  });',
+              '    required this.onOpenDisputeQueue,\n    required this.onOpenPlatformRoleManagement,\n  });',
+          )
+          replace_once(
+              'lib/features/internal/internal_dashboard_screen.dart',
+              "        if (permissions.canReviewAccountRecovery)\n          _ScopeTile(",
+              "        if (permissions.hasPrivilegedResourceAccess)\n          _ScopeTile(\n            icon: Icons.manage_accounts_outlined,\n            title: 'Platform role management',\n            subtitle:\n                'Assign, re-assign, or revoke non-customer platform roles with an audit reason.',\n            action: FilledButton.tonalIcon(\n              onPressed: loading ? null : onOpenPlatformRoleManagement,\n              icon: const Icon(Icons.arrow_forward),\n              label: const Text('Manage Roles'),\n            ),\n          ),\n        if (permissions.canReviewAccountRecovery)\n          _ScopeTile(",
+          )
+
+          # One-time workflow removes itself from the product branch.
+          Path('.github/workflows/build24-2-wiring.yml').unlink()
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Build 24.2: complete controlled-location and role-admin wiring"
+          git push origin HEAD:codex/build24-2-location-role-controls
