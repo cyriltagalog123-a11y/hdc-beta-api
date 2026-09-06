@@ -1,4 +1,3 @@
-import type { Config } from '@netlify/functions';
 import { openDb, closeDb, type DbClient } from './_lib/db.mjs';
 import { corsPreflightResponse, withCors } from './_lib/cors.mjs';
 import { bearerToken, json, methodNotAllowed, readJson } from './_lib/http.mjs';
@@ -244,6 +243,6 @@ export default async (req: Request): Promise<Response> => {
   return withCors(req, await handle(req));
 };
 
-export const config: Config = {
+export const config = {
   path: '/api/internal/platform-role-admin',
 };

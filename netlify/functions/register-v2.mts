@@ -1,4 +1,3 @@
-import type { Config } from '@netlify/functions';
 import bcrypt from 'bcryptjs';
 import { openDb, closeDb } from './_lib/db.mjs';
 import { corsPreflightResponse, withCors } from './_lib/cors.mjs';
@@ -171,6 +170,6 @@ export default async (req: Request): Promise<Response> => {
   return withCors(req, await handleRegister(req));
 };
 
-export const config: Config = {
+export const config = {
   path: '/api/auth/register-v2',
 };
