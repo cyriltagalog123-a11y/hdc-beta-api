@@ -1,0 +1,32 @@
+name: Patch Support Channels
+
+on:
+  push:
+    branches:
+      - build-25-support-contact
+    paths:
+      - scripts/patch_support_channels.py
+      - .github/workflows/patch-support-channels.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: build-25-support-contact
+          fetch-depth: 0
+      - run: python3 scripts/patch_support_channels.py
+      - name: Commit channel correction and clean patch machinery
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f scripts/patch_support_channels.py .github/workflows/patch-support-channels.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/features/support/support_us_screen.dart tests/support-contact-pages.test.ts scripts/patch_support_channels.py .github/workflows/patch-support-channels.yml
+          git commit -m "Finalize SaiCore support payment channels"
+          git push origin HEAD:build-25-support-contact
