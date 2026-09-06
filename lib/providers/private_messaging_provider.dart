@@ -12,6 +12,7 @@ import '../repositories/service_transaction_repository.dart';
 
 class PrivateMessagingProvider extends ChangeNotifier {
   static const int maxMessageLength = 4000;
+  static const Duration activeConversationRefreshInterval = Duration(seconds: 2);
 
   final PrivateConversationRepository repository;
   final ServiceTransactionRepository transactionRepository;
@@ -35,6 +36,7 @@ class PrivateMessagingProvider extends ChangeNotifier {
   bool _disposed = false;
   Object? _lastError;
   int _bindingVersion = 0;
+  Timer? _activeConversationRefreshTimer;
 
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
@@ -58,6 +60,8 @@ class PrivateMessagingProvider extends ChangeNotifier {
     if (_disposed || _boundUserId == userId) return;
     _boundUserId = userId;
     _bindingVersion += 1;
+    _activeConversationRefreshTimer?.cancel();
+    _activeConversationRefreshTimer = null;
     _remoteConversations.clear();
     _lastError = null;
     scheduleMicrotask(() {
@@ -394,6 +398,41 @@ class PrivateMessagingProvider extends ChangeNotifier {
       return;
     }
     _remoteConversations[conversation.transactionId] = conversation;
+    _startActiveConversationRefresh();
+  }
+
+  void _startActiveConversationRefresh() {
+    if (_disposed || gateway == null || _boundUserId == null) return;
+    if (_activeConversationRefreshTimer?.isActive == true) return;
+    _activeConversationRefreshTimer = Timer.periodic(
+      activeConversationRefreshInterval,
+      (_) => unawaited(_refreshCachedConversations()),
+    );
+  }
+
+  Future<void> _refreshCachedConversations() async {
+    final userId = _boundUserId;
+    if (_disposed ||
+        gateway == null ||
+        userId == null ||
+        _remoteConversations.isEmpty ||
+        _isSaving ||
+        _isRefreshing) {
+      return;
+    }
+    final transactionIds = List<String>.of(_remoteConversations.keys);
+    for (final transactionId in transactionIds) {
+      if (_disposed || _boundUserId != userId || _isSaving) return;
+      try {
+        await refreshConversation(
+          transactionId: transactionId,
+          actorId: userId,
+        );
+      } on Object {
+        // Keep foreground chat responsive without surfacing periodic failures.
+        // Manual refresh/open still reports actionable errors to the UI.
+      }
+    }
   }
 
   bool _isOlderSnapshot(
@@ -454,6 +493,7 @@ class PrivateMessagingProvider extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _activeConversationRefreshTimer?.cancel();
     super.dispose();
   }
 }
