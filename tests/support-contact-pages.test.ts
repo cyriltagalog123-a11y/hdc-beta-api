@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 const read = (path: string) =>
   readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
-describe('Support HDC and Contact Owner public pages', () => {
+describe('SaiCore Support HDC and Contact Owner public pages', () => {
   it('keeps the owner contact channel explicit and copyable', () => {
     const page = read('lib/features/support/contact_owner_screen.dart');
 
@@ -15,19 +15,45 @@ describe('Support HDC and Contact Owner public pages', () => {
     expect(page).toContain('never send passwords');
   });
 
-  it('provides non-financial beta support paths before payment is configured', () => {
+  it('defines the approved SaiCore PHP support program', () => {
+    const page = read('lib/features/support/support_us_screen.dart');
+
+    expect(page).toContain('SAICORE SUPPORT PROGRAM');
+    expect(page).toContain('PHP only for now');
+    expect(page).toContain('One-time support');
+    expect(page).toContain('Recurring support');
+    expect(page).toContain('Corporate sponsorship');
+    expect(page).toContain('GCash / QR');
+    expect(page).toContain('Maya / QR Ph');
+    expect(page).toContain('PayPal');
+    expect(page).toContain('Ko-fi or similar');
+    expect(page).toContain('Bank / transfer route');
+    expect(page).toContain('Corporate arrangement');
+  });
+
+  it('does not advertise every payment route as fee-free', () => {
+    const page = read('lib/features/support/support_us_screen.dart');
+
+    expect(page).toContain('no required setup or monthly subscription cost');
+    expect(page).toContain('transaction, processor, withdrawal, or conversion fees');
+    expect(page).toContain(
+      'Financial intake remains inactive until official SaiCore destination details are verified and published.',
+    );
+    expect(page).not.toContain('universally fee-free');
+  });
+
+  it('keeps useful non-financial support available', () => {
     const page = read('lib/features/support/support_us_screen.dart');
 
     expect(page).toContain('Test and report defects');
     expect(page).toContain('Challenge the workflow');
     expect(page).toContain('Share HDC responsibly');
     expect(page).toContain('Suggest practical improvements');
-    expect(page).toContain('Suggest troubleshooting topics');
+    expect(page).toContain('Suggest Knowledge Base topics');
     expect(page).toContain('Offer partnership or resources');
-    expect(page).toContain('Direct public contributions are not enabled yet.');
   });
 
-  it('keeps support independent from trust and private authority', () => {
+  it('keeps support independent from trust, ranking, and private authority', () => {
     const page = read('lib/features/support/support_us_screen.dart');
 
     expect(page).toContain('Support must never buy trust');
@@ -35,9 +61,21 @@ describe('Support HDC and Contact Owner public pages', () => {
     expect(page).toContain('No purchased verification or trust status.');
     expect(page).toContain('No moderation or dispute exceptions for supporters.');
     expect(page).toContain('No access to private user, transaction, chat, or internal data.');
+    expect(page).toContain(
+      'No special marketplace ranking or technician visibility purchased through support.',
+    );
   });
 
-  it('exposes both public pages from dashboard navigation', () => {
+  it('recognizes supporters publicly only by consent', () => {
+    const page = read('lib/features/support/support_us_screen.dart');
+
+    expect(page).toContain('Public supporter recognition');
+    expect(page).toContain('only if they agree');
+    expect(page).toContain('Anonymous or private support stays private.');
+    expect(page).toContain('Recognition is publicity only.');
+  });
+
+  it('exposes Support HDC and Contact Owner from dashboard navigation', () => {
     const dashboard = read('lib/features/dashboard/dashboard_screen.dart');
 
     expect(dashboard).toContain("label: 'Support HDC'");
@@ -46,17 +84,16 @@ describe('Support HDC and Contact Owner public pages', () => {
     expect(dashboard).toContain('ContactOwnerScreen');
   });
 
-  it('does not introduce fabricated payment providers or donation destinations', () => {
+  it('does not publish fabricated contribution destinations', () => {
     const page = read('lib/features/support/support_us_screen.dart');
 
     for (const unsupported of [
-      'paypal.me',
-      'gcash.com',
-      'buymeacoffee.com',
-      'ko-fi.com',
-      'patreon.com',
+      'paypal.me/',
+      'gcash.com/pay',
+      'ko-fi.com/saicore',
+      'patreon.com/',
       'Donate Now',
-      'Send Money',
+      'Send Money Now',
     ]) {
       expect(page).not.toContain(unsupported);
     }
