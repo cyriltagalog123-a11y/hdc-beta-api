@@ -6,6 +6,7 @@ import postgres from 'postgres';
 
 const root = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const migrationDirectory = join(root, 'migrations');
+const currentLegalVersion = 'beta-2026-09-06';
 
 const databaseUrl = process.env.HDC_TEST_DATABASE_URL?.trim();
 if (!databaseUrl) {
@@ -88,6 +89,7 @@ try {
       to_regclass('public.hdc_service_payments') IS NOT NULL AS payments_ready,
       to_regclass('public.hdc_service_disputes') IS NOT NULL AS disputes_ready,
       to_regclass('public.hdc_privacy_requests') IS NOT NULL AS privacy_ready,
+      to_regclass('public.hdc_public_news_posts') IS NOT NULL AS news_ready,
       EXISTS (
         SELECT 1 FROM pg_roles
         WHERE rolname = 'hdc_app'
@@ -96,9 +98,16 @@ try {
       (
         SELECT count(*)::int
         FROM public.hdc_legal_documents
-        WHERE document_version = 'beta-2026-08-29'
+        WHERE document_version = ${currentLegalVersion}
           AND status = 'published'
-      ) AS current_legal_documents
+      ) AS current_legal_documents,
+      (
+        SELECT count(*)::int
+        FROM public.hdc_legal_documents
+        WHERE document_version <> ${currentLegalVersion}
+          AND document_type IN ('terms_of_service', 'privacy_notice')
+          AND status = 'published'
+      ) AS stale_published_legal_documents
   `;
   const check = checks[0];
   if (
@@ -109,8 +118,10 @@ try {
     check.payments_ready !== true ||
     check.disputes_ready !== true ||
     check.privacy_ready !== true ||
+    check.news_ready !== true ||
     check.restricted_role_ready !== true ||
-    Number(check.current_legal_documents) !== 2
+    Number(check.current_legal_documents) !== 2 ||
+    Number(check.stale_published_legal_documents) !== 0
   ) {
     throw new Error(`Clean-schema readiness failed: ${JSON.stringify(check)}`);
   }
