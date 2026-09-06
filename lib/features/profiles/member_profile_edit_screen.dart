@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_location_picker.dart';
 import '../../providers/hdc_auth_provider.dart';
 import '../../providers/hdc_profile_provider.dart';
 
@@ -139,13 +140,11 @@ class _MemberProfileEditScreenState
                               ),
                             ),
                             const SizedBox(height: 14),
-                            TextFormField(
-                              controller: _locationController,
-                              maxLength: 200,
-                              decoration: const InputDecoration(
-                                labelText: 'Home location or service base',
-                                prefixIcon: Icon(Icons.location_on_outlined),
-                              ),
+                            HdcLocationPicker(
+                              value: _locationController.text.isEmpty ? null : _locationController.text,
+                              label: 'Home location or service base',
+                              helperText: 'Choose a supported region and province/city.',
+                              onChanged: (value) => setState(() => _locationController.text = value ?? ''),
                             ),
                             const SizedBox(height: 14),
                             TextFormField(

@@ -1,3 +1,4 @@
+import '../location/hdc_location_catalog.dart';
 import '../../models/account_identity.dart';
 import '../../models/account_recovery.dart';
 import 'auth_gateway.dart';
@@ -44,12 +45,14 @@ class AuthService {
     required String email,
     required String password,
     required String displayName,
+    required String location,
     required List<AccountRecoveryAnswer> recoveryAnswers,
     required bool termsAccepted,
     required bool privacyAcknowledged,
   }) async {
     final normalizedEmail = email.trim().toLowerCase();
     final normalizedName = displayName.trim();
+    final normalizedLocation = location.trim();
 
     if (!_looksLikeEmail(normalizedEmail)) {
       throw ArgumentError('Enter a valid email address.');
@@ -61,6 +64,10 @@ class AuthService {
 
     if (normalizedName.length < 2 || normalizedName.length > 80) {
       throw ArgumentError('Display name must contain 2 to 80 characters.');
+    }
+
+    if (!HdcLocationCatalog.isCanonicalLocation(normalizedLocation)) {
+      throw ArgumentError('Choose a valid HDC region and province/city.');
     }
 
     if (!termsAccepted || !privacyAcknowledged) {
@@ -75,6 +82,7 @@ class AuthService {
       email: normalizedEmail,
       password: password,
       displayName: normalizedName,
+      location: normalizedLocation,
       recoveryAnswers: recoveryAnswers,
       termsAccepted: termsAccepted,
       privacyAcknowledged: privacyAcknowledged,

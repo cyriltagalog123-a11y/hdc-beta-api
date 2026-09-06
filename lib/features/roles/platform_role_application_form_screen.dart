@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/location/hdc_location_catalog.dart';
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_location_picker.dart';
 import '../../models/account_identity.dart';
 import '../../models/platform_role_application.dart';
 import '../../models/platform_role_application_form.dart';
@@ -31,6 +33,13 @@ class _PlatformRoleApplicationFormScreenState
   final _controllers = <String, TextEditingController>{};
   final _confirmations = <String, bool>{};
 
+  static const _controlledLocationKeys = <String>{
+    'city',
+    'serviceArea',
+    'businessAddress',
+    'storeAddress',
+  };
+
   @override
   void initState() {
     super.initState();
@@ -42,9 +51,12 @@ class _PlatformRoleApplicationFormScreenState
       if (field.type == HDCPlatformRoleApplicationFieldType.confirmation) {
         _confirmations[field.key] = value == true;
       } else {
-        _controllers[field.key] = TextEditingController(
-          text: value == null ? '' : '$value',
-        );
+        final initialText = field.key == 'country'
+            ? HdcLocationCatalog.country
+            : value == null
+                ? ''
+                : '$value';
+        _controllers[field.key] = TextEditingController(text: initialText);
       }
     }
   }
@@ -230,6 +242,56 @@ class _PlatformRoleApplicationFormScreenState
             () => _confirmations[field.key] = value == true,
           ),
         ),
+      );
+    }
+
+    if (field.key == 'country') {
+      _controllers[field.key]!.text = HdcLocationCatalog.country;
+      return DropdownButtonFormField<String>(
+        initialValue: HdcLocationCatalog.country,
+        decoration: InputDecoration(
+          labelText: field.label,
+          helperText: 'HDC beta currently supports Philippines locations.',
+          border: const OutlineInputBorder(),
+        ),
+        items: const [
+          DropdownMenuItem(
+            value: HdcLocationCatalog.country,
+            child: Text(HdcLocationCatalog.country),
+          ),
+        ],
+        onChanged: busy ? null : (_) {},
+      );
+    }
+
+    if (_controlledLocationKeys.contains(field.key)) {
+      return HdcLocationPicker(
+        value: _controllers[field.key]!.text.isEmpty
+            ? null
+            : _controllers[field.key]!.text,
+        label: field.label,
+        helperText: field.helperText.isEmpty
+            ? 'Choose a supported region and province/city.'
+            : field.helperText,
+        onChanged: busy
+            ? (_) {}
+            : (value) => setState(
+                  () => _controllers[field.key]!.text = value ?? '',
+                ),
+      );
+    }
+
+    if (field.key == 'serviceRegions') {
+      return HdcRegionPicker(
+        value: _controllers[field.key]!.text.isEmpty
+            ? null
+            : _controllers[field.key]!.text,
+        label: field.label,
+        onChanged: busy
+            ? (_) {}
+            : (value) => setState(
+                  () => _controllers[field.key]!.text = value ?? '',
+                ),
       );
     }
 

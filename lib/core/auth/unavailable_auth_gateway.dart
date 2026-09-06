@@ -81,6 +81,7 @@ class UnavailableAuthGateway implements AuthGateway {
     required String email,
     required String password,
     required String displayName,
+    required String location,
     required List<AccountRecoveryAnswer> recoveryAnswers,
     required bool termsAccepted,
     required bool privacyAcknowledged,

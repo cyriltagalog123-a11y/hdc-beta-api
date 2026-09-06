@@ -9,6 +9,7 @@ import '../../providers/hdc_internal_dashboard_provider.dart';
 import '../roles/internal_role_application_review_screen.dart';
 import 'account_recovery_review_screen.dart';
 import 'dispute_resolution_screen.dart';
+import 'platform_role_management_screen.dart';
 
 class InternalDashboardScreen extends StatefulWidget {
   const InternalDashboardScreen({super.key});
@@ -58,6 +59,15 @@ class _InternalDashboardScreenState extends State<InternalDashboardScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => const DisputeResolutionScreen(),
+      ),
+    );
+  }
+
+  Future<void> _openPlatformRoleManagement(BuildContext context) async {
+    if (!context.mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const PlatformRoleManagementScreen(),
       ),
     );
   }
@@ -143,6 +153,8 @@ class _InternalDashboardScreenState extends State<InternalDashboardScreen> {
                                 _openRecoveryQueue(context),
                             onOpenDisputeQueue: () =>
                                 _openDisputeQueue(context),
+                            onOpenPlatformRoleManagement: () =>
+                                _openPlatformRoleManagement(context),
                           ),
                           if (workspace.assignments.isNotEmpty) ...[
                             const SizedBox(height: 26),
@@ -379,6 +391,7 @@ class _AuthorizedScope extends StatelessWidget {
   final VoidCallback onOpenApprovalQueue;
   final VoidCallback onOpenRecoveryQueue;
   final VoidCallback onOpenDisputeQueue;
+  final VoidCallback onOpenPlatformRoleManagement;
 
   const _AuthorizedScope({
     required this.permissions,
@@ -389,6 +402,7 @@ class _AuthorizedScope extends StatelessWidget {
     required this.onOpenApprovalQueue,
     required this.onOpenRecoveryQueue,
     required this.onOpenDisputeQueue,
+    required this.onOpenPlatformRoleManagement,
   });
 
   @override
@@ -414,6 +428,18 @@ class _AuthorizedScope extends StatelessWidget {
               onPressed: loading ? null : onOpenApprovalQueue,
               icon: const Icon(Icons.arrow_forward),
               label: const Text('Open Queue'),
+            ),
+          ),
+        if (permissions.hasPrivilegedResourceAccess)
+          _ScopeTile(
+            icon: Icons.manage_accounts_outlined,
+            title: 'Platform role management',
+            subtitle:
+                'Assign, re-assign, or revoke non-customer platform roles with an audit reason.',
+            action: FilledButton.tonalIcon(
+              onPressed: loading ? null : onOpenPlatformRoleManagement,
+              icon: const Icon(Icons.arrow_forward),
+              label: const Text('Manage Roles'),
             ),
           ),
         if (permissions.canReviewAccountRecovery)
