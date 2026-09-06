@@ -53,7 +53,7 @@ Status: implementation complete; full validation passed after removing obsolete 
 - Run Flutter analysis/tests/build, API tests, PostgreSQL workflow/isolation coverage, migration/release checks, encrypted backup/restore rehearsal, and Netlify deploy-preview validation.
 - Build 25 may be merged to `main` or deployed to production only after explicit approval.
 
-Status: implementation complete. Release identity is synchronized to Build 25 across package, Flutter, API-health, startup, dashboard, CI, and the generated web bundle. Final regression coverage also asserts semantic/responsive shared UI, provider-backed state, authority wording, and absence of temporary Build 25 repair machinery. The verified Build 25 web bundle is synchronized; only the final clean release-validation gate remains before Build 25 can be declared complete.
+Status: complete. Release identity is synchronized to Build 25 across package, Flutter, API health, startup, dashboard, CI, and the generated web bundle. Final regression coverage verifies semantic/responsive shared UI, provider-backed state, authority wording, and absence of temporary Build 25 repair machinery. HDC CI run `34029218139` passed core verification, Flutter analyze/tests/build, PostgreSQL workflow/isolation, and encrypted backup/restore; the Netlify PR #19 deploy preview also passed.
 
 ## Completion rule
 
