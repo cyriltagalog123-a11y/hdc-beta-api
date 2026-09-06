@@ -1,10 +1,13 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../repositories/hdc_api_workflow_repositories.dart';
 
-class HdcWorkflowSyncProvider extends ChangeNotifier {
+class HdcWorkflowSyncProvider extends ChangeNotifier
+    with WidgetsBindingObserver {
+  static const Duration foregroundRefreshInterval = Duration(seconds: 4);
+
   final HdcApiWorkflowStore store;
 
   String? _boundUserId;
@@ -14,8 +17,13 @@ class HdcWorkflowSyncProvider extends ChangeNotifier {
   int _generation = 0;
   int _bindingVersion = 0;
   bool _disposed = false;
+  Timer? _refreshTimer;
+  AppLifecycleState _lifecycleState =
+      WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.resumed;
 
-  HdcWorkflowSyncProvider({required this.store});
+  HdcWorkflowSyncProvider({required this.store}) {
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   bool get isSyncing => _isSyncing;
   Object? get lastError => _lastError;
@@ -25,6 +33,7 @@ class HdcWorkflowSyncProvider extends ChangeNotifier {
     if (_disposed || _boundUserId == userId) return;
     _boundUserId = userId;
     _bindingVersion += 1;
+    _refreshTimer?.cancel();
     store.bindUser(userId, announce: false);
     _lastError = null;
     _generation += 1;
@@ -35,7 +44,39 @@ class HdcWorkflowSyncProvider extends ChangeNotifier {
       notifyListeners();
       if (userId != null && _boundUserId == userId) {
         unawaited(refresh());
+        _startRefreshTimer();
       }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _lifecycleState = state;
+    if (state == AppLifecycleState.resumed) {
+      if (_boundUserId != null) {
+        unawaited(refresh());
+        _startRefreshTimer();
+      }
+    } else {
+      _refreshTimer?.cancel();
+    }
+  }
+
+  void _startRefreshTimer() {
+    _refreshTimer?.cancel();
+    if (_disposed ||
+        _boundUserId == null ||
+        _lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+    _refreshTimer = Timer.periodic(foregroundRefreshInterval, (_) {
+      if (_disposed ||
+          _boundUserId == null ||
+          _lifecycleState != AppLifecycleState.resumed ||
+          _isSyncing) {
+        return;
+      }
+      unawaited(refresh());
     });
   }
 
@@ -76,6 +117,8 @@ class HdcWorkflowSyncProvider extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _refreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     store.dispose();
     super.dispose();
   }
