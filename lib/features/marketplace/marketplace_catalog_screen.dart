@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_flow.dart';
 import '../../models/account_identity.dart';
 import '../../models/marketplace_purchase.dart';
 import '../../models/product_listing.dart';
@@ -318,7 +319,17 @@ class _CatalogTab extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 40),
         children: [
-          const _CatalogNotice(),
+          const HDCFlowHero(
+            eyebrow: 'TECHNOLOGY MARKETPLACE',
+            title: 'Browse listings. Send a tracked purchase request.',
+            description:
+                'HDC records the request and seller response. HDC does not claim to charge the buyer, verify delivery, or create a payment receipt from this action.',
+            icon: Icons.storefront_outlined,
+            tags: [
+              HDCFlowTag(label: 'Seller listings', icon: Icons.inventory_2_outlined),
+              HDCFlowTag(label: 'Tracked request', icon: Icons.receipt_long_outlined),
+            ],
+          ),
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -413,48 +424,6 @@ class _CatalogTab extends StatelessWidget {
               },
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _CatalogNotice extends StatelessWidget {
-  const _CatalogNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.shopping_bag_outlined, color: HDCColors.secondary),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Buy Technology from HDC Sellers',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                  ),
-                  const SizedBox(height: 5),
-                  const Text(
-                    'Browse active listings and send a tracked purchase request. Payments and delivery verification will connect later through replaceable service providers.',
-                    style: TextStyle(
-                      color: HDCColors.textSecondary,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

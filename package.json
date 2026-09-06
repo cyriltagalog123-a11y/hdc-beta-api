@@ -1,6 +1,6 @@
 {
   "name": "hdc-beta-api",
-  "version": "0.6.4-build.24",
+  "version": "0.6.4-build.25",
   "private": true,
   "type": "module",
   "engines": {

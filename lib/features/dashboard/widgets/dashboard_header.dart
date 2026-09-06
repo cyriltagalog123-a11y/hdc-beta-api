@@ -73,10 +73,10 @@ class DashboardHeader extends StatelessWidget {
                       ),
                       const SizedBox(height: 16),
                       HDCSignalPill(
-                        label: guestMode ? 'GUEST PREVIEW' : 'LIVE WORKSPACE',
+                        label: guestMode ? 'GUEST PREVIEW' : 'YOUR WORKSPACE',
                         icon: guestMode
                             ? Icons.visibility_outlined
-                            : Icons.bolt_rounded,
+                            : Icons.dashboard_customize_outlined,
                         light: true,
                       ),
                     ] else
@@ -88,10 +88,10 @@ class DashboardHeader extends StatelessWidget {
                           HDCSignalPill(
                             label: guestMode
                                 ? 'GUEST PREVIEW'
-                                : 'LIVE WORKSPACE',
+                                : 'YOUR WORKSPACE',
                             icon: guestMode
                                 ? Icons.visibility_outlined
-                                : Icons.bolt_rounded,
+                                : Icons.dashboard_customize_outlined,
                             light: true,
                           ),
                         ],
@@ -175,6 +175,16 @@ class DashboardHeader extends StatelessWidget {
                     ),
                     if (!guestMode) ...[
                       const SizedBox(height: 24),
+                      Text(
+                        'ACCOUNT WORK IN VIEW',
+                        style: TextStyle(
+                          color: HDCColors.textLight.withValues(alpha: 0.48),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.25,
+                        ),
+                      ),
+                      const SizedBox(height: 9),
                       Wrap(
                         spacing: 12,
                         runSpacing: 12,
@@ -188,11 +198,6 @@ class DashboardHeader extends StatelessWidget {
                             label: 'OFFERS',
                             value: '$newOffers',
                             color: HDCColors.warm,
-                          ),
-                          const _PulseMetric(
-                            label: 'RECORD SYNC',
-                            value: 'ON',
-                            color: HDCColors.accent,
                           ),
                         ],
                       ),

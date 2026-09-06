@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/auth/auth_exception.dart';
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_flow.dart';
 import '../../models/account_recovery.dart';
 import '../../providers/hdc_auth_provider.dart';
 import 'privacy_center_screen.dart';
@@ -130,28 +131,16 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: HDCColors.primary.withValues(alpha: 0.07),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: const Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.shield_outlined, color: HDCColors.primary),
-                        SizedBox(width: 14),
-                        Expanded(
-                          child: Text(
-                            'Set or replace the three private answers used by '
-                            'Forgot Password. This is required for accounts '
-                            'created before Build 12. HDC stores only protected '
-                            'hashes; nobody can view the original answers.',
-                            style: TextStyle(height: 1.45),
-                          ),
-                        ),
-                      ],
-                    ),
+                  const HDCFlowHero(
+                    eyebrow: 'ACCOUNT SECURITY',
+                    title: 'Protected recovery belongs to the account owner.',
+                    description:
+                        'Set or replace the three private answers used by Forgot Password. HDC stores protected hashes rather than readable answers.',
+                    icon: Icons.shield_outlined,
+                    tags: [
+                      HDCFlowTag(label: 'Current password required', icon: Icons.lock_outline),
+                      HDCFlowTag(label: 'Three protected answers', icon: Icons.password_outlined),
+                    ],
                   ),
                   const SizedBox(height: 24),
                   TextField(

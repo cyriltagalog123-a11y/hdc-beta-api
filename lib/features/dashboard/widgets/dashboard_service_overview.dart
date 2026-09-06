@@ -26,8 +26,55 @@ class DashboardServiceOverview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasCurrentWork =
+        activeTransactionCount > 0 || activeRequestCount > 0 || offerCount > 0;
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 4,
+              height: 50,
+              margin: const EdgeInsets.only(top: 2, right: 12),
+              decoration: BoxDecoration(
+                color: hasCurrentWork ? HDCColors.signal : HDCColors.borderStrong,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hasCurrentWork ? 'CURRENT WORK' : 'WORKSPACE STATUS',
+                    style: const TextStyle(
+                      color: HDCColors.secondary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.15,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    hasCurrentWork
+                        ? 'Continue what already needs your attention.'
+                        : 'No active service work is waiting on this account.',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Counts below come from your loaded HDC requests, offers, and service transactions.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
         if (activeTransactionCount > 0) ...[
           _OverviewCard(
             icon: Icons.handshake_outlined,
@@ -38,6 +85,7 @@ class DashboardServiceOverview extends StatelessWidget {
                 'Track accepted technology service work, participants, terms, and progress.',
             actionLabel: 'Open Workspaces',
             onAction: onViewTransactions,
+            emphasized: true,
           ),
           const SizedBox(height: 16),
         ],
@@ -83,6 +131,7 @@ class _OverviewCard extends StatelessWidget {
   final String description;
   final String actionLabel;
   final VoidCallback onAction;
+  final bool emphasized;
 
   const _OverviewCard({
     required this.icon,
@@ -92,12 +141,19 @@ class _OverviewCard extends StatelessWidget {
     required this.description,
     required this.actionLabel,
     required this.onAction,
+    this.emphasized = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: emphasized
+              ? Border(left: BorderSide(color: iconColor, width: 4))
+              : null,
+        ),
         padding: const EdgeInsets.all(22),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -134,16 +190,18 @@ class _OverviewCard extends StatelessWidget {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: HDCColors.background,
+                          color: iconColor.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: HDCColors.border),
+                          border: Border.all(
+                            color: iconColor.withValues(alpha: 0.22),
+                          ),
                         ),
                         child: Text(
                           statusLabel,
-                          style: const TextStyle(
-                            color: HDCColors.textSecondary,
+                          style: TextStyle(
+                            color: iconColor,
                             fontSize: 10,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
                       ),

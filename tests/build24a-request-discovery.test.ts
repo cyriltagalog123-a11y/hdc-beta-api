@@ -5,10 +5,11 @@ const read = (path: string) =>
   readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 describe('Build 24A Customer request and Technician discovery redesign', () => {
-  it('keeps the public release identity synchronized to Build 24', () => {
+  it('keeps the public release identity synchronized to Build 25', () => {
     const login = read('lib/features/authentication/login_screen.dart');
 
-    expect(login).toContain('CONTROLLED BETA • BUILD 24');
+    expect(login).toContain('CONTROLLED BETA • BUILD 25');
+    expect(login).not.toContain('CONTROLLED BETA • BUILD 24');
     expect(login).not.toContain('CONTROLLED BETA • BUILD 23');
   });
 
