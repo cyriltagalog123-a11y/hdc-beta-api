@@ -132,7 +132,7 @@ jobs:
       - name: Production-shaped encrypted backup and clean restore
         env:
           HDC_DATABASE_URL: postgres://postgres:postgres@localhost:5432/hdc_test
-          HDC_RESTORE_DATABASE_URL: postgres://postgres@localhost:5433/hdc_restore
+          HDC_RESTORE_DATABASE_URL: postgres://postgres:postgres@localhost:5433/hdc_restore
           HDC_BACKUP_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
           HDC_ALLOW_RESTORE_RESET: '1'
         run: npm run test:backup-rehearsal
