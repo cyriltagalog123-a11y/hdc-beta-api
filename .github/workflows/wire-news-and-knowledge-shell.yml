@@ -1,0 +1,31 @@
+name: Wire News and Knowledge Shell
+
+on:
+  push:
+    branches:
+      - build-25-support-contact
+    paths:
+      - scripts/wire_news_and_knowledge_shell.py
+      - .github/workflows/wire-news-and-knowledge-shell.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: build-25-support-contact
+          fetch-depth: 0
+      - run: python3 scripts/wire_news_and_knowledge_shell.py
+      - name: Commit application wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/main.dart lib/features/dashboard/dashboard_screen.dart
+          git commit -m "Wire HDC News and Knowledge Base navigation"
+          git push origin HEAD:build-25-support-contact
