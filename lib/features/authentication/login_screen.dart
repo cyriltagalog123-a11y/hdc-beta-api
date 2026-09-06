@@ -777,7 +777,7 @@ class _AuthBrandPanel extends StatelessWidget {
               if (!compact) ...[
                 const SizedBox(height: 72),
                 const HDCSignalPill(
-                  label: 'CONTROLLED BETA • BUILD 25',
+                  label: 'CONTROLLED BETA • BUILD 26',
                   icon: Icons.bolt_rounded,
                   light: true,
                 ),
@@ -842,7 +842,7 @@ class _AuthBrandPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 18),
                 const HDCSignalPill(
-                  label: 'CONTROLLED BETA • BUILD 25',
+                  label: 'CONTROLLED BETA • BUILD 26',
                   light: true,
                 ),
               ],
