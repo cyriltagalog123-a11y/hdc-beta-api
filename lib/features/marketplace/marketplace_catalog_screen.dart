@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_flow.dart';
 import '../../models/account_identity.dart';
 import '../../models/marketplace_purchase.dart';
 import '../../models/product_listing.dart';
@@ -318,7 +319,17 @@ class _CatalogTab extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 40),
         children: [
-          const _CatalogNotice(),
+          const HDCFlowHero(
+            eyebrow: 'TECHNOLOGY MARKETPLACE',
+            title: 'Browse listings. Send a tracked purchase request.',
+            description:
+                'HDC records the request and seller response. HDC does not claim to charge the buyer, verify delivery, or create a payment receipt from this action.',
+            icon: Icons.storefront_outlined,
+            tags: [
+              HDCFlowTag(label: 'Seller listings', icon: Icons.inventory_2_outlined),
+              HDCFlowTag(label: 'Tracked request', icon: Icons.receipt_long_outlined),
+            ],
+          ),
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {

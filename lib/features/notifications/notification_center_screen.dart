@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_flow.dart';
 import '../../models/hdc_notification.dart';
 import '../../providers/hdc_notification_center_provider.dart';
 
@@ -52,12 +53,25 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                   child: ListView.separated(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(20),
-                    itemCount: provider.notifications.length,
+                    itemCount: provider.notifications.length + 1,
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) => _NotificationCard(
-                      notification: provider.notifications[index],
-                      onRead: provider.markRead,
-                    ),
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        return HDCFlowHero(
+                          eyebrow: 'NOTIFICATION CENTER',
+                          title: provider.unreadCount == 0
+                              ? 'You are caught up.'
+                              : '${provider.unreadCount} unread update${provider.unreadCount == 1 ? '' : 's'} need review.',
+                          description:
+                              'Only notifications returned for this signed-in account appear here. Priority and read state remain provider-backed.',
+                          icon: Icons.notifications_active_outlined,
+                        );
+                      }
+                      return _NotificationCard(
+                        notification: provider.notifications[index - 1],
+                        onRead: provider.markRead,
+                      );
+                    },
                   ),
                 ),
     );

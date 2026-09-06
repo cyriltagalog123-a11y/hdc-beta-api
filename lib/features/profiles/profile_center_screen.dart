@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_flow.dart';
 import '../../models/account_identity.dart';
 import '../../models/hdc_profile.dart';
 import '../../providers/hdc_auth_provider.dart';
@@ -117,7 +118,18 @@ class _ProfileCenterScreenState extends State<ProfileCenterScreen> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            const _OneAccountBanner(),
+            const HDCFlowHero(
+              eyebrow: 'IDENTITY & WORKSPACES',
+              title: 'One account. Multiple authorized profiles.',
+              description:
+                  'Your member identity stays shared while each active HDC role keeps its own public profile and workspace settings.',
+              icon: Icons.hub_outlined,
+              tags: [
+                HDCFlowTag(label: 'Shared identity', icon: Icons.person_outline_rounded),
+                HDCFlowTag(label: 'Role-aware', icon: Icons.badge_outlined),
+                HDCFlowTag(label: 'Server-backed', icon: Icons.verified_user_outlined),
+              ],
+            ),
             const SizedBox(height: 18),
             if (member != null)
               _MemberProfileCard(

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_flow.dart';
 import '../../models/hdc_internal_dashboard.dart';
 import '../../providers/hdc_internal_dashboard_provider.dart';
 import '../roles/internal_role_application_review_screen.dart';
@@ -206,8 +207,16 @@ class _PrivateWorkspaceBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: HDCColors.primary,
+        gradient: HDCColors.brandGradient,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: HDCColors.accent.withValues(alpha: 0.20)),
+        boxShadow: const [
+          BoxShadow(
+            color: HDCColors.shadowStrong,
+            blurRadius: 28,
+            offset: Offset(0, 14),
+          ),
+        ],
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -238,8 +247,7 @@ class _PrivateWorkspaceBanner extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Statistics and actions are filtered by server-enforced '
-                'permissions. This workspace is not part of the public app.',
+                'Private operations are filtered by server-enforced permissions. Only authorized queues, statistics, and actions are shown in this workspace.',
                 style: TextStyle(color: Colors.white70, height: 1.4),
               ),
               const SizedBox(height: 16),
