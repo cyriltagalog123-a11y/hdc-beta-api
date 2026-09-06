@@ -49,32 +49,97 @@ class DashboardPrimaryActions extends StatelessWidget {
       ),
     ];
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth >= 940) {
-          return IntrinsicHeight(
-            child: Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _DashboardSectionHeading(
+          eyebrow: 'START SOMETHING NEW',
+          title: 'Choose the workflow you need.',
+          description:
+              'These actions begin new HDC work. Existing requests, offers, and services remain in the current-work sections below.',
+        ),
+        const SizedBox(height: 14),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth >= 940) {
+              return IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var index = 0; index < actions.length; index += 1) ...[
+                      if (index > 0) const SizedBox(width: 16),
+                      Expanded(child: _PrimaryActionCard(data: actions[index])),
+                    ],
+                  ],
+                ),
+              );
+            }
+
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 for (var index = 0; index < actions.length; index += 1) ...[
-                  if (index > 0) const SizedBox(width: 16),
-                  Expanded(child: _PrimaryActionCard(data: actions[index])),
+                  if (index > 0) const SizedBox(height: 14),
+                  _PrimaryActionCard(data: actions[index]),
                 ],
               ],
-            ),
-          );
-        }
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var index = 0; index < actions.length; index += 1) ...[
-              if (index > 0) const SizedBox(height: 14),
-              _PrimaryActionCard(data: actions[index]),
+class _DashboardSectionHeading extends StatelessWidget {
+  final String eyebrow;
+  final String title;
+  final String description;
+
+  const _DashboardSectionHeading({
+    required this.eyebrow,
+    required this.title,
+    required this.description,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 4,
+          height: 52,
+          margin: const EdgeInsets.only(top: 2, right: 12),
+          decoration: BoxDecoration(
+            gradient: HDCColors.signalGradient,
+            borderRadius: BorderRadius.circular(99),
+          ),
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                eyebrow,
+                style: const TextStyle(
+                  color: HDCColors.secondary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.15,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 5),
+              Text(
+                description,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
             ],
-          ],
-        );
-      },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -116,108 +181,112 @@ class _PrimaryActionCard extends StatelessWidget {
         : HDCColors.textSecondary;
     final radius = BorderRadius.circular(HDCSpacing.radiusMedium);
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: data.emphasized ? null : HDCColors.surface,
-        gradient: data.emphasized ? HDCColors.brandGradient : null,
-        borderRadius: radius,
-        border: Border.all(
-          color: data.emphasized
-              ? HDCColors.accent.withValues(alpha: 0.28)
-              : HDCColors.border,
+    return Semantics(
+      button: true,
+      label: data.title,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: data.emphasized ? null : HDCColors.surface,
+          gradient: data.emphasized ? HDCColors.brandGradient : null,
+          borderRadius: radius,
+          border: Border.all(
+            color: data.emphasized
+                ? HDCColors.accent.withValues(alpha: 0.28)
+                : HDCColors.border,
+          ),
+          boxShadow: data.emphasized
+              ? const [
+                  BoxShadow(
+                    color: HDCColors.shadow,
+                    blurRadius: 24,
+                    offset: Offset(0, 12),
+                  ),
+                ]
+              : null,
         ),
-        boxShadow: data.emphasized
-            ? const [
-                BoxShadow(
-                  color: HDCColors.shadow,
-                  blurRadius: 24,
-                  offset: Offset(0, 12),
-                ),
-              ]
-            : null,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: radius,
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: data.onTap,
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 188),
-            padding: const EdgeInsets.all(22),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: data.color.withValues(
-                          alpha: data.emphasized ? 0.16 : 0.12,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: radius,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: data.onTap,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 188),
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: data.color.withValues(
+                            alpha: data.emphasized ? 0.16 : 0.12,
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: data.color.withValues(alpha: 0.26),
+                          ),
                         ),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: data.color.withValues(alpha: 0.26),
+                        child: Icon(data.icon, color: data.color, size: 23),
+                      ),
+                      const Spacer(),
+                      Text(
+                        data.index,
+                        style: TextStyle(
+                          color: data.color.withValues(alpha: 0.72),
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.6,
                         ),
                       ),
-                      child: Icon(data.icon, color: data.color, size: 23),
-                    ),
-                    const Spacer(),
-                    Text(
-                      data.index,
-                      style: TextStyle(
-                        color: data.color.withValues(alpha: 0.72),
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.6,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  data.eyebrow,
-                  style: TextStyle(
-                    color: data.color,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.25,
+                    ],
                   ),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  data.title,
-                  style: TextStyle(
-                    color: foreground,
-                    fontSize: 18,
-                    height: 1.2,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  data.subtitle,
-                  style: TextStyle(color: secondaryText, height: 1.45),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Text(
-                      'OPEN WORKFLOW',
-                      style: TextStyle(
-                        color: foreground.withValues(alpha: 0.76),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.9,
-                      ),
+                  const SizedBox(height: 20),
+                  Text(
+                    data.eyebrow,
+                    style: TextStyle(
+                      color: data.color,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.25,
                     ),
-                    const Spacer(),
-                    Icon(Icons.arrow_forward_rounded, color: foreground),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    data.title,
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: 18,
+                      height: 1.2,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    data.subtitle,
+                    style: TextStyle(color: secondaryText, height: 1.45),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Text(
+                        'OPEN WORKFLOW',
+                        style: TextStyle(
+                          color: foreground.withValues(alpha: 0.76),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.9,
+                        ),
+                      ),
+                      const Spacer(),
+                      Icon(Icons.arrow_forward_rounded, color: foreground),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
