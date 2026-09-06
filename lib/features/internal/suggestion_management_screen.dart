@@ -207,6 +207,10 @@ class _SuggestionAdminCard extends StatelessWidget {
       response.dispose();
       return;
     }
+    if (!context.mounted) {
+      response.dispose();
+      return;
+    }
     try {
       final client = context.read<HdcCommunityProvider>().client;
       if (client == null) {

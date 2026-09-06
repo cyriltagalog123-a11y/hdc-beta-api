@@ -799,6 +799,8 @@ class _PurchaseSubmission {
 Color _purchaseStatusColor(ProductPurchaseStatus status) => switch (status) {
       ProductPurchaseStatus.submitted => HDCColors.warning,
       ProductPurchaseStatus.accepted => HDCColors.success,
+      ProductPurchaseStatus.fulfilled => HDCColors.info,
+      ProductPurchaseStatus.completed => HDCColors.success,
       ProductPurchaseStatus.declined => HDCColors.danger,
       ProductPurchaseStatus.cancelled => HDCColors.textSecondary,
     };

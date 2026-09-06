@@ -1032,6 +1032,8 @@ Color _statusColor(ProductListingStatus status) => switch (status) {
 Color _orderStatusColor(ProductPurchaseStatus status) => switch (status) {
       ProductPurchaseStatus.submitted => HDCColors.warning,
       ProductPurchaseStatus.accepted => HDCColors.success,
+      ProductPurchaseStatus.fulfilled => HDCColors.info,
+      ProductPurchaseStatus.completed => HDCColors.success,
       ProductPurchaseStatus.declined => HDCColors.danger,
       ProductPurchaseStatus.cancelled => HDCColors.textSecondary,
     };
