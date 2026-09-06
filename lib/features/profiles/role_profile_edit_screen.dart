@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_location_picker.dart';
 import '../../models/account_identity.dart';
 import '../../models/hdc_profile.dart';
 import '../../providers/hdc_profile_provider.dart';
@@ -239,11 +240,11 @@ class _RoleProfileEditScreenState extends State<RoleProfileEditScreen> {
                           minLines: 4,
                           maxLines: 7,
                         ),
-                        _field(
-                          'location',
+                        HdcLocationPicker(
+                          value: _controller('location').text.isEmpty ? null : _controller('location').text,
                           label: 'Profile location or service area',
-                          maxLength: 200,
-                          keyboardType: TextInputType.streetAddress,
+                          helperText: 'Choose a supported region and province/city.',
+                          onChanged: (value) => setState(() => _controller('location').text = value ?? ''),
                         ),
                       ],
                     ),

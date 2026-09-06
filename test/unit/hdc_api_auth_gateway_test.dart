@@ -95,11 +95,12 @@ void main() {
     test('public signUp does not create a client session', () async {
       final store = _MemorySessionStore();
       final client = MockClient((request) async {
-        expect(request.url.path, '/api/auth/register');
+        expect(request.url.path, '/api/auth/register-v2');
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         expect(body['termsAccepted'], isTrue);
         expect(body['privacyAcknowledged'], isTrue);
         expect(body['termsVersion'], hdcCurrentTermsVersion);
+        expect(body['location'], 'Cebu City, Central Visayas, Philippines');
         expect(body['recoveryAnswers'], hasLength(3));
         return http.Response(
           jsonEncode({'user': _user()}),
@@ -118,6 +119,7 @@ void main() {
         email: 'person@example.com',
         password: 'not-a-real-password',
         displayName: 'HDC Person',
+        location: 'Cebu City, Central Visayas, Philippines',
         recoveryAnswers: _recoveryAnswers,
         termsAccepted: true,
         privacyAcknowledged: true,
@@ -244,6 +246,7 @@ void main() {
           email: 'person@example.com',
           password: 'not-a-real-password',
           displayName: 'HDC Person',
+          location: 'Cebu City, Central Visayas, Philippines',
           recoveryAnswers: _recoveryAnswers,
           termsAccepted: true,
           privacyAcknowledged: true,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/navigation/hdc_page_route.dart';
 import '../../core/ui/hdc_brand.dart';
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_location_picker.dart';
 import '../../core/ui/hdc_flow.dart';
 import '../../core/ui/hdc_spacing.dart';
 import '../../models/service_request.dart';
@@ -66,7 +67,7 @@ class _CreateServiceRequestScreenState
       text: existing?.description ?? initialDraft?.problemDescription ?? '',
     );
     _locationController = TextEditingController(
-      text: existing?.location ?? 'Cebu City',
+      text: existing?.location ?? '',
     );
     _minimumBudgetController = TextEditingController(
       text: existing?.minimumBudget?.toStringAsFixed(0) ?? '',
@@ -331,20 +332,14 @@ class _CreateServiceRequestScreenState
       subtitle: 'Use a service-area label; do not include private access codes.',
       child: Column(
         children: [
-          TextFormField(
+          HdcLocationPicker(
             key: const Key('hdc-request-location'),
-            controller: _locationController,
-            decoration: const InputDecoration(
-              labelText: 'Service location',
-              hintText: 'City, barangay, or service area',
-              prefixIcon: Icon(Icons.location_on_outlined),
-            ),
-            validator: (value) {
-              if ((value?.trim().length ?? 0) < 3) {
-                return 'Enter the service location.';
-              }
-              return null;
-            },
+            value: _locationController.text.isEmpty ? null : _locationController.text,
+            label: 'Service location',
+            helperText: 'Choose the region and province/city where service is needed.',
+            regionKey: const Key('hdc-request-region'),
+            areaKey: const Key('hdc-request-area'),
+            onChanged: (value) => setState(() => _locationController.text = value ?? ''),
           ),
           const SizedBox(height: HDCSpacing.md),
           LayoutBuilder(

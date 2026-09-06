@@ -7,6 +7,7 @@ import '../../core/ui/hdc_brand.dart';
 import '../../core/ui/hdc_button.dart';
 import '../../core/ui/hdc_card.dart';
 import '../../core/ui/hdc_colors.dart';
+import '../../core/ui/hdc_location_picker.dart';
 import '../../core/ui/hdc_spacing.dart';
 import '../../core/ui/hdc_textfield.dart';
 import '../../models/account_recovery.dart';
@@ -38,6 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _creatingAccount = false;
   bool _termsAccepted = false;
   bool _privacyAcknowledged = false;
+  String? _registrationLocation;
 
   @override
   void dispose() {
@@ -73,6 +75,7 @@ class _LoginScreenState extends State<LoginScreen> {
               email: _emailController.text,
               password: _passwordController.text,
               displayName: _displayNameController.text,
+              location: _registrationLocation ?? '',
               recoveryAnswers: _recoveryAnswers(),
               termsAccepted: _termsAccepted,
               privacyAcknowledged: _privacyAcknowledged,
@@ -112,6 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
             _creatingAccount = false;
             _termsAccepted = false;
             _privacyAcknowledged = false;
+            _registrationLocation = null;
           });
         }
         return;
@@ -288,6 +292,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       enabled: !busy,
                       textInputAction: TextInputAction.next,
                       maxLength: 80,
+                    ),
+                    const SizedBox(height: 12),
+                    HdcLocationPicker(
+                      value: _registrationLocation,
+                      label: 'Account location',
+                      helperText: 'Choose your region and province/city. Typing a location is disabled.',
+                      regionKey: const Key('hdc-registration-region'),
+                      areaKey: const Key('hdc-registration-area'),
+                      onChanged: (value) => setState(() => _registrationLocation = value),
                     ),
                     const SizedBox(height: 12),
                   ],

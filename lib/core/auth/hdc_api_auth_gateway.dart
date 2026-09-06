@@ -137,16 +137,18 @@ class HdcApiAuthGateway implements AuthGateway {
     required String email,
     required String password,
     required String displayName,
+    required String location,
     required List<AccountRecoveryAnswer> recoveryAnswers,
     required bool termsAccepted,
     required bool privacyAcknowledged,
   }) async {
     final response = await _post(
-      '/api/auth/register',
+      '/api/auth/register-v2',
       body: {
         'email': email.trim().toLowerCase(),
         'password': password,
         'displayName': displayName.trim(),
+        'location': location.trim(),
         'recoveryAnswers': recoveryAnswers
             .map((answer) => answer.toJson())
             .toList(growable: false),

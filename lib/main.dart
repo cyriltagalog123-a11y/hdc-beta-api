@@ -19,6 +19,7 @@ import 'providers/hdc_sales_center_provider.dart';
 import 'providers/hdc_workflow_sync_provider.dart';
 import 'providers/hdc_transaction_tools_provider.dart';
 import 'providers/onboarding_provider.dart';
+import 'providers/platform_role_admin_provider.dart';
 import 'providers/private_messaging_provider.dart';
 import 'providers/proposal_acceptance_provider.dart';
 import 'providers/proposal_provider.dart';
@@ -173,6 +174,17 @@ class HDCApp extends StatelessWidget {
             final provider =
                 internalDashboard ??
                 HdcInternalDashboardProvider(client: roleApiClient);
+            provider.bindIdentity(
+              auth.authenticated && !auth.guestMode ? auth.identity : null,
+            );
+            return provider;
+          },
+        ),
+        ChangeNotifierProxyProvider<HDCAuthProvider, PlatformRoleAdminProvider>(
+          create: (_) => PlatformRoleAdminProvider(client: roleApiClient),
+          update: (_, auth, roleAdmin) {
+            final provider =
+                roleAdmin ?? PlatformRoleAdminProvider(client: roleApiClient);
             provider.bindIdentity(
               auth.authenticated && !auth.guestMode ? auth.identity : null,
             );
