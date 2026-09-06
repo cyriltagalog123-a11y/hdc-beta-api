@@ -1,6 +1,6 @@
 # HelpDesk Connect delivery roadmap
 
-Last updated: 2026-09-02
+Last updated: 2026-09-06
 
 ## Delivered baseline
 
@@ -58,11 +58,11 @@ Acceptance gates:
 6. Flutter analysis/tests, API tests, release synchronization, and the web
    production build pass before deployment.
 
-## Current milestone — Build 24C
+## Delivered responsive milestone — Build 24C
 
 Build 24C migrates Customer active services, Technician jobs, and the shared
 Service Workspace to the responsive HDC interface. It does not change database
-schemas, workflow transitions, chat, payment evidence, documents, or disputes.
+schemas or server-authorized workflow transitions.
 
 Acceptance gates:
 
@@ -83,33 +83,70 @@ Acceptance gates:
    encrypted backup/restore, release synchronization, and the production web
    build pass before deployment.
 
-## Planned next sprint — Build 24D
+## Build 24 completion sequence
 
-Build 24D will migrate private transaction chat to the responsive HDC
-interface. It remains separate from Build 24C and will not change service
-transitions, payments, documents, disputes, profiles, roles, or commerce.
+Builds 24D–24I finish the responsive migration without adding new database
+schemas, bypassing provider authority, or weakening the Build 22.1 security and
+retention baseline.
 
-Planned acceptance gates:
+### Build 24D — Private transaction chat
 
-1. Chat fails closed before showing transaction context, participant names, or
-   messages when the current account is not a recorded transaction participant.
-2. The existing participant-authorized messaging provider and API remain
-   authoritative for conversation access, refresh, read state, moderation,
-   idempotent sends, and message ordering.
-3. Conversation context, storage usage, message history, retry states, and the
-   composer remain reachable on compact and wide layouts without horizontal
-   page scrolling or obscured send controls.
-4. HDC-managed storage limits and the unavailable user-owned storage connector
-   remain described accurately; Build 24D will not imply an external connector
-   or unlimited retention.
-5. Failed sends preserve the draft and client message identifier, duplicate
-   sends remain disabled while saving, and foreground refresh behavior remains
-   bounded to the existing lifecycle rules.
-6. Focused authorization, moderation, retry, long-content, and responsive
-   regression tests pass together with Flutter, API, PostgreSQL isolation,
-   encrypted backup/restore, release synchronization, and production web-build
-   gates before deployment.
+- Fail closed before exposing transaction context or participant messages.
+- Preserve participant-authorized access, refresh/read state, moderation,
+  idempotent sends, ordering, draft retry identifiers, and bounded foreground
+  refresh.
+- Keep transaction context, storage usage, message history, retry state, and the
+  composer usable on compact and wide layouts.
+- Describe HDC-managed quota and unavailable user-owned storage accurately.
 
-Later bounded releases cover payment evidence, documents, disputes, profiles,
-roles, and commerce. Each release preserves the Build 22.1 data-security
-baseline and ships only after its workflow regression suite passes.
+### Build 24E — Payment evidence and receipts
+
+- Preserve the external-payment evidence model: HDC does not hold or process
+  money in this release.
+- Keep customer record, technician confirmation/rejection, refund recording,
+  customer refund confirmation, balances, events, and participant-confirmed
+  receipts reachable on compact and wide layouts.
+- Freeze payment mutations while a dispute is active and retain authoritative
+  transaction/provider checks.
+
+### Build 24F — Transaction documents
+
+- Preserve protected structured text records and integrity metadata.
+- Keep service reports, warranty terms, payment evidence, receipt notes, and
+  dispute evidence readable and actionable without horizontal overflow.
+- Do not imply binary-upload support until an object-storage provider is
+  explicitly connected.
+
+### Build 24G — Disputes
+
+- Preserve the server-authorized dispute lifecycle and service/payment freeze.
+- Keep reason, requested outcome, case notes, withdrawal, history, closed cases,
+  and authorized resolution records reachable across compact and wide layouts.
+- Do not expose admin resolution authority to ordinary participants.
+
+### Build 24H — Profiles and platform roles
+
+- Preserve one-account/multiple-profile identity boundaries and active-role
+  authorization.
+- Keep member profile, security entry point, workspace profile selection, role
+  status, applications, review state, and notifications reachable on compact
+  and wide layouts.
+- Do not expose private internal-role review data through public profile views.
+
+### Build 24I — Commerce
+
+- Preserve provider-backed catalog, seller inventory, purchase requests,
+  acceptance/cancellation, stock allocation, and recorded commerce state.
+- Keep search/filter, responsive product cards, buyer purchase tracking, seller
+  sales tools, listing controls, and product records usable without horizontal
+  page scrolling.
+- Do not claim that HDC processed payment or verified delivery where the
+  connected provider/workflow has not done so.
+
+## Build 24 final release gate
+
+Build 24 is ready for review only after 24D–24I responsive regressions pass with
+Flutter analysis/widget tests, API tests, PostgreSQL isolation, encrypted
+backup/restore rehearsal, release synchronization, and the production-shaped
+web build. Merge to `main` and production deployment remain separate explicit
+approval gates.
