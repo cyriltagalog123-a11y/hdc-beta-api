@@ -10,10 +10,14 @@ Build 25 is the deferred application-wide visual and interaction redesign that b
 - Keep the approved HDC logo and existing accessibility contrast requirements.
 - Make shared components carry the visual redesign so feature screens do not fork their own style systems.
 
+Status: implementation complete; full PR validation passed before 25B began.
+
 ### Build 25B — Authentication and onboarding
 
 - Redesign sign-in, registration, guest preview entry, recovery, legal acceptance, and onboarding presentation without weakening authentication or legal gates.
 - Preserve controlled-location registration, recovery questions, backend-authoritative sessions, and Customer baseline account creation.
+
+Status: implementation complete; awaiting owner-authored full CI validation before 25C begins.
 
 ### Build 25C — Application shell and navigation
 
