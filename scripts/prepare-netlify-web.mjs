@@ -83,7 +83,7 @@ function legalPage({ title, description, source, otherPath, otherLabel }) {
 
 const legalDocuments = [
   {
-    file: 'terms-of-service-beta-2026-08-29.txt',
+    file: 'terms-of-service-beta-2026-09-06.txt',
     path: 'terms',
     title: 'HDC Beta Terms of Service',
     description: 'The current HelpDesk Connect beta terms of service.',
@@ -91,7 +91,7 @@ const legalDocuments = [
     otherLabel: 'Privacy Notice',
   },
   {
-    file: 'privacy-notice-beta-2026-08-29.txt',
+    file: 'privacy-notice-beta-2026-09-06.txt',
     path: 'privacy',
     title: 'HDC Beta Privacy Notice',
     description: 'The current HelpDesk Connect beta privacy notice.',
@@ -111,7 +111,7 @@ for (const document of legalDocuments) {
   await writeFile(
     new URL('integrity.json', destination),
     `${JSON.stringify({
-      version: 'beta-2026-08-29',
+      version: 'beta-2026-09-06',
       sha256: createHash('sha256').update(source).digest('hex'),
     })}\n`,
     'utf8',

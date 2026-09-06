@@ -1,8 +1,8 @@
 import { openDb, closeDb, type DbClient } from './_lib/db.mjs';
 import { corsPreflightResponse, withCors } from './_lib/cors.mjs';
-import { bearerToken, json, methodNotAllowed, readJson } from './_lib/http.mjs';
-import { verifySessionToken } from './_lib/session.mjs';
+import { json, methodNotAllowed, readJson } from './_lib/http.mjs';
 import { operationMode } from './_lib/env.mjs';
+import { authorizeInternalRequest } from './_lib/internal-auth.mjs';
 
 const MANAGEABLE_PLATFORM_ROLES = Object.freeze([
   'technician',
@@ -15,40 +15,13 @@ type ManageablePlatformRole = typeof MANAGEABLE_PLATFORM_ROLES[number];
 const manageableRoleSet = new Set<string>(MANAGEABLE_PLATFORM_ROLES);
 const privilegedInternalRoles = new Set(['owner', 'super_admin', 'admin']);
 
-async function authorize(
-  req: Request,
-  sql: DbClient,
-): Promise<{ userId: string; internalRoles: string[] } | Response> {
-  const token = bearerToken(req);
-  if (!token) return json({ error: 'authentication_required' }, 401);
-  const verified = await verifySessionToken(token);
-  if (!verified) return json({ error: 'invalid_session' }, 401);
-
-  const sessions = await sql`
-    SELECT 1
-    FROM public.hdc_auth_sessions session
-    JOIN public.hdc_users member ON member.id = session.user_id
-    WHERE session.user_id = ${verified.userId}
-      AND session.token_jti = ${verified.jti}
-      AND session.revoked_at IS NULL
-      AND session.expires_at > now()
-      AND member.status = 'active'
-    LIMIT 1
-  `;
-  if (sessions.length === 0) return json({ error: 'invalid_session' }, 401);
-
-  const roleRows = await sql`
-    SELECT role
-    FROM public.hdc_internal_role_assignments
-    WHERE user_id = ${verified.userId}
-      AND is_active = true
-    ORDER BY role
-  `;
-  const internalRoles = roleRows.map((row) => String(row.role));
-  if (!internalRoles.some((role) => privilegedInternalRoles.has(role))) {
-    return json({ error: 'platform_role_management_forbidden' }, 403);
-  }
-  return { userId: verified.userId, internalRoles };
+async function authorize(req: Request, sql: DbClient) {
+  return await authorizeInternalRequest(
+    req,
+    sql,
+    privilegedInternalRoles,
+    'platform_role_management_forbidden',
+  );
 }
 
 function memberView(row: Record<string, unknown>) {

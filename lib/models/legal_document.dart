@@ -1,4 +1,4 @@
-const String hdcCurrentLegalVersion = 'beta-2026-08-29';
+const String hdcCurrentLegalVersion = 'beta-2026-09-06';
 
 enum HDCLegalDocument { terms, privacy }
 
@@ -14,8 +14,8 @@ extension HDCLegalDocumentDetails on HDCLegalDocument {
   };
 
   String get assetPath => switch (this) {
-    HDCLegalDocument.terms => 'legal/terms-of-service-beta-2026-08-29.txt',
-    HDCLegalDocument.privacy => 'legal/privacy-notice-beta-2026-08-29.txt',
+    HDCLegalDocument.terms => 'legal/terms-of-service-beta-2026-09-06.txt',
+    HDCLegalDocument.privacy => 'legal/privacy-notice-beta-2026-09-06.txt',
   };
 
   String get publicPath => switch (this) {

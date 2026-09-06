@@ -247,10 +247,13 @@ class _NewsEditorScreenState extends State<_NewsEditorScreen> {
   late final TextEditingController _summary;
   late final TextEditingController _body;
   late final TextEditingController _recognitionSubject;
+  late final TextEditingController _recognitionScope;
+  late final TextEditingController _recognitionReference;
   late HdcNewsKind _kind;
   late HdcNewsStatus _status;
   late bool _pinned;
   late bool _recognitionConsent;
+  late String _recognitionConsentMethod;
 
   @override
   void initState() {
@@ -262,10 +265,17 @@ class _NewsEditorScreenState extends State<_NewsEditorScreen> {
     _recognitionSubject = TextEditingController(
       text: post?.recognitionSubject ?? '',
     );
+    _recognitionScope = TextEditingController(
+      text: post?.recognitionConsentScope ?? 'Public HDC News recognition',
+    );
+    _recognitionReference = TextEditingController(
+      text: post?.recognitionConsentReference ?? '',
+    );
     _kind = post?.kind ?? HdcNewsKind.announcement;
     _status = post?.status ?? HdcNewsStatus.draft;
     _pinned = post?.isPinned ?? false;
     _recognitionConsent = post?.recognitionConsentConfirmed ?? false;
+    _recognitionConsentMethod = post?.recognitionConsentMethod ?? 'email';
   }
 
   @override
@@ -274,6 +284,8 @@ class _NewsEditorScreenState extends State<_NewsEditorScreen> {
     _summary.dispose();
     _body.dispose();
     _recognitionSubject.dispose();
+    _recognitionScope.dispose();
+    _recognitionReference.dispose();
     super.dispose();
   }
 
@@ -306,6 +318,12 @@ class _NewsEditorScreenState extends State<_NewsEditorScreen> {
                 : null,
             recognitionConsentConfirmed:
                 _kind == HdcNewsKind.recognition && _recognitionConsent,
+            recognitionConsentMethod:
+                _kind == HdcNewsKind.recognition ? _recognitionConsentMethod : null,
+            recognitionConsentScope:
+                _kind == HdcNewsKind.recognition ? _recognitionScope.text : null,
+            recognitionConsentReference:
+                _kind == HdcNewsKind.recognition ? _recognitionReference.text : null,
           );
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -324,13 +342,13 @@ class _NewsEditorScreenState extends State<_NewsEditorScreen> {
 
   Future<void> _delete() async {
     final post = widget.existing;
-    if (post == null || post.status == HdcNewsStatus.published) return;
+    if (post == null || post.status == HdcNewsStatus.published || post.everPublished) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Delete this post?'),
         content: const Text(
-          'This permanently deletes the draft or archived post. Published posts must be archived first.',
+          'This permanently deletes a draft that has never been published. Published history is archived and retained.',
         ),
         actions: [
           TextButton(
@@ -447,6 +465,47 @@ class _NewsEditorScreenState extends State<_NewsEditorScreen> {
                               : null;
                         },
                       ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        initialValue: _recognitionConsentMethod,
+                        decoration: const InputDecoration(
+                          labelText: 'Consent method',
+                          helperText: 'Record how public-recognition permission was obtained.',
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'email', child: Text('Email')),
+                          DropdownMenuItem(value: 'written_message', child: Text('Written message / chat')),
+                          DropdownMenuItem(value: 'platform_message', child: Text('HDC platform message')),
+                          DropdownMenuItem(value: 'other', child: Text('Other documented method')),
+                        ],
+                        onChanged: saving ? null : (value) {
+                          if (value != null) setState(() => _recognitionConsentMethod = value);
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _recognitionScope,
+                        maxLength: 500,
+                        decoration: const InputDecoration(
+                          labelText: 'Approved recognition scope',
+                          helperText: 'Describe what they agreed HDC may publish.',
+                        ),
+                        validator: (value) {
+                          if (_status != HdcNewsStatus.published) return null;
+                          return (value?.trim().length ?? 0) < 3
+                              ? 'Record the approved public-recognition scope.'
+                              : null;
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _recognitionReference,
+                        maxLength: 500,
+                        decoration: const InputDecoration(
+                          labelText: 'Internal consent reference (optional)',
+                          helperText: 'Example: email date, message reference, or internal note. This is never public.',
+                        ),
+                      ),
                       const SizedBox(height: 4),
                       CheckboxListTile(
                         contentPadding: EdgeInsets.zero,
@@ -498,7 +557,8 @@ class _NewsEditorScreenState extends State<_NewsEditorScreen> {
                     Row(
                       children: [
                         if (widget.existing != null &&
-                            widget.existing!.status != HdcNewsStatus.published)
+                            widget.existing!.status != HdcNewsStatus.published &&
+                            !widget.existing!.everPublished)
                           TextButton.icon(
                             onPressed: saving ? null : _delete,
                             icon: const Icon(Icons.delete_outline_rounded),

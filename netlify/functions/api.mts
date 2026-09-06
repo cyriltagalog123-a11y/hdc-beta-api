@@ -14,7 +14,8 @@ import {
 } from './_lib/env.mjs';
 import { operationDecision } from '../../server/core/operation-mode.mjs';
 import { signSessionToken, verifySessionToken } from './_lib/session.mjs';
-import { normalizeDisplayName, normalizeEmail, normalizePassword } from './_lib/validation.mjs';
+import { normalizeEmail, normalizePassword } from './_lib/validation.mjs';
+import { handleRegistrationWithDb } from './_lib/registration.mjs';
 import {
   RECOVERY_QUESTION_VERSION,
   normalizeRecoveryAnswer,
@@ -337,108 +338,7 @@ async function activeSession(
 }
 
 async function handleRegister(req: Request, sql: DbClient): Promise<Response> {
-  if (req.method !== 'POST') return methodNotAllowed();
-  const body = await readJson(req);
-  if (!body) return json({ error: 'invalid_json' }, 400);
-
-  const email = normalizeEmail(body.email);
-  const displayName = normalizeDisplayName(body.displayName);
-  const password = normalizePassword(body.password);
-  const recoveryAnswers = parseRecoveryAnswers(body.recoveryAnswers);
-  const termsAccepted = body.termsAccepted === true;
-  const privacyAcknowledged = body.privacyAcknowledged === true;
-  const termsVersion = typeof body.termsVersion === 'string'
-    ? body.termsVersion.trim()
-    : '';
-  if (
-    !email || !displayName || !password || !recoveryAnswers ||
-    !termsAccepted || !privacyAcknowledged ||
-    termsVersion !== CURRENT_LEGAL_VERSION
-  ) {
-    return json({
-      error: 'invalid_registration',
-      message: 'Complete the account details, all three recovery questions, the Terms acceptance, and the Privacy acknowledgement.',
-    }, 400);
-  }
-
-  const prohibitedAnswers = new Set([
-    normalizeRecoveryAnswer(email),
-    normalizeRecoveryAnswer(displayName),
-    normalizeRecoveryAnswer(password),
-  ].filter((value): value is string => value !== null));
-  if (recoveryAnswers.some((item) => prohibitedAnswers.has(item.answer))) {
-    return json({
-      error: 'weak_recovery_answers',
-      message: 'Recovery answers must not repeat your email, name, or password.',
-    }, 400);
-  }
-
-  const passwordHash = await bcrypt.hash(password, 12);
-  const pepper = currentRecoveryPepper();
-  const recoveryHashes = await Promise.all(recoveryAnswers.map(async (item) => ({
-    questionCode: item.questionCode,
-    pepperKeyId: pepper.keyId,
-    answerHash: await bcrypt.hash(
-      recoveryAnswerDigest(item.answer, pepper.secret),
-      12,
-    ),
-  })));
-
-  try {
-    const created = await sql.begin(async (tx) => {
-      const rows = await tx`
-        INSERT INTO public.hdc_users (email, password_hash, display_name)
-        VALUES (${email}, ${passwordHash}, ${displayName})
-        RETURNING id
-      `;
-      const userId = String(rows[0].id);
-      await tx`
-        INSERT INTO public.hdc_user_roles (user_id, role, is_active)
-        VALUES (${userId}, 'customer', true)
-      `;
-      for (const item of recoveryHashes) {
-        await tx`
-          INSERT INTO public.hdc_account_recovery_answers (
-            user_id, question_version, question_code, pepper_key_id, answer_hash
-          ) VALUES (
-            ${userId}, ${RECOVERY_QUESTION_VERSION},
-            ${item.questionCode}, ${item.pepperKeyId}, ${item.answerHash}
-          )
-        `;
-      }
-      await tx`
-        INSERT INTO public.hdc_terms_acceptances (
-          user_id, document_type, document_version,
-          document_content_sha256, acceptance_method, client_metadata
-        ) VALUES
-          (
-            ${userId}, 'terms_of_service', ${termsVersion},
-            ${CURRENT_LEGAL_DOCUMENTS.terms_of_service.contentSha256},
-            'registration', ${tx.json({ source: 'registration' })}
-          ),
-          (
-            ${userId}, 'privacy_notice', ${termsVersion},
-            ${CURRENT_LEGAL_DOCUMENTS.privacy_notice.contentSha256},
-            'registration', ${tx.json({ source: 'registration' })}
-          )
-      `;
-      return userId;
-    });
-
-    await audit(sql, created, 'auth.register', 'success', { source: 'public_registration' });
-    const user = await getUserView(sql, created);
-    return json({ user }, 201);
-  } catch (error) {
-    const code = typeof error === 'object' && error !== null && 'code' in error
-      ? String((error as { code?: unknown }).code ?? '')
-      : '';
-    if (code === '23505') {
-      await audit(sql, null, 'auth.register', 'failed', { reason: 'email_already_registered' });
-      return json({ error: 'email_already_registered' }, 409);
-    }
-    console.error('Registration failed', error instanceof Error ? error.message : 'unknown_error');
-    return json({ error: 'registration_failed' }, 500);
-  }
+  return await handleRegistrationWithDb(req, sql, 'public_registration');
 }
 
 async function handleRecoveryStart(req: Request): Promise<Response> {
@@ -1080,7 +980,10 @@ async function handleLogin(req: Request, sql: DbClient): Promise<Response> {
   `;
 
   const row = rows[0];
-  const valid = row ? await bcrypt.compare(password, String(row.password_hash)) : false;
+  const valid = await bcrypt.compare(
+    password,
+    row ? String(row.password_hash) : DUMMY_RECOVERY_HASH,
+  );
   if (!row || !valid || String(row.status) !== 'active') {
     const userId = row ? String(row.id) : null;
     await audit(sql, userId, 'auth.login', 'failed', { reason: 'invalid_credentials', identity_fingerprint: fingerprint });
@@ -6625,6 +6528,14 @@ async function handleReadiness(req: Request): Promise<Response> {
               AND status = 'published'
           )
         ) AS legal_records_ready,
+        (
+          to_regclass('public.hdc_public_news_posts') IS NOT NULL AND
+          EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0017') AND
+          EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0018') AND
+          EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0019') AND
+          EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0020') AND
+          EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0021')
+        ) AS latest_schema_ready,
         EXISTS (
           SELECT 1
           FROM pg_roles
@@ -6647,6 +6558,7 @@ async function handleReadiness(req: Request): Promise<Response> {
       authority.transaction_tools_ready === true &&
       authority.auth_bootstrap_ready === true &&
       authority.legal_records_ready === true &&
+      authority.latest_schema_ready === true &&
       authority.workflow_role_ready === true &&
       authority.technician_proposal_lock_ready === true;
     if (!workflowAuthorityReady) {
@@ -6667,6 +6579,8 @@ async function handleReadiness(req: Request): Promise<Response> {
             authority.auth_bootstrap_ready === true ? 'ok' : 'not_ready',
           legalRecords:
             authority.legal_records_ready === true ? 'ok' : 'not_ready',
+          latestSchema:
+            authority.latest_schema_ready === true ? 'ok' : 'not_ready',
         },
       }, 503);
     }
@@ -6680,6 +6594,7 @@ async function handleReadiness(req: Request): Promise<Response> {
         transactionTools: 'ok',
         authBootstrap: 'ok',
         legalRecords: 'ok',
+        latestSchema: 'ok',
       },
       latencyMs: database.latencyMs,
     });
@@ -6710,7 +6625,7 @@ async function handleHdcApiRequestCore(
     return json({
       service: 'hdc-beta-api',
       status: 'ok',
-      build: '0.6.4-build25',
+      build: '0.6.4-build26',
     });
   }
   if (path === '/api/health/ready') return await handleReadiness(req);

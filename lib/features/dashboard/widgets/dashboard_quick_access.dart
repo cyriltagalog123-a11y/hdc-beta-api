@@ -6,7 +6,6 @@ class DashboardQuickAccess extends StatelessWidget {
   final VoidCallback onTransactions;
   final VoidCallback onRequests;
   final VoidCallback onMarketplace;
-  final VoidCallback onPassport;
   final VoidCallback onRoleCenter;
   final bool canAccessMarketplace;
 
@@ -14,7 +13,6 @@ class DashboardQuickAccess extends StatelessWidget {
     required this.onTransactions,
     required this.onRequests,
     required this.onMarketplace,
-    required this.onPassport,
     required this.onRoleCenter,
     required this.canAccessMarketplace,
     super.key,
@@ -42,12 +40,6 @@ class DashboardQuickAccess extends StatelessWidget {
           subtitle: 'Browse open technology service requests',
           onTap: onMarketplace,
         ),
-      _QuickAccessItem(
-        icon: Icons.badge_outlined,
-        title: 'HDC Passport',
-        subtitle: 'Manage technology assets and records',
-        onTap: onPassport,
-      ),
       _QuickAccessItem(
         icon: Icons.switch_account_outlined,
         title: 'Role Center',

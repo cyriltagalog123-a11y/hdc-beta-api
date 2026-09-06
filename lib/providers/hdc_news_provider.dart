@@ -97,6 +97,9 @@ class HdcNewsProvider extends ChangeNotifier {
     required bool isPinned,
     String? recognitionSubject,
     required bool recognitionConsentConfirmed,
+    String? recognitionConsentMethod,
+    String? recognitionConsentScope,
+    String? recognitionConsentReference,
   }) async {
     if (!canManage) {
       throw const HdcWorkflowException(
@@ -125,6 +128,9 @@ class HdcNewsProvider extends ChangeNotifier {
         'isPinned': isPinned,
         'recognitionSubject': recognitionSubject?.trim(),
         'recognitionConsentConfirmed': recognitionConsentConfirmed,
+        'recognitionConsentMethod': recognitionConsentMethod?.trim(),
+        'recognitionConsentScope': recognitionConsentScope?.trim(),
+        'recognitionConsentReference': recognitionConsentReference?.trim(),
       };
       if (id != null) payload['id'] = id;
       final response = id == null
@@ -153,10 +159,10 @@ class HdcNewsProvider extends ChangeNotifier {
 
   Future<void> deletePost(HdcNewsPost post) async {
     if (!canManage) return;
-    if (post.status == HdcNewsStatus.published) {
+    if (post.status == HdcNewsStatus.published || post.everPublished) {
       throw const HdcWorkflowException(
         code: 'news_delete_not_allowed',
-        message: 'Archive a published post before deleting it.',
+        message: 'Published history is retained. Only a never-published draft can be deleted.',
       );
     }
     final api = client;

@@ -252,8 +252,11 @@ try {
         (SELECT array_agg(version ORDER BY version)
           FROM public.hdc_schema_migrations) AS migration_versions,
         (SELECT count(*)::int FROM public.hdc_legal_documents
-          WHERE document_version = 'beta-2026-08-29'
+          WHERE document_version = 'beta-2026-09-06'
             AND status = 'published') AS legal_documents,
+        (SELECT count(*)::int FROM public.hdc_legal_documents
+          WHERE document_version = 'beta-2026-08-29'
+            AND status = 'superseded') AS superseded_legal_documents,
         (SELECT count(*)::int FROM pg_constraint
           WHERE convalidated = false) AS invalid_constraints,
         has_table_privilege(
@@ -318,6 +321,7 @@ try {
     }
     if (
       Number(row.legal_documents) !== 2 ||
+      Number(row.superseded_legal_documents) !== 2 ||
       Number(row.invalid_constraints) !== 0 ||
       row.app_requests_select !== true ||
       row.app_transactions_select !== true ||

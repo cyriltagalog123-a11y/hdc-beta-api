@@ -187,11 +187,6 @@ class DashboardScreen extends StatelessWidget {
         .push(HDCPageRoute<void>(page: const MarketplaceCatalogScreen()));
   }
 
-  void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$feature is coming in a future HDC sprint.')),
-    );
-  }
 
   Future<void> _openNotifications(BuildContext context) async {
     if (!await requireRegisteredUser(context, action: 'view notifications')) {
@@ -202,16 +197,6 @@ class DashboardScreen extends StatelessWidget {
         .push(HDCPageRoute<void>(page: const NotificationCenterScreen()));
   }
 
-  Future<void> _openPassport(BuildContext context) async {
-    if (!await requireRegisteredUser(
-      context,
-      action: 'open your HDC Passport',
-    )) {
-      return;
-    }
-    if (!context.mounted) return;
-    _showComingSoon(context, 'HDC Passport');
-  }
 
   void _openSupportUs(BuildContext context) {
     Navigator.of(context).push(
@@ -500,11 +485,6 @@ class DashboardScreen extends StatelessWidget {
         onTap: () => _openRoleCenter(context),
       ),
       HDCNavigationItem(
-        label: 'HDC Passport',
-        icon: Icons.fingerprint_rounded,
-        onTap: () => _openPassport(context),
-      ),
-      HDCNavigationItem(
         label: 'Support HDC',
         icon: Icons.volunteer_activism_outlined,
         onTap: () => _openSupportUs(context),
@@ -649,7 +629,6 @@ class DashboardScreen extends StatelessWidget {
                                 onRequests: () => _openMyRequests(context),
                                 onMarketplace: () =>
                                     _openTechnicianMarketplace(context, auth),
-                                onPassport: () => _openPassport(context),
                                 onRoleCenter: () => _openRoleCenter(context),
                                 canAccessMarketplace:
                                     auth.authenticated &&
@@ -712,7 +691,6 @@ class DashboardScreen extends StatelessWidget {
                           onRequests: () => _openMyRequests(context),
                           onMarketplace: () =>
                               _openTechnicianMarketplace(context, auth),
-                          onPassport: () => _openPassport(context),
                           onRoleCenter: () => _openRoleCenter(context),
                           canAccessMarketplace:
                               auth.authenticated &&
@@ -730,7 +708,7 @@ class DashboardScreen extends StatelessWidget {
                       const SizedBox(height: 32),
                       const Center(
                         child: Text(
-                          'HelpDesk Connect Beta v0.6.4 Build 25',
+                          'HelpDesk Connect Beta v0.6.4 Build 26',
                           style: TextStyle(color: HDCColors.textSecondary),
                         ),
                       ),

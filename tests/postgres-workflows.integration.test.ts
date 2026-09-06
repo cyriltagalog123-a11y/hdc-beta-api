@@ -75,6 +75,7 @@ async function registerAccount(label: string): Promise<{
       email,
       password,
       displayName: `HDC ${label}`,
+      location: 'Cebu City, Central Visayas, Philippines',
       recoveryAnswers: [
         { questionCode: 'first_meal', answer: `${label} ginger porridge` },
         { questionCode: 'childhood_nickname', answer: `${label} quiet comet` },
@@ -82,7 +83,7 @@ async function registerAccount(label: string): Promise<{
       ],
       termsAccepted: true,
       privacyAcknowledged: true,
-      termsVersion: 'beta-2026-08-29',
+      termsVersion: 'beta-2026-09-06',
     }),
   });
   expectStatus(registration, 201);

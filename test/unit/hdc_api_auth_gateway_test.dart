@@ -95,7 +95,7 @@ void main() {
     test('public signUp does not create a client session', () async {
       final store = _MemorySessionStore();
       final client = MockClient((request) async {
-        expect(request.url.path, '/api/auth/register-v2');
+        expect(request.url.path, '/api/auth/register');
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         expect(body['termsAccepted'], isTrue);
         expect(body['privacyAcknowledged'], isTrue);
