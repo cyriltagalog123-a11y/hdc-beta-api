@@ -33,6 +33,8 @@ describe('Build 26 hardening contract', () => {
     expect(migration).toContain('Published HDC news history must be archived and retained');
     expect(admin).toContain('recognitionConsentScope');
     expect(admin).toContain('ever_published = false');
+    expect(admin).toContain('recognition_consent_at');
+    expect(admin).toContain('recognition_consent_reference');
   });
 
   it('moves real Knowledge Base implementation to Build 27', async () => {

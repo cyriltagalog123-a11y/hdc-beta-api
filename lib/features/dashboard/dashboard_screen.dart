@@ -187,11 +187,6 @@ class DashboardScreen extends StatelessWidget {
         .push(HDCPageRoute<void>(page: const MarketplaceCatalogScreen()));
   }
 
-  void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$feature is coming in a future HDC sprint.')),
-    );
-  }
 
   Future<void> _openNotifications(BuildContext context) async {
     if (!await requireRegisteredUser(context, action: 'view notifications')) {
@@ -634,7 +629,6 @@ class DashboardScreen extends StatelessWidget {
                                 onRequests: () => _openMyRequests(context),
                                 onMarketplace: () =>
                                     _openTechnicianMarketplace(context, auth),
-                                onPassport: () => _openPassport(context),
                                 onRoleCenter: () => _openRoleCenter(context),
                                 canAccessMarketplace:
                                     auth.authenticated &&
@@ -697,7 +691,6 @@ class DashboardScreen extends StatelessWidget {
                           onRequests: () => _openMyRequests(context),
                           onMarketplace: () =>
                               _openTechnicianMarketplace(context, auth),
-                          onPassport: () => _openPassport(context),
                           onRoleCenter: () => _openRoleCenter(context),
                           canAccessMarketplace:
                               auth.authenticated &&

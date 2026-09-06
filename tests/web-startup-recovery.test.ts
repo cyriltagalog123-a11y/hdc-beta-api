@@ -5,11 +5,11 @@ const read = (path: string) =>
   readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 describe('Flutter web startup recovery', () => {
-  it('renders a visible Build 25 loading state before Flutter starts', () => {
+  it('renders a visible Build 26 loading state before Flutter starts', () => {
     const index = read('web/index.html');
 
     expect(index).toContain('id="hdc-startup"');
-    expect(index).toContain('Build 25');
+    expect(index).toContain('Build 26');
     expect(index).toContain('Opening your secure workspace');
     expect(index).toContain('src="hdc_mark.png"');
     expect(index).toContain('src="hdc_startup.js"');

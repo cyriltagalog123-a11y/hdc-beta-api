@@ -61,9 +61,9 @@ describe('Build 23 HDC interface foundation', () => {
     const index = read('web/index.html');
     const startup = read('web/hdc_startup.js');
 
-    expect(index).toContain('Build 25');
+    expect(index).toContain('Build 26');
     expect(index).toContain('Opening your secure workspace');
-    expect(startup).toContain('Build 25 could not finish loading.');
+    expect(startup).toContain('Build 26 could not finish loading.');
     expect(startup).toContain("searchParams.set('hdc_refresh'");
     expect(startup).not.toContain('localStorage.clear');
   });

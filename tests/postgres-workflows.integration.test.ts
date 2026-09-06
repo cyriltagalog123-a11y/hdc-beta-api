@@ -75,6 +75,7 @@ async function registerAccount(label: string): Promise<{
       email,
       password,
       displayName: `HDC ${label}`,
+      location: 'Cebu City, Central Visayas, Philippines',
       recoveryAnswers: [
         { questionCode: 'first_meal', answer: `${label} ginger porridge` },
         { questionCode: 'childhood_nickname', answer: `${label} quiet comet` },

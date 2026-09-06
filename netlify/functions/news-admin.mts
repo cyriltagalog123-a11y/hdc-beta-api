@@ -136,8 +136,9 @@ async function create(
       )
       RETURNING
         id, kind, title, summary, body, status, is_pinned,
-        recognition_subject, recognition_consent_confirmed,
-        published_at, created_at, updated_at
+        recognition_subject, recognition_consent_confirmed, recognition_consent_at,
+        recognition_consent_method, recognition_consent_scope, recognition_consent_reference,
+        ever_published, published_at, created_at, updated_at
     `;
     await tx`
       INSERT INTO public.hdc_security_audit (
@@ -197,8 +198,9 @@ async function update(
       WHERE id = ${id}
       RETURNING
         id, kind, title, summary, body, status, is_pinned,
-        recognition_subject, recognition_consent_confirmed,
-        published_at, created_at, updated_at
+        recognition_subject, recognition_consent_confirmed, recognition_consent_at,
+        recognition_consent_method, recognition_consent_scope, recognition_consent_reference,
+        ever_published, published_at, created_at, updated_at
     `;
     if (updated.length === 0) return updated;
     await tx`
