@@ -1,4 +1,4 @@
-name: Build 26 backup legal readiness synchronization
+name: Build 26 backup verifier sync
 
 on:
   push:
@@ -16,41 +16,8 @@ jobs:
         with:
           ref: codex/build26-hardening
           fetch-depth: 0
-      - name: Synchronize restored legal readiness checks
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('scripts/postgres/verify-backup.mjs')
-          text = path.read_text(encoding='utf-8')
-          old_query = """        (SELECT count(*)::int FROM public.hdc_legal_documents
-          WHERE document_version = 'beta-2026-08-29'
-            AND status = 'published') AS legal_documents,"""
-          new_query = """        (SELECT count(*)::int FROM public.hdc_legal_documents
-          WHERE document_version = 'beta-2026-09-06'
-            AND status = 'published') AS legal_documents,
-        (SELECT count(*)::int FROM public.hdc_legal_documents
-          WHERE document_version = 'beta-2026-08-29'
-            AND status = 'superseded') AS superseded_legal_documents,"""
-          if old_query in text:
-              text = text.replace(old_query, new_query, 1)
-          elif "AS superseded_legal_documents" not in text:
-              raise SystemExit('legal readiness query marker not found')
-
-          old_check = """      Number(row.legal_documents) !== 2 ||
-      Number(row.invalid_constraints) !== 0 ||"""
-          new_check = """      Number(row.legal_documents) !== 2 ||
-      Number(row.superseded_legal_documents) !== 2 ||
-      Number(row.invalid_constraints) !== 0 ||"""
-          if old_check in text:
-              text = text.replace(old_check, new_check, 1)
-          elif "Number(row.superseded_legal_documents) !== 2" not in text:
-              raise SystemExit('legal readiness condition marker not found')
-
-          path.write_text(text, encoding='utf-8')
-          PY
+      - name: Apply verifier synchronization
+        run: python scripts/build26_sync_backup_verifier.py
       - name: Commit verifier correction if needed
         shell: bash
         run: |
@@ -60,7 +27,7 @@ jobs:
           git add scripts/postgres/verify-backup.mjs
           git diff --cached --check
           if git diff --cached --quiet; then
-            echo 'Backup verifier already synchronized.'
+            echo "Backup verifier already synchronized."
             exit 0
           fi
           git commit -m "Build 26: verify current and superseded legal documents after restore"
