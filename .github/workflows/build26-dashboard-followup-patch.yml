@@ -1,0 +1,34 @@
+name: Build 26 dashboard follow-up patch
+
+on:
+  push:
+    branches:
+      - codex/build26-dashboard-suggestions-notifications
+    paths:
+      - scripts/build26_dashboard_followup_patch.py
+      - .github/workflows/build26-dashboard-followup-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: codex/build26-dashboard-suggestions-notifications
+          fetch-depth: 0
+      - name: Apply Build 26 follow-up patch
+        run: python3 scripts/build26_dashboard_followup_patch.py
+      - name: Commit patched product files
+        run: |
+          git config user.name "cyriltagalog123-a11y"
+          git config user.email "cyril.tagalog123@gmail.com"
+          git add lib netlify tests
+          if git diff --cached --quiet; then
+            echo "No product changes to commit."
+            exit 0
+          fi
+          git commit -m "Build 26: refine suggestions, notifications, and operations UI"
+          git push origin HEAD:codex/build26-dashboard-suggestions-notifications
