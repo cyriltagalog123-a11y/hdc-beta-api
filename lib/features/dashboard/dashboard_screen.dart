@@ -23,10 +23,14 @@ import '../customer_proposals/customer_offers_screen.dart';
 import '../internal/internal_dashboard_screen.dart';
 import '../marketplace/marketplace_catalog_screen.dart';
 import '../marketplace/sales_center_screen.dart';
+import '../knowledge_base/knowledge_base_screen.dart';
+import '../news/news_screen.dart';
 import '../notifications/notification_center_screen.dart';
 import '../profiles/profile_center_screen.dart';
 import '../roles/role_center_screen.dart';
 import '../search/search_screen.dart';
+import '../support/contact_owner_screen.dart';
+import '../support/support_us_screen.dart';
 import '../service_requests/create_service_request_screen.dart';
 import '../service_requests/my_service_requests_screen.dart';
 import '../technician_marketplace/technician_marketplace_screen.dart';
@@ -207,6 +211,30 @@ class DashboardScreen extends StatelessWidget {
     }
     if (!context.mounted) return;
     _showComingSoon(context, 'HDC Passport');
+  }
+
+  void _openSupportUs(BuildContext context) {
+    Navigator.of(context).push(
+      HDCPageRoute<void>(page: const SupportUsScreen()),
+    );
+  }
+
+  void _openContactOwner(BuildContext context) {
+    Navigator.of(context).push(
+      HDCPageRoute<void>(page: const ContactOwnerScreen()),
+    );
+  }
+
+  void _openNews(BuildContext context) {
+    Navigator.of(context).push(
+      HDCPageRoute<void>(page: const NewsScreen()),
+    );
+  }
+
+  void _openKnowledgeBase(BuildContext context) {
+    Navigator.of(context).push(
+      HDCPageRoute<void>(page: const KnowledgeBaseScreen()),
+    );
   }
 
   List<DashboardActivityItem> _accountActivity({
@@ -452,6 +480,16 @@ class DashboardScreen extends StatelessWidget {
         onTap: () => _openNotifications(context),
       ),
       HDCNavigationItem(
+        label: 'HDC News',
+        icon: Icons.newspaper_outlined,
+        onTap: () => _openNews(context),
+      ),
+      HDCNavigationItem(
+        label: 'Knowledge Base',
+        icon: Icons.menu_book_outlined,
+        onTap: () => _openKnowledgeBase(context),
+      ),
+      HDCNavigationItem(
         label: 'Profiles & Workspaces',
         icon: Icons.account_circle_outlined,
         onTap: () => _openProfiles(context),
@@ -465,6 +503,16 @@ class DashboardScreen extends StatelessWidget {
         label: 'HDC Passport',
         icon: Icons.fingerprint_rounded,
         onTap: () => _openPassport(context),
+      ),
+      HDCNavigationItem(
+        label: 'Support HDC',
+        icon: Icons.volunteer_activism_outlined,
+        onTap: () => _openSupportUs(context),
+      ),
+      HDCNavigationItem(
+        label: 'Contact Owner',
+        icon: Icons.alternate_email_rounded,
+        onTap: () => _openContactOwner(context),
       ),
       if (hasPrivateWorkspace)
         HDCNavigationItem(

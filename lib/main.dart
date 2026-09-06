@@ -12,6 +12,7 @@ import 'features/splash/splash_screen.dart';
 import 'providers/hdc_auth_provider.dart';
 import 'providers/hdc_internal_dashboard_provider.dart';
 import 'providers/hdc_marketplace_provider.dart';
+import 'providers/hdc_news_provider.dart';
 import 'providers/hdc_notification_center_provider.dart';
 import 'providers/hdc_profile_provider.dart';
 import 'providers/hdc_role_center_provider.dart';
@@ -153,6 +154,17 @@ class HDCApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(
           create: (_) => HDCAuthProvider(gateway: authGateway),
+        ),
+        ChangeNotifierProxyProvider<HDCAuthProvider, HdcNewsProvider>(
+          create: (_) => HdcNewsProvider(client: roleApiClient),
+          update: (_, auth, newsProvider) {
+            final provider =
+                newsProvider ?? HdcNewsProvider(client: roleApiClient);
+            provider.bindIdentity(
+              auth.authenticated && !auth.guestMode ? auth.identity : null,
+            );
+            return provider;
+          },
         ),
         ChangeNotifierProxyProvider<HDCAuthProvider, HdcRoleCenterProvider>(
           create: (_) => HdcRoleCenterProvider(client: roleApiClient),
