@@ -76,25 +76,26 @@ class HDCAppShell extends StatelessWidget {
                 icon: const Icon(Icons.menu_rounded),
               ),
             ),
-            title: const HDCBrandLockup(
-              light: true,
-              compact: true,
-              markSize: 34,
-            ),
+            title: _CompactWorkspaceTitle(workspaceLabel: workspaceLabel),
             actions: [
               if (onNotifications != null)
-                IconButton(
-                  tooltip: 'Notifications',
-                  onPressed: onNotifications,
-                  icon: Badge(
-                    isLabelVisible: notificationCount > 0,
-                    label: Text(
-                      notificationCount > 99 ? '99+' : '$notificationCount',
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: IconButton(
+                    tooltip: notificationCount > 0
+                        ? 'Notifications, $notificationCount unread'
+                        : 'Notifications',
+                    onPressed: onNotifications,
+                    icon: Badge(
+                      isLabelVisible: notificationCount > 0,
+                      label: Text(
+                        notificationCount > 99 ? '99+' : '$notificationCount',
+                      ),
+                      child: const Icon(Icons.notifications_none_rounded),
                     ),
-                    child: const Icon(Icons.notifications_none_rounded),
                   ),
                 ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
             ],
           ),
           drawer: Drawer(
@@ -111,6 +112,54 @@ class HDCAppShell extends StatelessWidget {
           body: child,
         );
       },
+    );
+  }
+}
+
+class _CompactWorkspaceTitle extends StatelessWidget {
+  final String workspaceLabel;
+
+  const _CompactWorkspaceTitle({required this.workspaceLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const HDCBrandMark(size: 31, darkSurface: true),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'HelpDesk Connect',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: HDCColors.textLight,
+                  fontSize: 14,
+                  height: 1.1,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                workspaceLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: HDCColors.textLight.withValues(alpha: 0.66),
+                  fontSize: 10,
+                  height: 1.1,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -150,22 +199,55 @@ class _NavigationPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Padding(
-              padding: EdgeInsets.fromLTRB(22, 22, 18, 20),
+              padding: EdgeInsets.fromLTRB(22, 22, 18, 18),
               child: HDCBrandLockup(light: true, markSize: 44),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: HDCSignalPill(
-                label: workspaceLabel.toUpperCase(),
-                icon: Icons.hub_outlined,
-                light: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'CURRENT WORKSPACE',
+                    style: TextStyle(
+                      color: HDCColors.textLight.withValues(alpha: 0.46),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  HDCSignalPill(
+                    label: workspaceLabel.toUpperCase(),
+                    icon: Icons.hub_outlined,
+                    light: true,
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 20),
+            Container(
+              height: 1,
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              color: HDCColors.textLight.withValues(alpha: 0.08),
+            ),
+            const SizedBox(height: 12),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(12, 2, 12, 9),
+                    child: Text(
+                      'WORKSPACE',
+                      style: TextStyle(
+                        color: HDCColors.textMuted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.35,
+                      ),
+                    ),
+                  ),
                   for (final item in primaryItems)
                     _NavigationTile(
                       item: item,
@@ -195,7 +277,7 @@ class _NavigationPanel extends StatelessWidget {
             ),
             Container(
               margin: const EdgeInsets.all(12),
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
               decoration: BoxDecoration(
                 color: HDCColors.textLight.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(HDCSpacing.radiusMedium),
@@ -206,8 +288,8 @@ class _NavigationPanel extends StatelessWidget {
               child: Row(
                 children: [
                   Container(
-                    width: 38,
-                    height: 38,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
                       color: HDCColors.accent.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(12),
@@ -220,15 +302,30 @@ class _NavigationPanel extends StatelessWidget {
                   ),
                   const SizedBox(width: 11),
                   Expanded(
-                    child: Text(
-                      userLabel,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: HDCColors.textLight,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'SIGNED IN ACCOUNT',
+                          style: TextStyle(
+                            color: HDCColors.textLight.withValues(alpha: 0.42),
+                            fontSize: 8,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.05,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          userLabel,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: HDCColors.textLight,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   IconButton(
@@ -262,58 +359,75 @@ class _NavigationTile extends StatelessWidget {
         ? HDCColors.textLight
         : HDCColors.textLight.withValues(alpha: 0.70);
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Material(
-        color: item.selected
-            ? HDCColors.secondary.withValues(alpha: 0.30)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          onTap: onTap,
+    return Semantics(
+      selected: item.selected,
+      button: true,
+      label: item.label,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Material(
+          color: item.selected
+              ? HDCColors.secondary.withValues(alpha: 0.30)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(14),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-            child: Row(
-              children: [
-                Icon(item.icon, size: 20, color: foreground),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    item.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: foreground,
-                      fontSize: 13,
-                      fontWeight: item.selected
-                          ? FontWeight.w800
-                          : FontWeight.w600,
-                    ),
-                  ),
-                ),
-                if (item.badgeCount > 0)
-                  Container(
-                    constraints: const BoxConstraints(minWidth: 22),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 3,
-                    ),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(14),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+              child: Row(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    width: 3,
+                    height: 24,
                     decoration: BoxDecoration(
-                      color: HDCColors.accent,
+                      color: item.selected
+                          ? HDCColors.accent
+                          : Colors.transparent,
                       borderRadius: BorderRadius.circular(99),
                     ),
+                  ),
+                  const SizedBox(width: 9),
+                  Icon(item.icon, size: 20, color: foreground),
+                  const SizedBox(width: 12),
+                  Expanded(
                     child: Text(
-                      item.badgeCount > 99 ? '99+' : '${item.badgeCount}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: HDCColors.primaryDeep,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
+                      item.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: foreground,
+                        fontSize: 13,
+                        fontWeight: item.selected
+                            ? FontWeight.w800
+                            : FontWeight.w600,
                       ),
                     ),
                   ),
-              ],
+                  if (item.badgeCount > 0)
+                    Container(
+                      constraints: const BoxConstraints(minWidth: 22),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: HDCColors.accent,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text(
+                        item.badgeCount > 99 ? '99+' : '${item.badgeCount}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: HDCColors.primaryDeep,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
