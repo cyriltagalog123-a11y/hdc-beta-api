@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# One-shot Build 25 release normalization. Removed before final validation.
 
 def replace_if_present(path: str, old: str, new: str) -> int:
     file_path = Path(path)
