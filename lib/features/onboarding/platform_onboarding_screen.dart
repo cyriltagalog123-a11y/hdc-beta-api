@@ -22,13 +22,13 @@ class _PlatformOnboardingScreenState extends State<PlatformOnboardingScreen> {
 
   static const List<_OnboardingPageData> _pages = [
     _OnboardingPageData(
-      eyebrow: 'ONE CONNECTED WORKSPACE',
+      eyebrow: 'HDC NETWORK ONLINE',
       icon: Icons.hub_outlined,
       color: HDCColors.accent,
-      title: 'Welcome to HDC',
+      title: 'Enter your connected workspace',
       description:
-          'HelpDesk Connect brings technical support, trusted services, '
-          'products, and service history together in one platform.',
+          'HelpDesk Connect keeps technical support, services, products, '
+          'and your authorized history connected around one account.',
       detail: 'Start as a guest or member. Your available actions always follow your verified account roles.',
     ),
     _OnboardingPageData(
@@ -133,7 +133,7 @@ class _PlatformOnboardingScreenState extends State<PlatformOnboardingScreen> {
                       TextButton.icon(
                         onPressed: _isCompleting ? null : _finish,
                         icon: const Icon(Icons.fast_forward_rounded, size: 18),
-                        label: const Text('Skip welcome'),
+                        label: const Text('Skip intro'),
                       ),
                     ],
                   ),

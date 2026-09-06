@@ -268,6 +268,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
               ),
             ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 28),
+              child: _AuthTrustStrip(),
+            ),
+            const SizedBox(height: 18),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 28),
               child: _AuthenticationModeSwitch(
@@ -598,6 +603,57 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
+class _AuthTrustStrip extends StatelessWidget {
+  const _AuthTrustStrip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: const [
+        _AuthTrustItem(icon: Icons.verified_user_outlined, label: 'Backend-authoritative'),
+        _AuthTrustItem(icon: Icons.account_tree_outlined, label: 'Role-aware'),
+        _AuthTrustItem(icon: Icons.history_rounded, label: 'Tracked records'),
+      ],
+    );
+  }
+}
+
+class _AuthTrustItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _AuthTrustItem({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: HDCColors.surfaceInteractive,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: HDCColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: HDCColors.secondary),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: HDCColors.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AuthenticationModeSwitch extends StatelessWidget {
   final bool creatingAccount;
   final bool enabled;
@@ -721,13 +777,13 @@ class _AuthBrandPanel extends StatelessWidget {
               if (!compact) ...[
                 const SizedBox(height: 72),
                 const HDCSignalPill(
-                  label: 'CONTROLLED BETA • BUILD 24',
+                  label: 'CONTROLLED BETA • BUILD 25',
                   icon: Icons.bolt_rounded,
                   light: true,
                 ),
                 const SizedBox(height: 24),
                 const Text(
-                  'Less searching.\nMore solving.',
+                  'Your support network.\nBuilt to stay connected.',
                   style: TextStyle(
                     color: HDCColors.textLight,
                     fontSize: 42,
@@ -768,7 +824,7 @@ class _AuthBrandPanel extends StatelessWidget {
               ] else ...[
                 const SizedBox(height: 24),
                 const Text(
-                  'Less searching. More solving.',
+                  'Support, connected.',
                   style: TextStyle(
                     color: HDCColors.textLight,
                     fontSize: 26,
@@ -786,7 +842,7 @@ class _AuthBrandPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 18),
                 const HDCSignalPill(
-                  label: 'CONTROLLED BETA • BUILD 24',
+                  label: 'CONTROLLED BETA • BUILD 25',
                   light: true,
                 ),
               ],

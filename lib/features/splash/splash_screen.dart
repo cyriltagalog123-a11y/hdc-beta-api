@@ -59,7 +59,13 @@ class _SplashScreenState extends State<SplashScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   HDCBrandMark(size: 88, darkSurface: true),
-                  SizedBox(height: 28),
+                  SizedBox(height: 18),
+                  HDCSignalPill(
+                    label: 'BUILD 25 • HDC NETWORK',
+                    icon: Icons.hub_outlined,
+                    light: true,
+                  ),
+                  SizedBox(height: 24),
                   Text(
                     'HELPDESK CONNECT',
                     textAlign: TextAlign.center,
@@ -73,7 +79,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   ),
                   SizedBox(height: 10),
                   Text(
-                    'Technical support, connected.',
+                    'One account. Every authorized support workflow, connected.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 15,
