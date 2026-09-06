@@ -1,0 +1,40 @@
+name: Build 25 staged patch
+
+on:
+  push:
+    branches:
+      - build-25-complete
+    paths:
+      - scripts/build25_patch.py
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout review branch
+        uses: actions/checkout@v5
+        with:
+          ref: build-25-complete
+          fetch-depth: 0
+
+      - name: Apply staged Build 25 patch
+        run: python3 scripts/build25_patch.py
+
+      - name: Commit staged changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "No staged Build 25 source changes were needed."
+            exit 0
+          fi
+          STAGE=$(sed -n "s/^STAGE = ['\"]\(.*\)['\"]$/\1/p" scripts/build25_patch.py | head -1)
+          if [ -z "$STAGE" ]; then STAGE="Build 25: staged interface update"; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib test docs
+          git commit -m "$STAGE"
+          git push origin HEAD:build-25-complete
