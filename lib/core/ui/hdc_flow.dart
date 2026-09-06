@@ -39,125 +39,130 @@ class HDCFlowHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(HDCSpacing.lg),
-      decoration: BoxDecoration(
-        gradient: HDCColors.brandGradient,
-        borderRadius: BorderRadius.circular(HDCSpacing.radiusLarge),
-        border: Border.all(
-          color: HDCColors.accent.withValues(alpha: 0.24),
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: HDCColors.shadow,
-            blurRadius: 28,
-            offset: Offset(0, 14),
+    return Semantics(
+      container: true,
+      header: true,
+      label: '$eyebrow. $title',
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(HDCSpacing.lg),
+        decoration: BoxDecoration(
+          gradient: HDCColors.brandGradient,
+          borderRadius: BorderRadius.circular(HDCSpacing.radiusLarge),
+          border: Border.all(
+            color: HDCColors.accent.withValues(alpha: 0.24),
           ),
-        ],
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final wide = constraints.maxWidth >= 720;
-          final copy = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                eyebrow.toUpperCase(),
-                style: const TextStyle(
-                  color: HDCColors.accent,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.35,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  color: HDCColors.textLight,
-                  fontSize: wide ? 30 : 25,
-                  height: 1.14,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.55,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                description,
-                style: TextStyle(
-                  color: HDCColors.textLight.withValues(alpha: 0.72),
-                  height: 1.5,
-                ),
-              ),
-              if (tags.isNotEmpty) ...[
-                const SizedBox(height: 18),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: tags
-                      .map(
-                        (tag) => HDCSignalPill(
-                          label: tag.label,
-                          icon: tag.icon,
-                          color: tag.color,
-                          light: true,
-                        ),
-                      )
-                      .toList(growable: false),
-                ),
-              ],
-            ],
-          );
-          final iconPanel = Container(
-            width: wide ? 74 : 58,
-            height: wide ? 74 : 58,
-            decoration: BoxDecoration(
-              color: HDCColors.accent.withValues(alpha: 0.13),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: HDCColors.accent.withValues(alpha: 0.28),
-              ),
+          boxShadow: const [
+            BoxShadow(
+              color: HDCColors.shadow,
+              blurRadius: 28,
+              offset: Offset(0, 14),
             ),
-            child: Icon(
-              icon,
-              color: HDCColors.accent,
-              size: wide ? 34 : 28,
-            ),
-          );
-
-          if (!wide) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+          ],
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 720;
+            final copy = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Align(alignment: Alignment.centerLeft, child: iconPanel),
-                const SizedBox(height: 18),
-                copy,
-                if (action != null) ...[
-                  const SizedBox(height: 20),
-                  SizedBox(width: double.infinity, child: action),
+                Text(
+                  eyebrow.toUpperCase(),
+                  style: const TextStyle(
+                    color: HDCColors.accent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: HDCColors.textLight,
+                    fontSize: wide ? 30 : 25,
+                    height: 1.14,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.55,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  description,
+                  style: TextStyle(
+                    color: HDCColors.textLight.withValues(alpha: 0.72),
+                    height: 1.5,
+                  ),
+                ),
+                if (tags.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: tags
+                        .map(
+                          (tag) => HDCSignalPill(
+                            label: tag.label,
+                            icon: tag.icon,
+                            color: tag.color,
+                            light: true,
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
                 ],
               ],
             );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              iconPanel,
-              const SizedBox(width: 22),
-              Expanded(child: copy),
-              if (action != null) ...[
-                const SizedBox(width: 24),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 230),
-                  child: action!,
+            final iconPanel = Container(
+              width: wide ? 74 : 58,
+              height: wide ? 74 : 58,
+              decoration: BoxDecoration(
+                color: HDCColors.accent.withValues(alpha: 0.13),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: HDCColors.accent.withValues(alpha: 0.28),
                 ),
+              ),
+              child: Icon(
+                icon,
+                color: HDCColors.accent,
+                size: wide ? 34 : 28,
+              ),
+            );
+
+            if (!wide) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(alignment: Alignment.centerLeft, child: iconPanel),
+                  const SizedBox(height: 18),
+                  copy,
+                  if (action != null) ...[
+                    const SizedBox(height: 20),
+                    SizedBox(width: double.infinity, child: action),
+                  ],
+                ],
+              );
+            }
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                iconPanel,
+                const SizedBox(width: 22),
+                Expanded(child: copy),
+                if (action != null) ...[
+                  const SizedBox(width: 24),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 230),
+                    child: action!,
+                  ),
+                ],
               ],
-            ],
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -175,25 +180,31 @@ class HDCFlowProgress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (var index = 0; index < steps.length; index += 1)
-          HDCStatusBadge(
-            label: '${index + 1}. ${steps[index]}',
-            tone: index + 1 < currentStep
-                ? HDCStatusTone.success
-                : index + 1 == currentStep
-                ? HDCStatusTone.info
-                : HDCStatusTone.neutral,
-            icon: index + 1 < currentStep
-                ? Icons.check_rounded
-                : index + 1 == currentStep
-                ? Icons.radio_button_checked_rounded
-                : Icons.radio_button_unchecked_rounded,
-          ),
-      ],
+    return Semantics(
+      container: true,
+      label: steps.isEmpty
+          ? 'Workflow progress'
+          : 'Workflow step $currentStep of ${steps.length}',
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (var index = 0; index < steps.length; index += 1)
+            HDCStatusBadge(
+              label: '${index + 1}. ${steps[index]}',
+              tone: index + 1 < currentStep
+                  ? HDCStatusTone.success
+                  : index + 1 == currentStep
+                  ? HDCStatusTone.info
+                  : HDCStatusTone.neutral,
+              icon: index + 1 < currentStep
+                  ? Icons.check_rounded
+                  : index + 1 == currentStep
+                  ? Icons.radio_button_checked_rounded
+                  : Icons.radio_button_unchecked_rounded,
+            ),
+        ],
+      ),
     );
   }
 }
@@ -219,20 +230,36 @@ class HDCSectionCard extends StatelessWidget {
         builder: (context, constraints) {
           final stackTrailing =
               trailing != null && constraints.maxWidth < 520;
-          return Column(
+          return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              HDCSectionTitle(
-                title: title,
-                subtitle: subtitle,
-                trailing: stackTrailing ? null : trailing,
+              Container(
+                width: 4,
+                height: 58,
+                decoration: BoxDecoration(
+                  gradient: HDCColors.signalGradient,
+                  borderRadius: BorderRadius.circular(99),
+                ),
               ),
-              if (stackTrailing) ...[
-                const SizedBox(height: 12),
-                Align(alignment: Alignment.centerLeft, child: trailing!),
-              ],
-              const SizedBox(height: 20),
-              child,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    HDCSectionTitle(
+                      title: title,
+                      subtitle: subtitle,
+                      trailing: stackTrailing ? null : trailing,
+                    ),
+                    if (stackTrailing) ...[
+                      const SizedBox(height: 12),
+                      Align(alignment: Alignment.centerLeft, child: trailing!),
+                    ],
+                    const SizedBox(height: 20),
+                    child,
+                  ],
+                ),
+              ),
             ],
           );
         },
