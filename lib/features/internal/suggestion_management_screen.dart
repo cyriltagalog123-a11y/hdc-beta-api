@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api/hdc_workflow_api_client.dart';
+import '../../providers/hdc_community_provider.dart';
 import '../../core/ui/hdc_colors.dart';
 import '../../core/ui/hdc_flow.dart';
 
@@ -31,7 +32,13 @@ class _SuggestionManagementScreenState
       _error = null;
     });
     try {
-      final client = context.read<HdcWorkflowApiClient>();
+      final client = context.read<HdcCommunityProvider>().client;
+      if (client == null) {
+        throw const HdcWorkflowException(
+          code: 'backend_unavailable',
+          message: 'HDC suggestion management is unavailable.',
+        );
+      }
       final response = await client.get('/api/internal/community');
       final raw = response['suggestions'];
       if (!mounted) return;
@@ -201,7 +208,13 @@ class _SuggestionAdminCard extends StatelessWidget {
       return;
     }
     try {
-      final client = context.read<HdcWorkflowApiClient>();
+      final client = context.read<HdcCommunityProvider>().client;
+      if (client == null) {
+        throw const HdcWorkflowException(
+          code: 'backend_unavailable',
+          message: 'HDC suggestion management is unavailable.',
+        );
+      }
       await client.put('/api/internal/community', body: {
         'id': item['id'],
         'status': status,

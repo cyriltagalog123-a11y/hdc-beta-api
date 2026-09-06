@@ -20,7 +20,9 @@ import '../../providers/service_transaction_provider.dart';
 import '../authentication/login_screen.dart';
 import '../authentication/registered_user_gate.dart';
 import '../customer_proposals/customer_offers_screen.dart';
+import '../community/community_center_screen.dart';
 import '../internal/internal_dashboard_screen.dart';
+import '../internal/suggestion_management_screen.dart';
 import '../marketplace/marketplace_catalog_screen.dart';
 import '../marketplace/sales_center_screen.dart';
 import '../knowledge_base/knowledge_base_screen.dart';
@@ -207,6 +209,18 @@ class DashboardScreen extends StatelessWidget {
   void _openContactOwner(BuildContext context) {
     Navigator.of(context).push(
       HDCPageRoute<void>(page: const ContactOwnerScreen()),
+    );
+  }
+
+  void _openCommunityCenter(BuildContext context) {
+    Navigator.of(context).push(
+      HDCPageRoute<void>(page: const CommunityCenterScreen()),
+    );
+  }
+
+  void _openSuggestionQueue(BuildContext context) {
+    Navigator.of(context).push(
+      HDCPageRoute<void>(page: const SuggestionManagementScreen()),
     );
   }
 
@@ -410,6 +424,12 @@ class DashboardScreen extends StatelessWidget {
     final isTechnician =
         auth.authenticated &&
         auth.identity?.hasPlatformRole(HDCPlatformRole.technician) == true;
+    final canManageSuggestions =
+        auth.authenticated &&
+        auth.identity?.internalRoles.any(
+              (role) => role.hasPrivilegedResourceAccess,
+            ) ==
+            true;
     final primaryNavigation = <HDCNavigationItem>[
       HDCNavigationItem(
         label: 'Overview',
@@ -469,6 +489,18 @@ class DashboardScreen extends StatelessWidget {
         icon: Icons.newspaper_outlined,
         onTap: () => _openNews(context),
       ),
+      if (isRegisteredUser)
+        HDCNavigationItem(
+          label: 'Ratings & Community',
+          icon: Icons.stars_outlined,
+          onTap: () => _openCommunityCenter(context),
+        ),
+      if (canManageSuggestions)
+        HDCNavigationItem(
+          label: 'Suggestion Queue',
+          icon: Icons.fact_check_outlined,
+          onTap: () => _openSuggestionQueue(context),
+        ),
       HDCNavigationItem(
         label: 'Knowledge Base',
         icon: Icons.menu_book_outlined,

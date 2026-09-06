@@ -36,6 +36,8 @@ export type ProductCategoryCode = typeof PRODUCT_CATEGORY_CODES[number];
 export const PRODUCT_PURCHASE_STATUS_CODES = [
   'submitted',
   'accepted',
+  'fulfilled',
+  'completed',
   'declined',
   'cancelled',
 ] as const;
