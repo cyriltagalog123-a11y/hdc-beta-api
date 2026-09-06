@@ -58,4 +58,6 @@ The review PR into `main` is the validation gate. HDC CI must pass all of the fo
 6. Flutter analysis and widget tests;
 7. production-shaped Flutter web build and synchronized review bundle.
 
+The full validation run for commit `92ed2f3be8c0f53836737712962a2d3a22fe82f4` completed successfully before the synchronized web-bundle commit. This release-record update intentionally retriggers the pull-request gate under the repository owner so the final branch head can be validated again.
+
 Opening the review PR is not approval to merge or deploy. Merge to `main` and production deployment remain separate explicit approval gates.
