@@ -13,6 +13,8 @@ Build 24.2 closes the pre-Build-25 location and role-administration requirements
 - Manual role changes require a reason, create an audit event, and notify the affected member.
 - Controlled-location migrations use versions 0017 and 0018 to preserve the existing migration order.
 - The existing Build 24A service-request selector remains stable for regression coverage, while PostgreSQL integration fixtures now use the same canonical location format enforced in production.
+- The application database role has explicit execute permission on the immutable location and region validators used by table constraints; public execution remains revoked.
+- Flutter auth regression tests now exercise `/api/auth/register-v2` and provide/assert the required canonical registration location.
 
 ## Release gate
 
