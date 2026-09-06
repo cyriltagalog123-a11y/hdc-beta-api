@@ -10,34 +10,42 @@ Build 25 is the deferred application-wide visual and interaction redesign that b
 - Keep the approved HDC logo and existing accessibility contrast requirements.
 - Make shared components carry the visual redesign so feature screens do not fork their own style systems.
 
-Status: implementation complete; full PR validation passed before 25B began.
+Status: implementation complete; full validation passed.
 
 ### Build 25B — Authentication and onboarding
 
 - Redesign sign-in, registration, guest preview entry, recovery, legal acceptance, and onboarding presentation without weakening authentication or legal gates.
 - Preserve controlled-location registration, recovery questions, backend-authoritative sessions, and Customer baseline account creation.
 
-Status: implementation complete; awaiting owner-authored full CI validation before 25C begins.
+Status: implementation complete; full validation passed after updating the stale Build 24 release-identity regression.
 
 ### Build 25C — Application shell and navigation
 
 - Redesign sidebar/drawer/app-bar navigation with clearer workspace identity, account context, notifications, badges, and responsive behavior.
 - Preserve role-authorized destinations and fail-closed route behavior.
 
+Status: implementation complete; full validation passed.
+
 ### Build 25D — Dashboards and workspace priorities
 
 - Improve Customer, Technician, Seller/Business, combined-role, and internal dashboard hierarchy around current work, required action, recent activity, and role switching.
 - Do not synthesize counts or data that providers did not return.
+
+Status: implementation complete; full validation passed. The old hard-coded `RECORD SYNC ON` display was removed because it did not represent provider-backed state.
 
 ### Build 25E — Service workflow visual integration
 
 - Apply one consistent HDC workflow language across service requests, technician discovery, offers, acceptance, active services, chat, payments, documents, and disputes.
 - Preserve every Build 24 workflow rule, participant check, freeze rule, idempotency rule, and authoritative transition.
 
+Status: implementation complete; full validation passed.
+
 ### Build 25F — Profiles, commerce, and internal tools
 
 - Apply the shared design system to member/role profiles, role applications, commerce/catalog/sales surfaces, notifications, security, and internal administration.
 - Preserve public/private profile boundaries, platform-role authority, audit reasons, and commerce recording rules.
+
+Status: implementation complete. Shared HDC flow presentation now covers profile/workspace identity, account security, marketplace purchase-request framing, provider-backed notification state, and private operations presentation. Awaiting this owner-authored full validation gate before 25G begins.
 
 ### Build 25G — Accessibility, performance, and final regression
 
