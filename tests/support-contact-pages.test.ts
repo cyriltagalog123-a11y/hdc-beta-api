@@ -31,15 +31,15 @@ describe('SaiCore Support HDC and Contact Owner public pages', () => {
     expect(page).toContain('Corporate arrangement');
   });
 
-  it('does not advertise every payment route as fee-free', () => {
+  it('discloses that payment providers may still charge fees', () => {
     const page = read('lib/features/support/support_us_screen.dart');
 
     expect(page).toContain('no required setup or monthly subscription cost');
     expect(page).toContain('transaction, processor, withdrawal, or conversion fees');
+    expect(page).toContain('instead of advertising any route as universally fee-free');
     expect(page).toContain(
       'Financial intake remains inactive until official SaiCore destination details are verified and published.',
     );
-    expect(page).not.toContain('universally fee-free');
   });
 
   it('keeps useful non-financial support available', () => {
