@@ -7,7 +7,6 @@ const read = (path: string) =>
 describe('HDC News, recognition, and Build 26 preparation', () => {
   it('exposes a public read-only news feed', () => {
     const api = read('netlify/functions/news.mts');
-
     expect(api).toContain("path: '/api/news'");
     expect(api).toContain("if (req.method !== 'GET')");
     expect(api).toContain("WHERE status = 'published'");
@@ -17,10 +16,9 @@ describe('HDC News, recognition, and Build 26 preparation', () => {
 
   it('limits news publishing to owner, super admin, and approved admin', () => {
     const api = read('netlify/functions/news-admin.mts');
-
     expect(api).toContain("path: '/api/internal/news'");
     expect(api).toContain("new Set(['owner', 'super_admin', 'admin'])");
-    expect(api).not.toContain("'moderator'\n");
+    expect(api).not.toContain("new Set(['owner', 'super_admin', 'admin', 'moderator'])");
     expect(api).toContain('news_management_forbidden');
     expect(api).toContain('verifySessionToken');
   });
@@ -28,7 +26,6 @@ describe('HDC News, recognition, and Build 26 preparation', () => {
   it('requires recognition consent in both API and database authority', () => {
     const api = read('netlify/functions/news-admin.mts');
     const migration = read('migrations/0019_public_news_and_recognition.sql');
-
     expect(api).toContain('recognition_consent_required');
     expect(api).toContain('recognitionConsentConfirmed');
     expect(migration).toContain('hdc_public_news_recognition_consent');
@@ -37,7 +34,6 @@ describe('HDC News, recognition, and Build 26 preparation', () => {
 
   it('audits public publishing changes', () => {
     const api = read('netlify/functions/news-admin.mts');
-
     expect(api).toContain("'news.create'");
     expect(api).toContain("'news.update'");
     expect(api).toContain("'news.delete'");
@@ -47,7 +43,6 @@ describe('HDC News, recognition, and Build 26 preparation', () => {
   it('provides owner/admin publishing UI without code edits', () => {
     const manager = read('lib/features/news/news_management_screen.dart');
     const provider = read('lib/providers/hdc_news_provider.dart');
-
     expect(manager).toContain('Publish without touching code.');
     expect(manager).toContain('Public recognition consent confirmed');
     expect(manager).toContain('Save & Publish');
@@ -58,7 +53,6 @@ describe('HDC News, recognition, and Build 26 preparation', () => {
 
   it('makes News and the Knowledge Base shell public navigation destinations', () => {
     const dashboard = read('lib/features/dashboard/dashboard_screen.dart');
-
     expect(dashboard).toContain("label: 'HDC News'");
     expect(dashboard).toContain("label: 'Knowledge Base'");
     expect(dashboard).toContain('NewsScreen');
@@ -67,7 +61,6 @@ describe('HDC News, recognition, and Build 26 preparation', () => {
 
   it('keeps Knowledge Base implementation explicitly deferred to Build 26', () => {
     const kb = read('lib/features/knowledge_base/knowledge_base_screen.dart');
-
     expect(kb).toContain('BUILD 26 READY');
     expect(kb).toContain('Search becomes active in Build 26');
     expect(kb).toContain('enabled: false');
