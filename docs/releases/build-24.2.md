@@ -12,6 +12,7 @@ Build 24.2 closes the pre-Build-25 location and role-administration requirements
 - Customer remains the non-removable baseline platform role.
 - Manual role changes require a reason, create an audit event, and notify the affected member.
 - Controlled-location migrations use versions 0017 and 0018 to preserve the existing migration order.
+- The existing Build 24A service-request selector remains stable for regression coverage, while PostgreSQL integration fixtures now use the same canonical location format enforced in production.
 
 ## Release gate
 
