@@ -45,7 +45,7 @@ Status: implementation complete; full validation passed.
 - Apply the shared design system to member/role profiles, role applications, commerce/catalog/sales surfaces, notifications, security, and internal administration.
 - Preserve public/private profile boundaries, platform-role authority, audit reasons, and commerce recording rules.
 
-Status: implementation complete. Shared HDC flow presentation now covers profile/workspace identity, account security, marketplace purchase-request framing, provider-backed notification state, and private operations presentation. Awaiting this owner-authored full validation gate before 25G begins.
+Status: implementation complete. Shared HDC flow presentation now covers profile/workspace identity, account security, marketplace purchase-request framing, provider-backed notification state, and private operations presentation. The first Flutter gate found only obsolete/unused helpers left behind by the redesign; those helpers and the unused import were removed. Full validation is rerunning on the cleaned source before 25G begins.
 
 ### Build 25G — Accessibility, performance, and final regression
 
