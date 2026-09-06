@@ -5,7 +5,7 @@ on:
     branches:
       - codex/build26-dashboard-suggestions-notifications
     paths:
-      - scripts/build26_dashboard_followup_patch.py
+      - scripts/build26_dashboard_followup_fix.py
       - .github/workflows/build26-dashboard-followup-patch.yml
 
 permissions:
@@ -19,16 +19,16 @@ jobs:
         with:
           ref: codex/build26-dashboard-suggestions-notifications
           fetch-depth: 0
-      - name: Apply Build 26 follow-up patch
-        run: python3 scripts/build26_dashboard_followup_patch.py
-      - name: Commit patched product files
+      - name: Apply Build 26 follow-up tightening
+        run: python3 scripts/build26_dashboard_followup_fix.py
+      - name: Commit tightened product files
         run: |
           git config user.name "cyriltagalog123-a11y"
           git config user.email "cyril.tagalog123@gmail.com"
-          git add lib netlify tests
+          git add lib tests
           if git diff --cached --quiet; then
             echo "No product changes to commit."
             exit 0
           fi
-          git commit -m "Build 26: refine suggestions, notifications, and operations UI"
+          git commit -m "Build 26: tighten private operations permissions and notification previews"
           git push origin HEAD:codex/build26-dashboard-suggestions-notifications
