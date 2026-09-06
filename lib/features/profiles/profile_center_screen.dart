@@ -226,53 +226,6 @@ class _ProfileCenterScreenState extends State<ProfileCenterScreen> {
   }
 }
 
-class _OneAccountBanner extends StatelessWidget {
-  const _OneAccountBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: HDCColors.primary.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: HDCColors.primary.withValues(alpha: 0.18),
-        ),
-      ),
-      child: const Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.hub_outlined, color: HDCColors.primary),
-          SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'One HDC account. Multiple profiles.',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: HDCColors.textPrimary,
-                  ),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  'The shared member profile is your master identity. Each '
-                  'active platform role has its own public name, information, '
-                  'and workspace settings under that same login.',
-                  style: TextStyle(height: 1.45),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _MemberProfileCard extends StatelessWidget {
   final HDCMemberProfile profile;
   final VoidCallback onEdit;
