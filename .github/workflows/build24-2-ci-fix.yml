@@ -1,0 +1,31 @@
+name: Build 24.2 CI Compatibility Fix
+
+on:
+  push:
+    branches:
+      - codex/build24-2-location-role-controls
+    paths:
+      - scripts/build24_2_ci_fix.py
+      - .github/workflows/build24-2-ci-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/build24-2-location-role-controls
+          fetch-depth: 0
+      - run: python3 scripts/build24_2_ci_fix.py
+      - name: Commit CI compatibility fixes
+        shell: bash
+        run: |
+          rm -f scripts/build24_2_ci_fix.py .github/workflows/build24-2-ci-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Build 24.2: preserve request selector and canonicalize DB fixture"
+          git push origin HEAD:codex/build24-2-location-role-controls
