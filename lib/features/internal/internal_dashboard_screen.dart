@@ -131,6 +131,10 @@ class _InternalDashboardScreenState extends State<InternalDashboardScreen> {
                             pendingRecoveryReviews: workspace.statistics['pendingRecoveryReviews'] ?? 0,
                             pendingDisputes: workspace.statistics['pendingDisputes'] ?? 0,
                             isOwner: isOwner,
+                            canApprovePlatformRoles:
+                                workspace.permissions.canApprovePlatformRoles,
+                            canReviewAccountRecovery:
+                                workspace.permissions.canReviewAccountRecovery,
                             loading: workspace.isLoading,
                             onOpenApprovalQueue: () => _openApprovalQueue(context),
                             onOpenRecoveryQueue: () => _openRecoveryQueue(context),
@@ -320,6 +324,8 @@ class _OperationsPriorityStrip extends StatelessWidget {
   final int pendingRecoveryReviews;
   final int pendingDisputes;
   final bool isOwner;
+  final bool canApprovePlatformRoles;
+  final bool canReviewAccountRecovery;
   final bool loading;
   final VoidCallback onOpenApprovalQueue;
   final VoidCallback onOpenRecoveryQueue;
@@ -331,6 +337,8 @@ class _OperationsPriorityStrip extends StatelessWidget {
     required this.pendingRecoveryReviews,
     required this.pendingDisputes,
     required this.isOwner,
+    required this.canApprovePlatformRoles,
+    required this.canReviewAccountRecovery,
     required this.loading,
     required this.onOpenApprovalQueue,
     required this.onOpenRecoveryQueue,
@@ -379,24 +387,27 @@ class _OperationsPriorityStrip extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              _PriorityAction(
-                icon: Icons.fact_check_outlined,
-                label: 'Role approvals',
-                count: pendingApplications,
-                onTap: loading ? null : onOpenApprovalQueue,
-              ),
-              _PriorityAction(
-                icon: Icons.security_outlined,
-                label: 'Recovery',
-                count: pendingRecoveryReviews,
-                onTap: loading ? null : onOpenRecoveryQueue,
-              ),
-              _PriorityAction(
-                icon: Icons.gavel_outlined,
-                label: 'Disputes',
-                count: pendingDisputes,
-                onTap: loading ? null : onOpenDisputeQueue,
-              ),
+              if (canApprovePlatformRoles)
+                _PriorityAction(
+                  icon: Icons.fact_check_outlined,
+                  label: 'Role approvals',
+                  count: pendingApplications,
+                  onTap: loading ? null : onOpenApprovalQueue,
+                ),
+              if (canReviewAccountRecovery)
+                _PriorityAction(
+                  icon: Icons.security_outlined,
+                  label: 'Recovery',
+                  count: pendingRecoveryReviews,
+                  onTap: loading ? null : onOpenRecoveryQueue,
+                ),
+              if (canApprovePlatformRoles)
+                _PriorityAction(
+                  icon: Icons.gavel_outlined,
+                  label: 'Disputes',
+                  count: pendingDisputes,
+                  onTap: loading ? null : onOpenDisputeQueue,
+                ),
               if (isOwner)
                 _PriorityAction(
                   icon: Icons.lightbulb_outline_rounded,

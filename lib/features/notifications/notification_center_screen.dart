@@ -143,6 +143,8 @@ class _NotificationCard extends StatelessWidget {
                     const SizedBox(height: 5),
                     Text(
                       notification.message,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: HDCColors.textSecondary,
                         height: 1.4,
