@@ -122,7 +122,7 @@ async function createRequest(
       categoryName: 'Laptop Repair',
       description:
         'The laptop turns off during startup and the power adapter has already been tested.',
-      location: 'Cebu City',
+      location: 'Cebu City, Central Visayas, Philippines',
       preferredDate: '2030-09-05T09:00:00.000Z',
       preferredTime: 'Morning',
       urgency: 'normal',

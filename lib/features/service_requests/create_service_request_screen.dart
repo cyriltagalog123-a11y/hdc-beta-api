@@ -333,6 +333,7 @@ class _CreateServiceRequestScreenState
       child: Column(
         children: [
           HdcLocationPicker(
+            key: const Key('hdc-request-location'),
             value: _locationController.text.isEmpty ? null : _locationController.text,
             label: 'Service location',
             helperText: 'Choose the region and province/city where service is needed.',
