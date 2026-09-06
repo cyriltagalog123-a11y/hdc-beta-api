@@ -45,6 +45,7 @@ AS $$
 $$;
 
 REVOKE ALL ON FUNCTION public.hdc_is_supported_location(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.hdc_is_supported_location(text) TO hdc_app;
 
 ALTER TABLE public.hdc_member_profiles
   DROP CONSTRAINT IF EXISTS hdc_member_profiles_controlled_location;
@@ -63,7 +64,6 @@ ALTER TABLE public.hdc_service_requests
 ALTER TABLE public.hdc_service_requests
   ADD CONSTRAINT hdc_service_requests_controlled_location
   CHECK (public.hdc_is_supported_location(location)) NOT VALID;
-
 
 INSERT INTO public.hdc_schema_migrations (
   version, migration_name, is_baseline
