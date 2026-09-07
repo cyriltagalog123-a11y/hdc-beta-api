@@ -1,0 +1,35 @@
+name: Build 27 Feedback Type Patch
+
+on:
+  push:
+    branches:
+      - codex/build27-knowledge-base
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Build 27 branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/build27-knowledge-base
+          fetch-depth: 0
+
+      - name: Apply feedback type patch
+        run: python3 scripts/build27_feedback_type_patch.py
+
+      - name: Commit corrected feedback handler
+        run: |
+          if git diff --quiet -- netlify/functions/knowledge.mts; then
+            echo "Feedback handler is already corrected."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add netlify/functions/knowledge.mts
+          git commit -m "Build 27: narrow knowledge feedback boolean"
+          git push origin HEAD:codex/build27-knowledge-base
