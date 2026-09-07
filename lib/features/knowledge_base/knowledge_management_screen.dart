@@ -106,7 +106,7 @@ class _KnowledgeManagementScreenState extends State<KnowledgeManagementScreen> {
                 : ListView.separated(
                     shrinkWrap: true,
                     itemCount: versions.length,
-                    separatorBuilder: (_, __) => const Divider(),
+                    separatorBuilder: (_, _) => const Divider(),
                     itemBuilder: (_, index) {
                       final item = versions[index];
                       return ListTile(

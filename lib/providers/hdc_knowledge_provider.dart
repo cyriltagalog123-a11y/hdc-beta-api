@@ -118,7 +118,7 @@ class HdcKnowledgeProvider extends ChangeNotifier {
     try {
       final parameters = <String, String>{
         if (this.query.isNotEmpty) 'q': this.query,
-        if (selectedCategory != null) 'category': selectedCategory!,
+        'category': ?selectedCategory,
       };
       final path = Uri(
         path: '/api/knowledge',

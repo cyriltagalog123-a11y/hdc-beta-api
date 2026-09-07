@@ -66,6 +66,7 @@ class _KnowledgeArticleScreenState extends State<KnowledgeArticleScreen> {
       return;
     }
     if (!mounted) return;
+    final knowledgeProvider = context.read<HdcKnowledgeProvider>();
 
     var note = '';
     if (!helpful) {
@@ -101,7 +102,7 @@ class _KnowledgeArticleScreenState extends State<KnowledgeArticleScreen> {
 
     setState(() => _feedbackSaving = true);
     try {
-      final counts = await context.read<HdcKnowledgeProvider>().submitFeedback(
+      final counts = await knowledgeProvider.submitFeedback(
         article: article,
         helpful: helpful,
         note: note,
