@@ -7,8 +7,11 @@ const read = (path: string) =>
 describe('Build 24A Customer request and Technician discovery redesign', () => {
   it('keeps the public release identity synchronized to the current build', () => {
     const login = read('lib/features/authentication/login_screen.dart');
+    const packageJson = JSON.parse(read('package.json')) as { version: string };
+    const match = /-build\.(\d+)$/.exec(packageJson.version);
+    if (!match) throw new Error('Unexpected HDC package version.');
 
-    expect(login).toContain('CONTROLLED BETA • BUILD 26');
+    expect(login).toContain(`CONTROLLED BETA • BUILD ${match[1]}`);
     expect(login).not.toContain('CONTROLLED BETA • BUILD 24');
     expect(login).not.toContain('CONTROLLED BETA • BUILD 23');
   });
