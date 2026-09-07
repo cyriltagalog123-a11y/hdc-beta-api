@@ -52,10 +52,7 @@ class _KnowledgeBaseBodyState extends State<_KnowledgeBaseBody> {
       if (!mounted) return;
       final provider = context.read<HdcKnowledgeProvider>();
       unawaited(
-        provider.search(
-          query: value,
-          category: provider.selectedCategory,
-        ),
+        provider.search(query: value, category: provider.selectedCategory),
       );
     });
   }
@@ -82,9 +79,8 @@ class _KnowledgeBaseBodyState extends State<_KnowledgeBaseBody> {
   }
 
   void _openManagement() {
-    Navigator.of(context).push(
-      HDCPageRoute<void>(page: const KnowledgeManagementScreen()),
-    );
+    Navigator.of(context)
+        .push(HDCPageRoute<void>(page: const KnowledgeManagementScreen()));
   }
 
   @override
@@ -118,6 +114,7 @@ class _KnowledgeBaseBodyState extends State<_KnowledgeBaseBody> {
             category: knowledge.selectedCategory,
           ),
           child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(HDCSpacing.lg),
             children: [
               Center(
@@ -129,8 +126,7 @@ class _KnowledgeBaseBodyState extends State<_KnowledgeBaseBody> {
                       const HDCFlowHero(
                         eyebrow: 'BUILD 27 • LIVE KNOWLEDGE',
                         title: 'HDC Knowledge Base',
-                        description:
-                            'Search reviewed HDC troubleshooting guides, follow structured steps, know when to stop, and move directly into a service request when self-service is not enough.',
+                        description: 'Search reviewed HDC troubleshooting guides, follow structured steps, know when to stop, and move directly into a service request when self-service is not enough.',
                         icon: Icons.menu_book_outlined,
                         tags: [
                           HDCFlowTag(
@@ -219,8 +215,7 @@ class _KnowledgeBaseBodyState extends State<_KnowledgeBaseBody> {
                         const HDCEmptyState(
                           icon: Icons.search_off_outlined,
                           title: 'No published guide matched',
-                          description:
-                              'Try broader technology terms or another category. HDC only returns reviewed, published knowledge here.',
+                          description: 'Try broader technology terms or another category. HDC only returns reviewed, published knowledge here.',
                         )
                       else
                         for (final article in knowledge.articles) ...[
@@ -284,9 +279,8 @@ class _SearchHeader extends StatelessWidget {
         Expanded(
           child: Text(
             filtered ? 'Knowledge results' : 'Published HDC guides',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+            style: Theme.of(context).textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.w900),
           ),
         ),
         Text(
@@ -392,7 +386,10 @@ class _ArticleCard extends StatelessWidget {
               color: HDCColors.secondary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(_categoryIcon(article.category), color: HDCColors.secondary),
+            child: Icon(
+              _categoryIcon(article.category),
+              color: HDCColors.secondary,
+            ),
           );
           final content = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -400,7 +397,11 @@ class _ArticleCard extends StatelessWidget {
               Row(
                 children: [
                   if (article.isFeatured) ...[
-                    const Icon(Icons.push_pin_outlined, size: 16, color: HDCColors.secondary),
+                    const Icon(
+                      Icons.push_pin_outlined,
+                      size: 16,
+                      color: HDCColors.secondary,
+                    ),
                     const SizedBox(width: 5),
                     const Text(
                       'FEATURED',
@@ -426,9 +427,8 @@ class _ArticleCard extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 article.title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 6),
               Text(
@@ -445,7 +445,11 @@ class _ArticleCard extends StatelessWidget {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Chip(
-                    avatar: Icon(Icons.health_and_safety_outlined, size: 16, color: safetyColor),
+                    avatar: Icon(
+                      Icons.health_and_safety_outlined,
+                      size: 16,
+                      color: safetyColor,
+                    ),
                     label: Text('${article.safetyLevel.toUpperCase()} SAFETY'),
                   ),
                   Chip(label: Text('v${article.version}')),
@@ -486,11 +490,11 @@ class _ArticleCard extends StatelessWidget {
 }
 
 IconData _categoryIcon(String category) => switch (category) {
-      'pc_laptop' => Icons.computer_outlined,
-      'phones_mobile' => Icons.phone_android_outlined,
-      'pos_business_tech' => Icons.point_of_sale_outlined,
-      'network_internet' => Icons.router_outlined,
-      'printers_peripherals' => Icons.print_outlined,
-      'security_accounts' => Icons.security_outlined,
-      _ => Icons.build_outlined,
-    };
+  'pc_laptop' => Icons.computer_outlined,
+  'phones_mobile' => Icons.phone_android_outlined,
+  'pos_business_tech' => Icons.point_of_sale_outlined,
+  'network_internet' => Icons.router_outlined,
+  'printers_peripherals' => Icons.print_outlined,
+  'security_accounts' => Icons.security_outlined,
+  _ => Icons.build_outlined,
+};

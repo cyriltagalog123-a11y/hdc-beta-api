@@ -112,6 +112,9 @@ jobs:
       - name: Rebuild a clean database from migrations
         run: npm run db:rehearse-clean
 
+      - name: Rehearse production Build 26 to Build 27 upgrade
+        run: npm run db:rehearse-build27-upgrade
+
       - name: Offers, acceptance, chat, payment, dispute, and isolation tests
         run: npm run test:postgres
 

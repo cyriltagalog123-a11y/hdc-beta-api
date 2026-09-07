@@ -53,11 +53,17 @@ Dart define, the web bundle, a log, or this document.
    catalog browsing, buyer requests, seller decisions, and stock allocation.
 6. Obtain explicit production approval.
 7. Apply the same reviewed migrations to Neon `main`.
-8. Publish the matching Netlify release and repeat the smoke tests.
+8. Verify the production migration ledger and feature-specific readiness before
+   publishing the frontend.
+9. Publish the matching Netlify release and repeat the smoke tests against the
+   exact merge commit.
 
 Deploy previews must never receive the production database connection string.
 If a safe preview database is not configured, the preview API should fail
 closed rather than use production data.
+
+Build 27's exact database and application promotion gate is recorded in
+`docs/build27-production-readiness.md`.
 
 ## Rollback
 

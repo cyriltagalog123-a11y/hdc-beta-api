@@ -15,6 +15,7 @@ const expected = {
   footer: `HelpDesk Connect Beta v${semanticVersion} Build ${buildNumber}`,
   health: `${semanticVersion}-build${buildNumber}`,
   startup: `Build ${buildNumber}`,
+  recovery: `Build ${buildNumber}`,
 };
 const files = {
   flutter: await read('pubspec.yaml'),
@@ -22,6 +23,7 @@ const files = {
   footer: await read('lib/features/dashboard/dashboard_screen.dart'),
   health: await read('netlify/functions/api.mts'),
   startup: await read('web/index.html'),
+  recovery: await read('web/hdc_startup.js'),
 };
 for (const [target, marker] of Object.entries(expected)) {
   assert.ok(files[target].includes(marker), `${target} release marker is not synchronized: expected ${marker}`);

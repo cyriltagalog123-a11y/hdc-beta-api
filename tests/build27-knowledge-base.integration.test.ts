@@ -213,6 +213,29 @@ describe.skipIf(!runPostgresIntegration).sequential(
       expect(workingArticle.status).toBe('review');
       expect(workingArticle.publicVisible).toBe(false);
 
+      const invalidVersion = await adminKnowledge('/api/internal/knowledge', {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...basePayload,
+          id: workingArticle.id,
+          expectedVersion: `${workingArticle.version}`,
+          status: 'review',
+        }),
+      }, admin.token);
+      expectStatus(invalidVersion, 400);
+      expect(invalidVersion.body.error).toBe('invalid_knowledge_version');
+
+      const duplicateSlug = await adminKnowledge('/api/internal/knowledge', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...basePayload,
+          title: 'A different guide cannot reuse the same public link',
+          status: 'draft',
+        }),
+      }, admin.token);
+      expectStatus(duplicateSlug, 409);
+      expect(duplicateSlug.body.error).toBe('knowledge_slug_conflict');
+
       const hidden = await publicKnowledge('/api/knowledge?q=controlled%20network%20troubleshooting');
       expectStatus(hidden, 200);
       expect((hidden.body.articles as Record<string, unknown>[])
@@ -224,6 +247,7 @@ describe.skipIf(!runPostgresIntegration).sequential(
         body: JSON.stringify({
           ...basePayload,
           id: workingArticle.id,
+          expectedVersion: workingArticle.version,
           status: 'published',
         }),
       }, admin.token);
@@ -237,6 +261,7 @@ describe.skipIf(!runPostgresIntegration).sequential(
         body: JSON.stringify({
           ...basePayload,
           id: workingArticle.id,
+          expectedVersion: workingArticle.version,
           status: 'published',
           changeNote: 'Owner approves first public version',
         }),
@@ -257,6 +282,7 @@ describe.skipIf(!runPostgresIntegration).sequential(
         body: JSON.stringify({
           ...basePayload,
           id: workingArticle.id,
+          expectedVersion: workingArticle.version,
           title: reviewTitle,
           status: 'review',
           changeNote: 'Admin prepares a newer review version',
@@ -273,6 +299,19 @@ describe.skipIf(!runPostgresIntegration).sequential(
       expect((stillV2.body.article as Record<string, unknown>).version).toBe(2);
       expect((stillV2.body.article as Record<string, unknown>).title).toBe(basePayload.title);
 
+      const staleEdit = await adminKnowledge('/api/internal/knowledge', {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...basePayload,
+          id: workingArticle.id,
+          expectedVersion: 2,
+          title: 'Stale editor must not overwrite the reviewed version',
+          status: 'review',
+        }),
+      }, admin.token);
+      expectStatus(staleEdit, 409);
+      expect(staleEdit.body.error).toBe('knowledge_version_conflict');
+
       await expect(sql!`
         UPDATE public.hdc_knowledge_articles
         SET slug = 'attempt-to-break-published-link'
@@ -287,6 +326,7 @@ describe.skipIf(!runPostgresIntegration).sequential(
         body: JSON.stringify({
           ...basePayload,
           id: workingArticle.id,
+          expectedVersion: workingArticle.version,
           title: finalTitle,
           status: 'published',
           changeNote: 'Owner publishes reviewed update',
@@ -311,6 +351,19 @@ describe.skipIf(!runPostgresIntegration).sequential(
         }),
       });
       expectStatus(guestFeedback, 401);
+
+      const invalidFeedbackVersion = await publicKnowledge('/api/knowledge', {
+        method: 'POST',
+        body: JSON.stringify({
+          publicArticleId: workingArticle.publicArticleId,
+          version: '4',
+          helpful: true,
+        }),
+      }, member.token);
+      expectStatus(invalidFeedbackVersion, 400);
+      expect(invalidFeedbackVersion.body.error).toBe(
+        'invalid_knowledge_feedback',
+      );
 
       const helpful = await publicKnowledge('/api/knowledge', {
         method: 'POST',
@@ -361,6 +414,7 @@ describe.skipIf(!runPostgresIntegration).sequential(
         body: JSON.stringify({
           ...basePayload,
           id: workingArticle.id,
+          expectedVersion: workingArticle.version,
           title: finalTitle,
           status: 'archived',
           changeNote: 'Archive while retaining publication history',
@@ -369,6 +423,19 @@ describe.skipIf(!runPostgresIntegration).sequential(
       expectStatus(archived, 200);
       workingArticle = archived.body.article as Record<string, unknown>;
       expect(workingArticle.status).toBe('archived');
+
+      const deniedUnarchive = await adminKnowledge('/api/internal/knowledge', {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...basePayload,
+          id: workingArticle.id,
+          expectedVersion: workingArticle.version,
+          title: finalTitle,
+          status: 'review',
+        }),
+      }, admin.token);
+      expectStatus(deniedUnarchive, 403);
+      expect(deniedUnarchive.body.error).toBe('knowledge_publish_forbidden');
 
       const hidden = await publicKnowledge(`/api/knowledge?slug=${basePayload.slug}`);
       expectStatus(hidden, 404);

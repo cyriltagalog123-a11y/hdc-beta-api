@@ -248,6 +248,12 @@ try {
         (SELECT count(*)::int FROM public.hdc_service_disputes) AS disputes,
         (SELECT count(*)::int FROM public.hdc_service_dispute_events)
           AS dispute_events,
+        (SELECT count(*)::int FROM public.hdc_knowledge_articles)
+          AS knowledge_articles,
+        (SELECT count(*)::int FROM public.hdc_knowledge_article_versions)
+          AS knowledge_versions,
+        (SELECT count(*)::int FROM public.hdc_knowledge_feedback)
+          AS knowledge_feedback,
         (SELECT count(*)::int FROM public.hdc_security_audit) AS security_audit,
         (SELECT array_agg(version ORDER BY version)
           FROM public.hdc_schema_migrations) AS migration_versions,
@@ -274,6 +280,19 @@ try {
         has_table_privilege(
           'hdc_app', 'public.hdc_service_disputes', 'INSERT'
         ) AS app_disputes_insert,
+        has_table_privilege(
+          'hdc_app', 'public.hdc_knowledge_articles',
+          'SELECT,INSERT,UPDATE,DELETE'
+        ) AS app_knowledge_articles,
+        has_table_privilege(
+          'hdc_app', 'public.hdc_knowledge_article_versions', 'SELECT,INSERT'
+        ) AS app_knowledge_versions,
+        NOT has_table_privilege(
+          'hdc_app', 'public.hdc_knowledge_article_versions', 'UPDATE,DELETE'
+        ) AS app_knowledge_versions_immutable,
+        has_table_privilege(
+          'hdc_app', 'public.hdc_knowledge_feedback', 'SELECT,INSERT,UPDATE'
+        ) AS app_knowledge_feedback,
         (SELECT count(*)::int FROM pg_policies
           WHERE schemaname = 'public'
             AND tablename IN (
@@ -313,6 +332,9 @@ try {
       documents: Number(row.documents),
       disputes: Number(row.disputes),
       disputeEvents: Number(row.dispute_events),
+      knowledgeArticles: Number(row.knowledge_articles),
+      knowledgeVersions: Number(row.knowledge_versions),
+      knowledgeFeedback: Number(row.knowledge_feedback),
       securityAudit: Number(row.security_audit),
       migrationVersions: [...(row.migration_versions ?? [])].map(String),
     };
@@ -328,6 +350,10 @@ try {
       row.app_messages_insert !== true ||
       row.app_payments_insert !== true ||
       row.app_disputes_insert !== true ||
+      row.app_knowledge_articles !== true ||
+      row.app_knowledge_versions !== true ||
+      row.app_knowledge_versions_immutable !== true ||
+      row.app_knowledge_feedback !== true ||
       Number(row.application_policies) < 5 ||
       Number(row.excluded_service_schemas) !== 0 ||
       Number(row.provider_policy_roles) !== 0 ||

@@ -75,11 +75,23 @@ and primary actions for desktop and mobile while leaving Build 22.1 database,
 authorization, transaction, payment, document, dispute, and chat behavior
 unchanged.
 
-## Build 26 hardening baseline
+## Build 27 Knowledge Base baseline
 
-Build 26 is the pre-Knowledge-Base security and maintainability baseline. Public registration is canonical at `POST /api/auth/register` and requires the controlled HDC location contract. `POST /api/auth/register-v2` is retained only as a deprecated compatibility alias for older clients. CI no longer modifies pull-request branches; Netlify builds the pinned Flutter bundle directly from reviewed source. Public News preserves published history and stores structured recognition-consent evidence. The current legal version is `beta-2026-09-06`. Knowledge Base implementation is deferred to Build 27.
+Build 27 activates HDC's versioned Knowledge Base on the Build 26 security and
+maintainability baseline. Public search exposes only published snapshots, each
+guide carries explicit safety and escalation boundaries, authenticated members
+can record one helpfulness response per published version, and unresolved work
+can move into the existing service-request flow. Draft/review authoring is
+limited to Owner, Super Admin, and Admin; only Owner and Super Admin can publish
+or archive. Published URLs and version history are retained, concurrent edits
+fail closed, and Nexus retrieval is limited to published, Nexus-ready HDC
+content without generation authority.
 
-Current public/support endpoints also include `GET /api/news` and the owner-authorized `GET|POST|PUT|DELETE /api/internal/news` management function. Public platform-role administration remains separately server-authorized.
+Public registration remains canonical at `POST /api/auth/register` and requires
+the controlled HDC location contract. `POST /api/auth/register-v2` remains a
+deprecated compatibility alias. Public News preserves published history and
+structured recognition-consent evidence. The current legal version is
+`beta-2026-09-06`.
 
 ## Endpoints
 
@@ -99,6 +111,8 @@ Current public/support endpoints also include `GET /api/news` and the owner-auth
 - `POST /api/role-applications`
 - `GET /api/news` (public published News)
 - `GET|POST|PUT|DELETE /api/internal/news` (Owner/Super Admin/Admin only)
+- `GET|POST /api/knowledge` (published search/detail/Nexus retrieval and authenticated feedback)
+- `GET|POST|PUT|DELETE /api/internal/knowledge` (versioned staff authoring; publication restricted to Owner/Super Admin)
 - `GET /api/internal/dashboard`
 - `GET /api/internal/role-applications`
 - `PUT /api/internal/role-applications/:id`

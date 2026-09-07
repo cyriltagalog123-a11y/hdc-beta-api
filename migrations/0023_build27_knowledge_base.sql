@@ -2,6 +2,22 @@
 -- Published knowledge is versioned so review/draft edits never silently replace
 -- the last public version. Nexus retrieval may only read published snapshots.
 
+BEGIN;
+
+DO $$
+BEGIN
+  IF to_regclass('public.hdc_schema_migrations') IS NULL
+     OR NOT EXISTS (
+       SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0022'
+     ) THEN
+    RAISE EXCEPTION 'HDC migration 0022 must be applied first';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hdc_app') THEN
+    RAISE EXCEPTION 'HDC restricted application role is required';
+  END IF;
+END
+$$;
+
 CREATE TABLE IF NOT EXISTS public.hdc_knowledge_articles (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   public_article_id text NOT NULL UNIQUE,
@@ -290,3 +306,23 @@ WHERE public_article_id IN (
   'KB-HST-001'
 )
   AND published_version IS NULL;
+
+REVOKE ALL ON public.hdc_knowledge_articles FROM PUBLIC, hdc_app;
+REVOKE ALL ON public.hdc_knowledge_article_versions FROM PUBLIC, hdc_app;
+REVOKE ALL ON public.hdc_knowledge_feedback FROM PUBLIC, hdc_app;
+
+GRANT SELECT, INSERT, UPDATE, DELETE
+  ON public.hdc_knowledge_articles TO hdc_app;
+GRANT SELECT, INSERT
+  ON public.hdc_knowledge_article_versions TO hdc_app;
+GRANT SELECT, INSERT, UPDATE
+  ON public.hdc_knowledge_feedback TO hdc_app;
+
+INSERT INTO public.hdc_schema_migrations (
+  version, migration_name, is_baseline
+) VALUES ('0023', 'build27_knowledge_base', false)
+ON CONFLICT (version) DO UPDATE SET
+  migration_name = EXCLUDED.migration_name,
+  is_baseline = EXCLUDED.is_baseline;
+
+COMMIT;

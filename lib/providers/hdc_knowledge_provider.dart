@@ -92,6 +92,8 @@ class HdcKnowledgeArticle {
 class HdcKnowledgeProvider extends ChangeNotifier {
   final HdcWorkflowApiClient? client;
 
+  int _searchGeneration = 0;
+
   bool isLoading = false;
   String? errorMessage;
   String query = '';
@@ -102,6 +104,7 @@ class HdcKnowledgeProvider extends ChangeNotifier {
   HdcKnowledgeProvider({required this.client});
 
   Future<void> search({String query = '', String? category}) async {
+    final searchGeneration = ++_searchGeneration;
     if (client == null) {
       errorMessage = 'HDC Knowledge Base services are unavailable.';
       notifyListeners();
@@ -117,35 +120,40 @@ class HdcKnowledgeProvider extends ChangeNotifier {
         if (this.query.isNotEmpty) 'q': this.query,
         if (selectedCategory != null) 'category': selectedCategory!,
       };
-      final path = Uri(path: '/api/knowledge', queryParameters: parameters).toString();
+      final path = Uri(
+        path: '/api/knowledge',
+        queryParameters: parameters,
+      ).toString();
       final data = await client!.getPublic(path);
+      if (searchGeneration != _searchGeneration) return;
       final rawArticles = data['articles'];
       articles = rawArticles is List
           ? List.unmodifiable(
               rawArticles.whereType<Map>().map(
-                    (item) => HdcKnowledgeArticle.fromJson(
-                      Map<String, dynamic>.from(item),
-                    ),
-                  ),
+                (item) => HdcKnowledgeArticle.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              ),
             )
           : const [];
       final rawCounts = data['categoryCounts'];
       categoryCounts = rawCounts is Map
           ? Map.unmodifiable(
               rawCounts.map(
-                (key, value) => MapEntry(
-                  '$key',
-                  value is num ? value.toInt() : 0,
-                ),
+                (key, value) =>
+                    MapEntry('$key', value is num ? value.toInt() : 0),
               ),
             )
           : const {};
     } on Object catch (error) {
+      if (searchGeneration != _searchGeneration) return;
       errorMessage = '$error';
       articles = const [];
     } finally {
-      isLoading = false;
-      notifyListeners();
+      if (searchGeneration == _searchGeneration) {
+        isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -174,13 +182,12 @@ class HdcKnowledgeProvider extends ChangeNotifier {
       Map<String, dynamic>.from(rawArticle),
     );
     final rawRelated = data['related'];
-    final related = rawRelated is List
+    final List<HdcKnowledgeArticle> related = rawRelated is List
         ? List.unmodifiable(
             rawRelated.whereType<Map>().map(
-                  (item) => HdcKnowledgeArticle.fromJson(
-                    Map<String, dynamic>.from(item),
-                  ),
-                ),
+              (item) =>
+                  HdcKnowledgeArticle.fromJson(Map<String, dynamic>.from(item)),
+            ),
           )
         : const <HdcKnowledgeArticle>[];
     return (article, related);

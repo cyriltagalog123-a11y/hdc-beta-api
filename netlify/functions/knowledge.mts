@@ -249,71 +249,89 @@ async function submitFeedback(req: Request, sql: DbClient): Promise<Response> {
   if (!body) return json({ error: 'invalid_json' }, 400);
 
   const publicArticleId = cleanText(body.publicArticleId, 40);
-  const version = Number(body.version);
+  const version = body.version;
   const note = cleanText(body.note, 1000);
-  if (!publicArticleId || !Number.isInteger(version) || version < 1 || typeof body.helpful !== 'boolean') {
+  if (
+    !publicArticleId ||
+    typeof version !== 'number' ||
+    !Number.isInteger(version) ||
+    version < 1 ||
+    typeof body.helpful !== 'boolean'
+  ) {
     return json({ error: 'invalid_knowledge_feedback' }, 400);
   }
   const helpful: boolean = body.helpful;
 
-  const articleRows = await sql`
-    SELECT id, published_version
-    FROM public.hdc_knowledge_articles
-    WHERE public_article_id = ${publicArticleId}
-      AND status <> 'archived'
-      AND published_version = ${version}
-    LIMIT 1
-  `;
-  if (articleRows.length === 0) {
+  const feedbackId = `KBF-${randomBytes(5).toString('hex').toUpperCase()}`;
+  type FeedbackOutcome =
+    | { kind: 'version_changed' }
+    | { kind: 'saved'; helpfulCount: number; notHelpfulCount: number };
+
+  const outcome: FeedbackOutcome = await sql.begin(
+    async (tx): Promise<FeedbackOutcome> => {
+      const articleRows = await tx`
+        SELECT id
+        FROM public.hdc_knowledge_articles
+        WHERE public_article_id = ${publicArticleId}
+          AND status <> 'archived'
+          AND published_version = ${version}
+        FOR SHARE
+      `;
+      if (articleRows.length === 0) return { kind: 'version_changed' };
+      const articleId = String(articleRows[0].id);
+
+      await tx`
+        INSERT INTO public.hdc_knowledge_feedback (
+          public_feedback_id, article_id, article_version, user_id, helpful, note
+        ) VALUES (
+          ${feedbackId}, ${articleId}::uuid, ${version},
+          ${authorization.userId}::uuid, ${helpful}, ${note}
+        )
+        ON CONFLICT (article_id, user_id, article_version)
+        DO UPDATE SET
+          helpful = EXCLUDED.helpful,
+          note = EXCLUDED.note,
+          updated_at = now()
+      `;
+      await tx`
+        INSERT INTO public.hdc_security_audit (user_id, event_type, event_status, metadata)
+        VALUES (
+          ${authorization.userId},
+          'knowledge.feedback',
+          'success',
+          ${tx.json({
+            publicArticleId,
+            version,
+            helpful,
+          })}
+        )
+      `;
+      const counts = await tx`
+        SELECT
+          count(*) FILTER (WHERE helpful = true)::integer AS helpful_count,
+          count(*) FILTER (WHERE helpful = false)::integer AS not_helpful_count
+        FROM public.hdc_knowledge_feedback
+        WHERE article_id = ${articleId}::uuid
+          AND article_version = ${version}
+      `;
+      return {
+        kind: 'saved',
+        helpfulCount: Number(counts[0]?.helpful_count ?? 0),
+        notHelpfulCount: Number(counts[0]?.not_helpful_count ?? 0),
+      };
+    },
+  );
+
+  if (outcome.kind === 'version_changed') {
     return json({
       error: 'knowledge_article_version_changed',
       message: 'This guide changed. Refresh it before sending feedback.',
     }, 409);
   }
-  const articleId = String(articleRows[0].id);
-  const feedbackId = `KBF-${randomBytes(5).toString('hex').toUpperCase()}`;
-
-  await sql.begin(async (tx) => {
-    await tx`
-      INSERT INTO public.hdc_knowledge_feedback (
-        public_feedback_id, article_id, article_version, user_id, helpful, note
-      ) VALUES (
-        ${feedbackId}, ${articleId}::uuid, ${version},
-        ${authorization.userId}::uuid, ${helpful}, ${note}
-      )
-      ON CONFLICT (article_id, user_id, article_version)
-      DO UPDATE SET
-        helpful = EXCLUDED.helpful,
-        note = EXCLUDED.note,
-        updated_at = now()
-    `;
-    await tx`
-      INSERT INTO public.hdc_security_audit (user_id, event_type, event_status, metadata)
-      VALUES (
-        ${authorization.userId},
-        'knowledge.feedback',
-        'success',
-        ${tx.json({
-          publicArticleId,
-          version,
-          helpful,
-        })}
-      )
-    `;
-  });
-
-  const counts = await sql`
-    SELECT
-      count(*) FILTER (WHERE helpful = true)::integer AS helpful_count,
-      count(*) FILTER (WHERE helpful = false)::integer AS not_helpful_count
-    FROM public.hdc_knowledge_feedback
-    WHERE article_id = ${articleId}::uuid
-      AND article_version = ${version}
-  `;
   return json({
     saved: true,
-    helpfulCount: Number(counts[0]?.helpful_count ?? 0),
-    notHelpfulCount: Number(counts[0]?.not_helpful_count ?? 0),
+    helpfulCount: outcome.helpfulCount,
+    notHelpfulCount: outcome.notHelpfulCount,
   });
 }
 

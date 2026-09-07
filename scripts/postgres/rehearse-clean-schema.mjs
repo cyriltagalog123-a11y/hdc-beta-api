@@ -90,6 +90,27 @@ try {
       to_regclass('public.hdc_service_disputes') IS NOT NULL AS disputes_ready,
       to_regclass('public.hdc_privacy_requests') IS NOT NULL AS privacy_ready,
       to_regclass('public.hdc_public_news_posts') IS NOT NULL AS news_ready,
+      (
+        to_regclass('public.hdc_knowledge_articles') IS NOT NULL AND
+        to_regclass('public.hdc_knowledge_article_versions') IS NOT NULL AND
+        to_regclass('public.hdc_knowledge_feedback') IS NOT NULL
+      ) AS knowledge_ready,
+      (
+        SELECT count(*)::int
+        FROM public.hdc_knowledge_articles
+        WHERE status = 'published'
+          AND published_version = 1
+          AND ever_published = true
+      ) AS published_knowledge_starters,
+      (
+        SELECT count(*)::int
+        FROM pg_trigger
+        WHERE tgrelid IN (
+          'public.hdc_knowledge_articles'::regclass,
+          'public.hdc_knowledge_article_versions'::regclass
+        )
+          AND NOT tgisinternal
+      ) AS knowledge_protection_triggers,
       EXISTS (
         SELECT 1 FROM pg_roles
         WHERE rolname = 'hdc_app'
@@ -119,6 +140,9 @@ try {
     check.disputes_ready !== true ||
     check.privacy_ready !== true ||
     check.news_ready !== true ||
+    check.knowledge_ready !== true ||
+    Number(check.published_knowledge_starters) !== 4 ||
+    Number(check.knowledge_protection_triggers) !== 3 ||
     check.restricted_role_ready !== true ||
     Number(check.current_legal_documents) !== 2 ||
     Number(check.stale_published_legal_documents) !== 0

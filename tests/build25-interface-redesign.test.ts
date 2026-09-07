@@ -14,15 +14,19 @@ describe('Build 25 distinctive HDC interface redesign', () => {
     const startup = read('web/index.html');
     const api = read('netlify/functions/api.mts');
     const ci = read('.github/workflows/ci.yml');
+    const packageVersion = (JSON.parse(packageJson) as { version: string }).version;
+    const release = /^(\d+\.\d+\.\d+)-build\.(\d+)$/.exec(packageVersion);
+    if (!release) throw new Error('Unexpected HDC package version.');
+    const [, semanticVersion, buildNumber] = release;
 
-    expect(packageJson).toContain('"version": "0.6.4-build.26"');
-    expect(packageLock).toContain('"version": "0.6.4-build.26"');
-    expect(pubspec).toContain('version: 0.6.4+26');
-    expect(appConfig).toContain('0.6.4 Beta (Build 26)');
-    expect(dashboard).toContain('HelpDesk Connect Beta v0.6.4 Build 26');
-    expect(startup).toContain('Build 26');
-    expect(startup).not.toContain('Build 24');
-    expect(api).toContain("build: '0.6.4-build26'");
+    expect(packageLock).toContain(`"version": "${packageVersion}"`);
+    expect(pubspec).toContain(`version: ${semanticVersion}+${buildNumber}`);
+    expect(appConfig).toContain(`${semanticVersion} Beta (Build ${buildNumber})`);
+    expect(dashboard).toContain(
+      `HelpDesk Connect Beta v${semanticVersion} Build ${buildNumber}`,
+    );
+    expect(startup).toContain(`Build ${buildNumber}`);
+    expect(api).toContain(`build: '${semanticVersion}-build${buildNumber}'`);
     expect(ci).toContain('steps.release-artifact.outputs.name');
     expect(ci).not.toContain('git push origin');
   });

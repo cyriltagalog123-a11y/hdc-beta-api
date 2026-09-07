@@ -86,6 +86,12 @@ async function backupMetadata(databaseUrl) {
         (SELECT count(*)::int FROM public.hdc_service_disputes) AS disputes,
         (SELECT count(*)::int FROM public.hdc_service_dispute_events)
           AS dispute_events,
+        (SELECT count(*)::int FROM public.hdc_knowledge_articles)
+          AS knowledge_articles,
+        (SELECT count(*)::int FROM public.hdc_knowledge_article_versions)
+          AS knowledge_versions,
+        (SELECT count(*)::int FROM public.hdc_knowledge_feedback)
+          AS knowledge_feedback,
         (SELECT count(*)::int FROM public.hdc_security_audit) AS security_audit,
         (SELECT array_agg(version ORDER BY version)
           FROM public.hdc_schema_migrations) AS migration_versions
@@ -103,6 +109,9 @@ async function backupMetadata(databaseUrl) {
       documents: Number(row.documents),
       disputes: Number(row.disputes),
       disputeEvents: Number(row.dispute_events),
+      knowledgeArticles: Number(row.knowledge_articles),
+      knowledgeVersions: Number(row.knowledge_versions),
+      knowledgeFeedback: Number(row.knowledge_feedback),
       securityAudit: Number(row.security_audit),
       migrationVersions: [...(row.migration_versions ?? [])].map(String),
     };

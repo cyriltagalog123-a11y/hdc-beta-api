@@ -12,15 +12,12 @@ class SupportUsScreen extends StatelessWidget {
   const SupportUsScreen({super.key});
 
   void _openOwner(BuildContext context) {
-    Navigator.of(context).push(
-      HDCPageRoute<void>(page: const ContactOwnerScreen()),
-    );
+    Navigator.of(context)
+        .push(HDCPageRoute<void>(page: const ContactOwnerScreen()));
   }
 
   void _openNews(BuildContext context) {
-    Navigator.of(context).push(
-      HDCPageRoute<void>(page: const NewsScreen()),
-    );
+    Navigator.of(context).push(HDCPageRoute<void>(page: const NewsScreen()));
   }
 
   @override
@@ -39,8 +36,7 @@ class SupportUsScreen extends StatelessWidget {
                   const HDCFlowHero(
                     eyebrow: 'SAICORE SUPPORT PROGRAM',
                     title: 'Support HDC without buying influence.',
-                    description:
-                        'SaiCore accepts support in three forms: one-time contributions, recurring support, and corporate sponsorships. HDC will prioritize payment channels that are available in the Philippines without a required monthly subscription, while keeping fees and trust boundaries clear.',
+                    description: 'SaiCore accepts support in three forms: one-time contributions, recurring support, and corporate sponsorships. HDC will prioritize payment channels that are available in the Philippines without a required monthly subscription, while keeping fees and trust boundaries clear.',
                     icon: Icons.volunteer_activism_outlined,
                     tags: [
                       HDCFlowTag(
@@ -60,7 +56,9 @@ class SupportUsScreen extends StatelessWidget {
                   const SizedBox(height: HDCSpacing.lg),
                   const _SupportProgramOverview(),
                   const SizedBox(height: HDCSpacing.lg),
-                  _PaymentChannelsCard(onContactOwner: () => _openOwner(context)),
+                  _PaymentChannelsCard(
+                    onContactOwner: () => _openOwner(context),
+                  ),
                   const SizedBox(height: HDCSpacing.lg),
                   _RecognitionCard(onOpenNews: () => _openNews(context)),
                   const SizedBox(height: HDCSpacing.lg),
@@ -349,18 +347,12 @@ class _RecognitionCard extends StatelessWidget {
               const SizedBox(height: 9),
               const Text(
                 'If a supporter or sponsor agrees to be publicly named, SaiCore may publish a Recognition post in HDC News. The display name and recognition message must match the consent given. Anonymous or private support stays private.',
-                style: TextStyle(
-                  color: HDCColors.textSecondary,
-                  height: 1.5,
-                ),
+                style: TextStyle(color: HDCColors.textSecondary, height: 1.5),
               ),
               const SizedBox(height: 9),
               const Text(
                 'Recognition is publicity only. It does not create a rating boost, verification status, moderation exception, dispute advantage, priority service entitlement, or access to private HDC data.',
-                style: TextStyle(
-                  color: HDCColors.textSecondary,
-                  height: 1.5,
-                ),
+                style: TextStyle(color: HDCColors.textSecondary, height: 1.5),
               ),
             ],
           );
@@ -404,43 +396,37 @@ class _PrioritySupportGrid extends StatelessWidget {
       _SupportPath(
         icon: Icons.bug_report_outlined,
         title: 'Test and report defects',
-        description:
-            'Use HDC like a real customer, technician, seller, or business. Clear reproduction steps, screenshots, affected workflow, and reference IDs are more valuable than vague bug reports.',
+        description: 'Use HDC like a real customer, technician, seller, or business. Clear reproduction steps, screenshots, affected workflow, and reference IDs are more valuable than vague bug reports.',
         accent: HDCColors.danger,
       ),
       _SupportPath(
         icon: Icons.fact_check_outlined,
         title: 'Challenge the workflow',
-        description:
-            'Try unusual but legitimate cases: cancellations, disputes, role changes, multiple offers, slow connections, interrupted sessions, and account switching.',
+        description: 'Try unusual but legitimate cases: cancellations, disputes, role changes, multiple offers, slow connections, interrupted sessions, and account switching.',
         accent: HDCColors.warning,
       ),
       _SupportPath(
         icon: Icons.campaign_outlined,
         title: 'Share HDC responsibly',
-        description:
-            'Recommend HDC to people who genuinely need technology support or technicians who can provide useful beta feedback. Quality adoption matters more than raw sign-ups.',
+        description: 'Recommend HDC to people who genuinely need technology support or technicians who can provide useful beta feedback. Quality adoption matters more than raw sign-ups.',
         accent: HDCColors.secondary,
       ),
       _SupportPath(
         icon: Icons.lightbulb_outline_rounded,
         title: 'Suggest practical improvements',
-        description:
-            'Send feature ideas tied to a real problem, user type, or workflow. Strong suggestions explain what is difficult today and what a better outcome should look like.',
+        description: 'Send feature ideas tied to a real problem, user type, or workflow. Strong suggestions explain what is difficult today and what a better outcome should look like.',
         accent: HDCColors.signal,
       ),
       _SupportPath(
         icon: Icons.menu_book_outlined,
         title: 'Suggest Knowledge Base topics',
-        description:
-            'Tell SaiCore which devices, errors, POS issues, software, or recurring technical problems deserve guided troubleshooting coverage in Build 26.',
+        description: 'Tell SaiCore which devices, errors, POS issues, software, or recurring technical problems deserve expanded HDC Knowledge Base coverage.',
         accent: HDCColors.electric,
       ),
       _SupportPath(
         icon: Icons.handshake_outlined,
         title: 'Offer partnership or resources',
-        description:
-            'Businesses, technical groups, schools, service providers, sponsors, or infrastructure partners can contact SaiCore directly for collaboration.',
+        description: 'Businesses, technical groups, schools, service providers, sponsors, or infrastructure partners can contact SaiCore directly for collaboration.',
         accent: HDCColors.success,
       ),
     ];
@@ -455,10 +441,7 @@ class _PrioritySupportGrid extends StatelessWidget {
         const SizedBox(height: 8),
         const Text(
           'Useful evidence, coverage, and responsible referrals remain valuable even after financial-support channels are activated.',
-          style: TextStyle(
-            color: HDCColors.textSecondary,
-            height: 1.5,
-          ),
+          style: TextStyle(color: HDCColors.textSecondary, height: 1.5),
         ),
         const SizedBox(height: 16),
         LayoutBuilder(
@@ -466,8 +449,8 @@ class _PrioritySupportGrid extends StatelessWidget {
             final columns = constraints.maxWidth >= 900
                 ? 3
                 : constraints.maxWidth >= 620
-                    ? 2
-                    : 1;
+                ? 2
+                : 1;
             final itemWidth = columns == 1
                 ? constraints.maxWidth
                 : (constraints.maxWidth - ((columns - 1) * 14)) / columns;
@@ -529,10 +512,7 @@ class _SupportPathCard extends StatelessWidget {
           const SizedBox(height: 7),
           Text(
             item.description,
-            style: const TextStyle(
-              color: HDCColors.textSecondary,
-              height: 1.5,
-            ),
+            style: const TextStyle(color: HDCColors.textSecondary, height: 1.5),
           ),
         ],
       ),
@@ -574,10 +554,7 @@ class _TrustBoundaryCard extends StatelessWidget {
           const SizedBox(height: 8),
           const Text(
             'Anyone may support SaiCore and HDC, but support does not change platform rules, reputation, verification, safety decisions, ranking, or access controls.',
-            style: TextStyle(
-              color: HDCColors.textSecondary,
-              height: 1.5,
-            ),
+            style: TextStyle(color: HDCColors.textSecondary, height: 1.5),
           ),
           const SizedBox(height: 16),
           for (final rule in rules)
@@ -644,10 +621,7 @@ class _WhatHelpsMostCard extends StatelessWidget {
           const SizedBox(height: 14),
           const Text(
             'Do not include passwords, one-time codes, recovery answers, full banking details, private keys, or another user’s confidential data in a support report.',
-            style: TextStyle(
-              color: HDCColors.textSecondary,
-              height: 1.5,
-            ),
+            style: TextStyle(color: HDCColors.textSecondary, height: 1.5),
           ),
         ],
       ),

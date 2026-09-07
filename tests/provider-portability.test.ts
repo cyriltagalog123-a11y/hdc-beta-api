@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { handleHdcApiRequest } from '../netlify/functions/api.mjs';
 import {
@@ -32,6 +33,13 @@ function decoded(value: Uint8Array): string {
   return new TextDecoder().decode(value);
 }
 
+function currentHealthBuild(): string {
+  const packageJson = JSON.parse(
+    readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+  ) as { version: string };
+  return packageJson.version.replace('-build.', '-build');
+}
+
 describe('provider-neutral environment', () => {
   it('exposes a hosting-neutral Web API handler', async () => {
     const response = await handleHdcApiRequest(
@@ -41,7 +49,7 @@ describe('provider-neutral environment', () => {
     expect(await response.json()).toMatchObject({
       service: 'hdc-beta-api',
       status: 'ok',
-      build: '0.6.4-build26',
+      build: currentHealthBuild(),
     });
     expect(response.headers.get('x-hdc-request-id')).toMatch(
       /^[0-9a-f-]{36}$/,

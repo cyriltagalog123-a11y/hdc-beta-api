@@ -40,7 +40,9 @@ class _KnowledgeArticleScreenState extends State<KnowledgeArticleScreen> {
       _error = null;
     });
     try {
-      final result = await context.read<HdcKnowledgeProvider>().loadArticle(widget.slug);
+      final result = await context.read<HdcKnowledgeProvider>().loadArticle(
+        widget.slug,
+      );
       if (!mounted) return;
       setState(() {
         _article = result.$1;
@@ -100,10 +102,10 @@ class _KnowledgeArticleScreenState extends State<KnowledgeArticleScreen> {
     setState(() => _feedbackSaving = true);
     try {
       final counts = await context.read<HdcKnowledgeProvider>().submitFeedback(
-            article: article,
-            helpful: helpful,
-            note: note,
-          );
+        article: article,
+        helpful: helpful,
+        note: note,
+      );
       if (!mounted) return;
       setState(() {
         _article = article.withFeedback(
@@ -116,9 +118,8 @@ class _KnowledgeArticleScreenState extends State<KnowledgeArticleScreen> {
       );
     } on Object catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$error')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('$error')));
     } finally {
       if (mounted) setState(() => _feedbackSaving = false);
     }
@@ -141,9 +142,7 @@ class _KnowledgeArticleScreenState extends State<KnowledgeArticleScreen> {
           '${article.title}. The problem is still unresolved.\n\n'
           'What I observed after the guide: ';
     Navigator.of(context).push(
-      HDCPageRoute<void>(
-        page: CreateServiceRequestScreen(initialDraft: draft),
-      ),
+      HDCPageRoute<void>(page: CreateServiceRequestScreen(initialDraft: draft)),
     );
   }
 
@@ -155,8 +154,8 @@ class _KnowledgeArticleScreenState extends State<KnowledgeArticleScreen> {
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
-                ? _ErrorState(error: _error!, onRetry: _load)
-                : _buildArticle(context),
+            ? _ErrorState(error: _error!, onRetry: _load)
+            : _buildArticle(context),
       ),
     );
   }
@@ -210,12 +209,17 @@ class _KnowledgeArticleScreenState extends State<KnowledgeArticleScreen> {
                   decoration: BoxDecoration(
                     color: safetyColor.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: safetyColor.withValues(alpha: 0.28)),
+                    border: Border.all(
+                      color: safetyColor.withValues(alpha: 0.28),
+                    ),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.health_and_safety_outlined, color: safetyColor),
+                      Icon(
+                        Icons.health_and_safety_outlined,
+                        color: safetyColor,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -238,10 +242,7 @@ class _KnowledgeArticleScreenState extends State<KnowledgeArticleScreen> {
                 ),
               const SizedBox(height: HDCSpacing.lg),
               HDCCard(
-                child: Text(
-                  article.body,
-                  style: const TextStyle(height: 1.6),
-                ),
+                child: Text(article.body, style: const TextStyle(height: 1.6)),
               ),
               const SizedBox(height: HDCSpacing.lg),
               HDCCard(
@@ -250,12 +251,15 @@ class _KnowledgeArticleScreenState extends State<KnowledgeArticleScreen> {
                   children: [
                     Text(
                       'Guided troubleshooting',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w900),
                     ),
                     const SizedBox(height: 14),
-                    for (var index = 0; index < article.steps.length; index++) ...[
+                    for (
+                      var index = 0;
+                      index < article.steps.length;
+                      index++
+                    ) ...[
                       _StepRow(index: index + 1, text: article.steps[index]),
                       if (index != article.steps.length - 1)
                         const Divider(height: 24),
@@ -272,7 +276,10 @@ class _KnowledgeArticleScreenState extends State<KnowledgeArticleScreen> {
                     children: [
                       const Row(
                         children: [
-                          Icon(Icons.stop_circle_outlined, color: HDCColors.warning),
+                          Icon(
+                            Icons.stop_circle_outlined,
+                            color: HDCColors.warning,
+                          ),
                           SizedBox(width: 9),
                           Text(
                             'When to stop and escalate',
@@ -302,7 +309,9 @@ class _KnowledgeArticleScreenState extends State<KnowledgeArticleScreen> {
                         Text(
                           '${article.helpfulCount} helpful • '
                           '${article.notHelpfulCount} needs improvement',
-                          style: const TextStyle(color: HDCColors.textSecondary),
+                          style: const TextStyle(
+                            color: HDCColors.textSecondary,
+                          ),
                         ),
                         const SizedBox(height: 10),
                         Wrap(
@@ -310,12 +319,16 @@ class _KnowledgeArticleScreenState extends State<KnowledgeArticleScreen> {
                           runSpacing: 8,
                           children: [
                             OutlinedButton.icon(
-                              onPressed: _feedbackSaving ? null : () => _feedback(true),
+                              onPressed: _feedbackSaving
+                                  ? null
+                                  : () => _feedback(true),
                               icon: const Icon(Icons.thumb_up_alt_outlined),
                               label: const Text('Helpful'),
                             ),
                             OutlinedButton.icon(
-                              onPressed: _feedbackSaving ? null : () => _feedback(false),
+                              onPressed: _feedbackSaving
+                                  ? null
+                                  : () => _feedback(false),
                               icon: const Icon(Icons.thumb_down_alt_outlined),
                               label: const Text('Needs improvement'),
                             ),
@@ -351,8 +364,7 @@ class _KnowledgeArticleScreenState extends State<KnowledgeArticleScreen> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    for (final tag in article.tags)
-                      Chip(label: Text(tag)),
+                    for (final tag in article.tags) Chip(label: Text(tag)),
                   ],
                 ),
               ],
@@ -360,9 +372,8 @@ class _KnowledgeArticleScreenState extends State<KnowledgeArticleScreen> {
                 const SizedBox(height: HDCSpacing.xl),
                 Text(
                   'Related HDC guides',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                  style: Theme.of(context).textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 12),
                 for (final related in _related) ...[
@@ -370,7 +381,10 @@ class _KnowledgeArticleScreenState extends State<KnowledgeArticleScreen> {
                     article: related,
                     onTap: () => Navigator.of(context).pushReplacement(
                       HDCPageRoute<void>(
-                        page: KnowledgeArticleScreen(slug: related.slug),
+                        page: ChangeNotifierProvider.value(
+                          value: context.read<HdcKnowledgeProvider>(),
+                          child: KnowledgeArticleScreen(slug: related.slug),
+                        ),
                       ),
                     ),
                   ),
@@ -501,21 +515,21 @@ class _ErrorState extends StatelessWidget {
 }
 
 String _categoryLabel(String category) => switch (category) {
-      'pc_laptop' => 'PC & Laptop',
-      'phones_mobile' => 'Phones & Mobile',
-      'pos_business_tech' => 'POS & Business Tech',
-      'network_internet' => 'Network & Internet',
-      'printers_peripherals' => 'Printers & Peripherals',
-      'security_accounts' => 'Security & Accounts',
-      _ => 'Technology',
-    };
+  'pc_laptop' => 'PC & Laptop',
+  'phones_mobile' => 'Phones & Mobile',
+  'pos_business_tech' => 'POS & Business Tech',
+  'network_internet' => 'Network & Internet',
+  'printers_peripherals' => 'Printers & Peripherals',
+  'security_accounts' => 'Security & Accounts',
+  _ => 'Technology',
+};
 
 IconData _categoryIcon(String category) => switch (category) {
-      'pc_laptop' => Icons.computer_outlined,
-      'phones_mobile' => Icons.phone_android_outlined,
-      'pos_business_tech' => Icons.point_of_sale_outlined,
-      'network_internet' => Icons.router_outlined,
-      'printers_peripherals' => Icons.print_outlined,
-      'security_accounts' => Icons.security_outlined,
-      _ => Icons.build_outlined,
-    };
+  'pc_laptop' => Icons.computer_outlined,
+  'phones_mobile' => Icons.phone_android_outlined,
+  'pos_business_tech' => Icons.point_of_sale_outlined,
+  'network_internet' => Icons.router_outlined,
+  'printers_peripherals' => Icons.print_outlined,
+  'security_accounts' => Icons.security_outlined,
+  _ => Icons.build_outlined,
+};

@@ -39,16 +39,20 @@ describe('Build 26 hardening contract', () => {
 
   it('moves real Knowledge Base implementation to Build 27', async () => {
     const kb = await read('lib/features/knowledge_base/knowledge_base_screen.dart');
-    expect(kb).toContain('BUILD 27 READY');
-    expect(kb).toContain('implemented in Build 27');
+    expect(kb).toContain('LIVE KNOWLEDGE');
+    expect(kb).toContain('Search the HDC Knowledge Base');
+    expect(kb).toContain('reviewed, published knowledge');
     expect(kb).not.toContain('Search becomes active in Build 26');
   });
 
   it('publishes the current legal revision and latest-schema readiness', async () => {
     const legal = await read('netlify/functions/_lib/legal-documents.mts');
     const api = await read('netlify/functions/api.mts');
+    const packageJson = JSON.parse(await read('package.json')) as { version: string };
+    const healthBuild = packageJson.version.replace('-build.', '-build');
     expect(legal).toContain("CURRENT_LEGAL_VERSION = 'beta-2026-09-06'");
     expect(api).toContain("version = '0021'");
-    expect(api).toContain("build: '0.6.4-build26'");
+    expect(api).toContain("version = '0024'");
+    expect(api).toContain(`build: '${healthBuild}'`);
   });
 });

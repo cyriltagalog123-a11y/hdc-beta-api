@@ -24,7 +24,7 @@
     "0020_build26_news_consent_history.sql": "a7afe69aad304eb1358a9d2f531dc56f2ebd321ffa83f4ce51196298f0b6b707",
     "0021_build26_legal_revision_2026_09_06.sql": "b0be500877c324399c685ecd17e2faed0fcf179fb7925ebb0afc7ef271aa55eb",
     "0022_build26_feedback_reputation.sql": "19cc3f2ef8aef66821163aac1c7bf548e03e17b761764357262a12810bd8731b",
-    "0023_build27_knowledge_base.sql": "c2f10bbc4f2edef14d52ec2096a3811577cb90534f0f645d5975be9af536a27e",
-    "0024_build27_knowledge_slug_stability.sql": "60bed3c0eef4090b5c9db69260ef6ce8dbf187b7d9bf9f17962b424b8c919f47"
+    "0023_build27_knowledge_base.sql": "bb51d85779751cbe1758bb020ba14da58eeca25bd8fe8c64010df3f5a83387d6",
+    "0024_build27_knowledge_slug_stability.sql": "55186ef6cb607052aec0d3ef480a264ca678044c89c11415c400b877df3d32ab"
   }
 }

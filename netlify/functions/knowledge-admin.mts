@@ -44,6 +44,16 @@ function slugify(value: string): string {
     .slice(0, 120);
 }
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    .test(value);
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === 'object' && error !== null &&
+    'code' in error && (error as { code?: unknown }).code === '23505';
+}
+
 function canPublish(roles: readonly string[]): boolean {
   return roles.some((role) => publisherRoles.has(role));
 }
@@ -168,7 +178,7 @@ async function list(sql: DbClient, roles: readonly string[]): Promise<Response> 
 
 async function history(req: Request, sql: DbClient, roles: readonly string[]): Promise<Response> {
   const id = cleanText(new URL(req.url).searchParams.get('id'), 80);
-  if (!id) return json({ error: 'knowledge_article_required' }, 400);
+  if (!isUuid(id)) return json({ error: 'knowledge_article_required' }, 400);
   const rows = await sql`
     SELECT
       version, slug, category, title, summary, safety_level,
@@ -205,52 +215,60 @@ async function create(
 
   const publicArticleId = `KB-${randomBytes(5).toString('hex').toUpperCase()}`;
   const publishedAt = parsed.status === 'published' ? new Date() : null;
-  const rows = await sql.begin(async (tx) => {
-    const inserted = await tx`
-      INSERT INTO public.hdc_knowledge_articles (
-        public_article_id, slug, category, title, summary, body, steps, tags,
-        safety_level, safety_notice, escalation_text, nexus_ready, is_featured,
-        status, version, published_version, ever_published, published_at,
-        created_by, updated_by
-      ) VALUES (
-        ${publicArticleId}, ${parsed.slug}, ${parsed.category}, ${parsed.title},
-        ${parsed.summary}, ${parsed.content}, ${tx.json(parsed.steps)}, ${parsed.tags},
-        ${parsed.safetyLevel}, ${parsed.safetyNotice}, ${parsed.escalationText},
-        ${parsed.nexusReady}, ${parsed.isFeatured}, ${parsed.status}, 1, NULL,
-        ${parsed.status === 'published'}, ${publishedAt}, ${actorId}, ${actorId}
-      )
-      RETURNING id
-    `;
-    const articleId = String(inserted[0].id);
-    await tx`
-      INSERT INTO public.hdc_knowledge_article_versions (
-        article_id, version, slug, category, title, summary, body, steps, tags,
-        safety_level, safety_notice, escalation_text, nexus_ready, is_featured,
-        workflow_status, change_note, created_by, published_at
-      ) VALUES (
-        ${articleId}::uuid, 1, ${parsed.slug}, ${parsed.category}, ${parsed.title},
-        ${parsed.summary}, ${parsed.content}, ${tx.json(parsed.steps)}, ${parsed.tags},
-        ${parsed.safetyLevel}, ${parsed.safetyNotice}, ${parsed.escalationText},
-        ${parsed.nexusReady}, ${parsed.isFeatured}, ${parsed.status},
-        ${parsed.changeNote || 'Initial article version'}, ${actorId}, ${publishedAt}
-      )
-    `;
-    if (parsed.status === 'published') {
-      await tx`
-        UPDATE public.hdc_knowledge_articles
-        SET published_version = 1
-        WHERE id = ${articleId}::uuid
+  let articleId: string;
+  try {
+    articleId = await sql.begin(async (tx) => {
+      const inserted = await tx`
+        INSERT INTO public.hdc_knowledge_articles (
+          public_article_id, slug, category, title, summary, body, steps, tags,
+          safety_level, safety_notice, escalation_text, nexus_ready, is_featured,
+          status, version, published_version, ever_published, published_at,
+          created_by, updated_by
+        ) VALUES (
+          ${publicArticleId}, ${parsed.slug}, ${parsed.category}, ${parsed.title},
+          ${parsed.summary}, ${parsed.content}, ${tx.json(parsed.steps)}, ${parsed.tags},
+          ${parsed.safetyLevel}, ${parsed.safetyNotice}, ${parsed.escalationText},
+          ${parsed.nexusReady}, ${parsed.isFeatured}, ${parsed.status}, 1, NULL,
+          ${parsed.status === 'published'}, ${publishedAt}, ${actorId}, ${actorId}
+        )
+        RETURNING id
       `;
+      const insertedArticleId = String(inserted[0].id);
+      await tx`
+        INSERT INTO public.hdc_knowledge_article_versions (
+          article_id, version, slug, category, title, summary, body, steps, tags,
+          safety_level, safety_notice, escalation_text, nexus_ready, is_featured,
+          workflow_status, change_note, created_by, published_at
+        ) VALUES (
+          ${insertedArticleId}::uuid, 1, ${parsed.slug}, ${parsed.category}, ${parsed.title},
+          ${parsed.summary}, ${parsed.content}, ${tx.json(parsed.steps)}, ${parsed.tags},
+          ${parsed.safetyLevel}, ${parsed.safetyNotice}, ${parsed.escalationText},
+          ${parsed.nexusReady}, ${parsed.isFeatured}, ${parsed.status},
+          ${parsed.changeNote || 'Initial article version'}, ${actorId}, ${publishedAt}
+        )
+      `;
+      if (parsed.status === 'published') {
+        await tx`
+          UPDATE public.hdc_knowledge_articles
+          SET published_version = 1
+          WHERE id = ${insertedArticleId}::uuid
+        `;
+      }
+      await tx`
+        INSERT INTO public.hdc_security_audit (user_id, event_type, event_status, metadata)
+        VALUES (
+          ${actorId}, 'knowledge.create', 'success',
+          ${tx.json({ publicArticleId, status: parsed.status, category: parsed.category })}
+        )
+      `;
+      return insertedArticleId;
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return json({ error: 'knowledge_slug_conflict' }, 409);
     }
-    await tx`
-      INSERT INTO public.hdc_security_audit (user_id, event_type, event_status, metadata)
-      VALUES (
-        ${actorId}, 'knowledge.create', 'success',
-        ${tx.json({ publicArticleId, status: parsed.status, category: parsed.category })}
-      )
-    `;
-    return articleId;
-  });
+    throw error;
+  }
 
   const result = await sql`
     SELECT
@@ -259,7 +277,7 @@ async function create(
       status, version, published_version, ever_published, published_at,
       created_at, updated_at
     FROM public.hdc_knowledge_articles
-    WHERE id = ${rows}::uuid
+    WHERE id = ${articleId}::uuid
   `;
   return json({ article: articleView(result[0]), canPublish: canPublish(roles) }, 201);
 }
@@ -274,101 +292,163 @@ async function update(
   const body = await readJson(req);
   if (!body) return json({ error: 'invalid_json' }, 400);
   const id = cleanText(body.id, 80);
-  if (!id) return json({ error: 'knowledge_article_required' }, 400);
+  if (!isUuid(id)) return json({ error: 'knowledge_article_required' }, 400);
+  const expectedVersion = body.expectedVersion;
+  if (
+    typeof expectedVersion !== 'number' ||
+    !Number.isInteger(expectedVersion) ||
+    expectedVersion < 1
+  ) {
+    return json({ error: 'invalid_knowledge_version' }, 400);
+  }
   const parsed = parsePayload(body);
   if ('error' in parsed) return json({ error: parsed.error }, 400);
   if ((parsed.status === 'published' || parsed.status === 'archived') && !canPublish(roles)) {
     return json({ error: 'knowledge_publish_forbidden' }, 403);
   }
 
-  const currentRows = await sql`
-    SELECT id, public_article_id, version, published_version, ever_published
-    FROM public.hdc_knowledge_articles
-    WHERE id = ${id}::uuid
-    LIMIT 1
-  `;
-  if (currentRows.length === 0) return json({ error: 'knowledge_article_not_found' }, 404);
+  type UpdateOutcome =
+    | { kind: 'not_found' }
+    | { kind: 'version_conflict'; currentVersion: number }
+    | { kind: 'forbidden' }
+    | { kind: 'slug_locked' }
+    | { kind: 'slug_conflict' }
+    | { kind: 'updated'; article: Record<string, unknown> };
 
-  const slugConflict = await sql`
-    SELECT 1
-    FROM public.hdc_knowledge_articles
-    WHERE slug = ${parsed.slug} AND id <> ${id}::uuid
-    LIMIT 1
-  `;
-  if (slugConflict.length > 0) return json({ error: 'knowledge_slug_conflict' }, 409);
+  let outcome: UpdateOutcome;
+  try {
+    outcome = await sql.begin(async (tx): Promise<UpdateOutcome> => {
+      const currentRows = await tx`
+        SELECT
+          id, public_article_id, slug, status, version,
+          published_version, ever_published
+        FROM public.hdc_knowledge_articles
+        WHERE id = ${id}::uuid
+        FOR UPDATE
+      `;
+      if (currentRows.length === 0) return { kind: 'not_found' };
 
-  const current = currentRows[0];
-  const nextVersion = Number(current.version) + 1;
-  const publishing = parsed.status === 'published';
-  const publishedAt = publishing ? new Date() : null;
-  await sql.begin(async (tx) => {
-    await tx`
-      INSERT INTO public.hdc_knowledge_article_versions (
-        article_id, version, slug, category, title, summary, body, steps, tags,
-        safety_level, safety_notice, escalation_text, nexus_ready, is_featured,
-        workflow_status, change_note, created_by, published_at
-      ) VALUES (
-        ${id}::uuid, ${nextVersion}, ${parsed.slug}, ${parsed.category}, ${parsed.title},
-        ${parsed.summary}, ${parsed.content}, ${tx.json(parsed.steps)}, ${parsed.tags},
-        ${parsed.safetyLevel}, ${parsed.safetyNotice}, ${parsed.escalationText},
-        ${parsed.nexusReady}, ${parsed.isFeatured}, ${parsed.status},
-        ${parsed.changeNote || `Version ${nextVersion}`}, ${actorId}, ${publishedAt}
-      )
-    `;
-    await tx`
-      UPDATE public.hdc_knowledge_articles
-      SET
-        slug = ${parsed.slug},
-        category = ${parsed.category},
-        title = ${parsed.title},
-        summary = ${parsed.summary},
-        body = ${parsed.content},
-        steps = ${tx.json(parsed.steps)},
-        tags = ${parsed.tags},
-        safety_level = ${parsed.safetyLevel},
-        safety_notice = ${parsed.safetyNotice},
-        escalation_text = ${parsed.escalationText},
-        nexus_ready = ${parsed.nexusReady},
-        is_featured = ${parsed.isFeatured},
-        status = ${parsed.status},
-        version = ${nextVersion},
-        published_version = CASE
-          WHEN ${publishing} THEN ${nextVersion}
-          ELSE published_version
-        END,
-        ever_published = ever_published OR ${publishing},
-        published_at = CASE
-          WHEN ${publishing} THEN ${publishedAt}
-          ELSE published_at
-        END,
-        updated_by = ${actorId},
-        updated_at = now()
-      WHERE id = ${id}::uuid
-    `;
-    await tx`
-      INSERT INTO public.hdc_security_audit (user_id, event_type, event_status, metadata)
-      VALUES (
-        ${actorId}, 'knowledge.update', 'success',
-        ${tx.json({
-          publicArticleId: String(current.public_article_id),
-          version: nextVersion,
-          status: parsed.status,
-          publishedVersion: publishing ? nextVersion : current.published_version,
-        })}
-      )
-    `;
+      const current = currentRows[0];
+      const currentVersion = Number(current.version);
+      if (currentVersion !== expectedVersion) {
+        return { kind: 'version_conflict', currentVersion };
+      }
+      if (String(current.status) === 'archived' && !canPublish(roles)) {
+        return { kind: 'forbidden' };
+      }
+      if (Boolean(current.ever_published) && parsed.slug !== String(current.slug)) {
+        return { kind: 'slug_locked' };
+      }
+
+      const slugConflict = await tx`
+        SELECT 1
+        FROM public.hdc_knowledge_articles
+        WHERE slug = ${parsed.slug} AND id <> ${id}::uuid
+        LIMIT 1
+      `;
+      if (slugConflict.length > 0) return { kind: 'slug_conflict' };
+
+      const nextVersion = currentVersion + 1;
+      const publishing = parsed.status === 'published';
+      const publishedAt = publishing ? new Date() : null;
+      await tx`
+        INSERT INTO public.hdc_knowledge_article_versions (
+          article_id, version, slug, category, title, summary, body, steps, tags,
+          safety_level, safety_notice, escalation_text, nexus_ready, is_featured,
+          workflow_status, change_note, created_by, published_at
+        ) VALUES (
+          ${id}::uuid, ${nextVersion}, ${parsed.slug}, ${parsed.category}, ${parsed.title},
+          ${parsed.summary}, ${parsed.content}, ${tx.json(parsed.steps)}, ${parsed.tags},
+          ${parsed.safetyLevel}, ${parsed.safetyNotice}, ${parsed.escalationText},
+          ${parsed.nexusReady}, ${parsed.isFeatured}, ${parsed.status},
+          ${parsed.changeNote || `Version ${nextVersion}`}, ${actorId}, ${publishedAt}
+        )
+      `;
+      const updatedRows = await tx`
+        UPDATE public.hdc_knowledge_articles
+        SET
+          slug = ${parsed.slug},
+          category = ${parsed.category},
+          title = ${parsed.title},
+          summary = ${parsed.summary},
+          body = ${parsed.content},
+          steps = ${tx.json(parsed.steps)},
+          tags = ${parsed.tags},
+          safety_level = ${parsed.safetyLevel},
+          safety_notice = ${parsed.safetyNotice},
+          escalation_text = ${parsed.escalationText},
+          nexus_ready = ${parsed.nexusReady},
+          is_featured = ${parsed.isFeatured},
+          status = ${parsed.status},
+          version = ${nextVersion},
+          published_version = CASE
+            WHEN ${publishing} THEN ${nextVersion}
+            ELSE published_version
+          END,
+          ever_published = ever_published OR ${publishing},
+          published_at = CASE
+            WHEN ${publishing} THEN ${publishedAt}
+            ELSE published_at
+          END,
+          updated_by = ${actorId},
+          updated_at = now()
+        WHERE id = ${id}::uuid
+        RETURNING
+          id, public_article_id, slug, category, title, summary, body, steps, tags,
+          safety_level, safety_notice, escalation_text, nexus_ready, is_featured,
+          status, version, published_version, ever_published, published_at,
+          created_at, updated_at
+      `;
+      await tx`
+        INSERT INTO public.hdc_security_audit (user_id, event_type, event_status, metadata)
+        VALUES (
+          ${actorId}, 'knowledge.update', 'success',
+          ${tx.json({
+            publicArticleId: String(current.public_article_id),
+            version: nextVersion,
+            status: parsed.status,
+            publishedVersion: publishing ? nextVersion : current.published_version,
+          })}
+        )
+      `;
+      return {
+        kind: 'updated',
+        article: updatedRows[0] as Record<string, unknown>,
+      };
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return json({ error: 'knowledge_slug_conflict' }, 409);
+    }
+    throw error;
+  }
+
+  if (outcome.kind === 'not_found') {
+    return json({ error: 'knowledge_article_not_found' }, 404);
+  }
+  if (outcome.kind === 'version_conflict') {
+    return json({
+      error: 'knowledge_version_conflict',
+      message: 'This guide changed after you opened it. Refresh before saving.',
+      currentVersion: outcome.currentVersion,
+    }, 409);
+  }
+  if (outcome.kind === 'forbidden') {
+    return json({ error: 'knowledge_publish_forbidden' }, 403);
+  }
+  if (outcome.kind === 'slug_locked') {
+    return json({
+      error: 'knowledge_slug_locked',
+      message: 'Published HDC guide links are permanent.',
+    }, 409);
+  }
+  if (outcome.kind === 'slug_conflict') {
+    return json({ error: 'knowledge_slug_conflict' }, 409);
+  }
+  return json({
+    article: articleView(outcome.article),
+    canPublish: canPublish(roles),
   });
-
-  const rows = await sql`
-    SELECT
-      id, public_article_id, slug, category, title, summary, body, steps, tags,
-      safety_level, safety_notice, escalation_text, nexus_ready, is_featured,
-      status, version, published_version, ever_published, published_at,
-      created_at, updated_at
-    FROM public.hdc_knowledge_articles
-    WHERE id = ${id}::uuid
-  `;
-  return json({ article: articleView(rows[0]), canPublish: canPublish(roles) });
 }
 
 async function remove(
@@ -378,7 +458,7 @@ async function remove(
 ): Promise<Response> {
   if (operationMode() !== 'normal') return json({ error: 'service_read_only' }, 503);
   const id = cleanText(new URL(req.url).searchParams.get('id'), 80);
-  if (!id) return json({ error: 'knowledge_article_required' }, 400);
+  if (!isUuid(id)) return json({ error: 'knowledge_article_required' }, 400);
   const deleted = await sql.begin(async (tx) => {
     const rows = await tx`
       DELETE FROM public.hdc_knowledge_articles

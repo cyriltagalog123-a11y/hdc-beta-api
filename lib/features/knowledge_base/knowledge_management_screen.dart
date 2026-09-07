@@ -53,8 +53,8 @@ class _KnowledgeManagementScreenState extends State<KnowledgeManagementScreen> {
         _articles = raw is List
             ? List.unmodifiable(
                 raw.whereType<Map>().map(
-                      (item) => Map<String, dynamic>.from(item),
-                    ),
+                  (item) => Map<String, dynamic>.from(item),
+                ),
               )
             : const [];
       });
@@ -84,10 +84,15 @@ class _KnowledgeManagementScreenState extends State<KnowledgeManagementScreen> {
     if (client == null) return;
     try {
       final id = Uri.encodeQueryComponent('${article['id'] ?? ''}');
-      final data = await client.get('/api/internal/knowledge?view=history&id=$id');
+      final data = await client.get(
+        '/api/internal/knowledge?view=history&id=$id',
+      );
       final raw = data['versions'];
       final versions = raw is List
-          ? raw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
+          ? raw
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList()
           : <Map<String, dynamic>>[];
       if (!mounted) return;
       await showDialog<void>(
@@ -116,7 +121,10 @@ class _KnowledgeManagementScreenState extends State<KnowledgeManagementScreen> {
                         ),
                         trailing: item['publishedAt'] == null
                             ? null
-                            : const Icon(Icons.public, color: HDCColors.success),
+                            : const Icon(
+                                Icons.public,
+                                color: HDCColors.success,
+                              ),
                       );
                     },
                   ),
@@ -131,9 +139,8 @@ class _KnowledgeManagementScreenState extends State<KnowledgeManagementScreen> {
       );
     } on Object catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$error')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('$error')));
     }
   }
 
@@ -167,9 +174,8 @@ class _KnowledgeManagementScreenState extends State<KnowledgeManagementScreen> {
       await _load();
     } on Object catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$error')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('$error')));
     }
   }
 
@@ -251,7 +257,10 @@ class _KnowledgeManagementScreenState extends State<KnowledgeManagementScreen> {
                         for (final article in _articles) ...[
                           _KnowledgeAdminCard(
                             article: article,
-                            onEdit: () => _edit(article),
+                            onEdit:
+                                article['status'] == 'archived' && !_canPublish
+                                ? null
+                                : () => _edit(article),
                             onHistory: () => _history(article),
                             onDelete: article['everPublished'] == true
                                 ? null
@@ -274,7 +283,7 @@ class _KnowledgeManagementScreenState extends State<KnowledgeManagementScreen> {
 
 class _KnowledgeAdminCard extends StatelessWidget {
   final Map<String, dynamic> article;
-  final VoidCallback onEdit;
+  final VoidCallback? onEdit;
   final VoidCallback onHistory;
   final VoidCallback? onDelete;
 
@@ -302,9 +311,8 @@ class _KnowledgeAdminCard extends StatelessWidget {
                   children: [
                     Text(
                       '${article['title'] ?? 'Knowledge guide'}',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w900),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -433,7 +441,8 @@ class _KnowledgeEditorScreenState extends State<_KnowledgeEditorScreen> {
     _category = '${article['category'] ?? 'pc_laptop'}';
     _safetyLevel = '${article['safetyLevel'] ?? 'low'}';
     _status = '${article['status'] ?? 'draft'}';
-    if (!widget.canPublish && (_status == 'published' || _status == 'archived')) {
+    if (!widget.canPublish &&
+        (_status == 'published' || _status == 'archived')) {
       _status = 'review';
     }
     _nexusReady = article['nexusReady'] != false;
@@ -462,6 +471,7 @@ class _KnowledgeEditorScreenState extends State<_KnowledgeEditorScreen> {
     try {
       final body = <String, Object?>{
         if (_editing) 'id': widget.article!['id'],
+        if (_editing) 'expectedVersion': widget.article!['version'],
         'title': _title.text,
         'slug': _slug.text,
         'category': _category,
@@ -494,9 +504,8 @@ class _KnowledgeEditorScreenState extends State<_KnowledgeEditorScreen> {
       Navigator.of(context).pop(true);
     } on Object catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$error')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('$error')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -544,32 +553,41 @@ class _KnowledgeEditorScreenState extends State<_KnowledgeEditorScreen> {
                       const SizedBox(height: 10),
                       TextFormField(
                         controller: _slug,
+                        enabled: widget.article?['everPublished'] != true,
                         maxLength: 140,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Slug (optional on first save)',
                           hintText: 'windows-printer-not-detected',
+                          helperText: widget.article?['everPublished'] == true
+                              ? 'Published guide links are permanent.'
+                              : null,
                         ),
                       ),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<String>(
                         initialValue: _category,
-                        decoration: const InputDecoration(labelText: 'Category'),
-                        items: const {
-                          'pc_laptop': 'PC & Laptop',
-                          'phones_mobile': 'Phones & Mobile',
-                          'pos_business_tech': 'POS & Business Tech',
-                          'network_internet': 'Network & Internet',
-                          'printers_peripherals': 'Printers & Peripherals',
-                          'security_accounts': 'Security & Accounts',
-                        }.entries
-                            .map(
-                              (entry) => DropdownMenuItem(
-                                value: entry.key,
-                                child: Text(entry.value),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) => setState(() => _category = value ?? _category),
+                        decoration: const InputDecoration(
+                          labelText: 'Category',
+                        ),
+                        items:
+                            const {
+                                  'pc_laptop': 'PC & Laptop',
+                                  'phones_mobile': 'Phones & Mobile',
+                                  'pos_business_tech': 'POS & Business Tech',
+                                  'network_internet': 'Network & Internet',
+                                  'printers_peripherals':
+                                      'Printers & Peripherals',
+                                  'security_accounts': 'Security & Accounts',
+                                }.entries
+                                .map(
+                                  (entry) => DropdownMenuItem(
+                                    value: entry.key,
+                                    child: Text(entry.value),
+                                  ),
+                                )
+                                .toList(),
+                        onChanged: (value) =>
+                            setState(() => _category = value ?? _category),
                       ),
                       const SizedBox(height: 10),
                       TextFormField(
@@ -603,7 +621,8 @@ class _KnowledgeEditorScreenState extends State<_KnowledgeEditorScreen> {
                           labelText: 'Troubleshooting steps',
                           helperText: 'One step per line. Maximum 20 steps.',
                         ),
-                        validator: (value) => (value ?? '')
+                        validator: (value) =>
+                            (value ?? '')
                                 .split('\n')
                                 .any((item) => item.trim().isNotEmpty)
                             ? null
@@ -614,34 +633,44 @@ class _KnowledgeEditorScreenState extends State<_KnowledgeEditorScreen> {
                         controller: _tags,
                         decoration: const InputDecoration(
                           labelText: 'Search tags',
-                          helperText: 'Comma separated, e.g. windows, printer, usb',
+                          helperText:
+                              'Comma separated, e.g. windows, printer, usb',
                         ),
                       ),
                       const SizedBox(height: 18),
                       Text(
                         'Safety and escalation',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
                       ),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<String>(
                         initialValue: _safetyLevel,
-                        decoration: const InputDecoration(labelText: 'Safety level'),
+                        decoration: const InputDecoration(
+                          labelText: 'Safety level',
+                        ),
                         items: const [
                           DropdownMenuItem(value: 'low', child: Text('Low')),
-                          DropdownMenuItem(value: 'moderate', child: Text('Moderate')),
+                          DropdownMenuItem(
+                            value: 'moderate',
+                            child: Text('Moderate'),
+                          ),
                           DropdownMenuItem(value: 'high', child: Text('High')),
                         ],
-                        onChanged: (value) => setState(() => _safetyLevel = value ?? _safetyLevel),
+                        onChanged: (value) => setState(
+                          () => _safetyLevel = value ?? _safetyLevel,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       TextFormField(
                         controller: _safetyNotice,
                         maxLength: 1200,
                         maxLines: 4,
-                        decoration: const InputDecoration(labelText: 'Safety boundary'),
-                        validator: (value) => _safetyLevel != 'low' &&
+                        decoration: const InputDecoration(
+                          labelText: 'Safety boundary',
+                        ),
+                        validator: (value) =>
+                            _safetyLevel != 'low' &&
                                 (value?.trim().length ?? 0) < 10
                             ? 'Moderate/high-risk guides require a safety boundary.'
                             : null,
@@ -654,7 +683,8 @@ class _KnowledgeEditorScreenState extends State<_KnowledgeEditorScreen> {
                         decoration: const InputDecoration(
                           labelText: 'Stop / escalation guidance',
                         ),
-                        validator: (value) => _safetyLevel == 'high' &&
+                        validator: (value) =>
+                            _safetyLevel == 'high' &&
                                 (value?.trim().length ?? 0) < 10
                             ? 'High-risk guides require escalation guidance.'
                             : null,
@@ -663,7 +693,8 @@ class _KnowledgeEditorScreenState extends State<_KnowledgeEditorScreen> {
                       SwitchListTile.adaptive(
                         contentPadding: EdgeInsets.zero,
                         value: _nexusReady,
-                        onChanged: (value) => setState(() => _nexusReady = value),
+                        onChanged: (value) =>
+                            setState(() => _nexusReady = value),
                         title: const Text('Available to Nexus retrieval'),
                         subtitle: const Text(
                           'Only published versions are actually retrievable by Nexus.',
@@ -678,7 +709,9 @@ class _KnowledgeEditorScreenState extends State<_KnowledgeEditorScreen> {
                       const SizedBox(height: 10),
                       DropdownButtonFormField<String>(
                         initialValue: _status,
-                        decoration: const InputDecoration(labelText: 'Workflow status'),
+                        decoration: const InputDecoration(
+                          labelText: 'Workflow status',
+                        ),
                         items: statuses
                             .map(
                               (status) => DropdownMenuItem(
@@ -687,7 +720,8 @@ class _KnowledgeEditorScreenState extends State<_KnowledgeEditorScreen> {
                               ),
                             )
                             .toList(),
-                        onChanged: (value) => setState(() => _status = value ?? _status),
+                        onChanged: (value) =>
+                            setState(() => _status = value ?? _status),
                       ),
                       const SizedBox(height: 10),
                       TextField(
@@ -714,7 +748,9 @@ class _KnowledgeEditorScreenState extends State<_KnowledgeEditorScreen> {
                         icon: _saving
                             ? const SizedBox.square(
                                 dimension: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Icon(Icons.save_outlined),
                         label: Text(_saving ? 'Saving…' : 'Save Version'),
@@ -734,7 +770,10 @@ class _KnowledgeEditorScreenState extends State<_KnowledgeEditorScreen> {
 
 List<String> _asStringList(Object? value) {
   if (value is! List) return const [];
-  return value.map((item) => '$item'.trim()).where((item) => item.isNotEmpty).toList();
+  return value
+      .map((item) => '$item'.trim())
+      .where((item) => item.isNotEmpty)
+      .toList();
 }
 
 String _label(String value) => value
