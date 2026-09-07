@@ -254,6 +254,7 @@ async function submitFeedback(req: Request, sql: DbClient): Promise<Response> {
   if (!publicArticleId || !Number.isInteger(version) || version < 1 || typeof body.helpful !== 'boolean') {
     return json({ error: 'invalid_knowledge_feedback' }, 400);
   }
+  const helpful: boolean = body.helpful;
 
   const articleRows = await sql`
     SELECT id, published_version
@@ -278,7 +279,7 @@ async function submitFeedback(req: Request, sql: DbClient): Promise<Response> {
         public_feedback_id, article_id, article_version, user_id, helpful, note
       ) VALUES (
         ${feedbackId}, ${articleId}::uuid, ${version},
-        ${authorization.userId}::uuid, ${body.helpful}, ${note}
+        ${authorization.userId}::uuid, ${helpful}, ${note}
       )
       ON CONFLICT (article_id, user_id, article_version)
       DO UPDATE SET
@@ -295,7 +296,7 @@ async function submitFeedback(req: Request, sql: DbClient): Promise<Response> {
         ${tx.json({
           publicArticleId,
           version,
-          helpful: body.helpful,
+          helpful,
         })}
       )
     `;
