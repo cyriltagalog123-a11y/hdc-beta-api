@@ -4,12 +4,20 @@ import { describe, expect, it } from 'vitest';
 const read = (path: string) =>
   readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
+const currentBuildNumber = () => {
+  const packageJson = JSON.parse(read('package.json')) as { version: string };
+  const match = /-build\.(\d+)$/.exec(packageJson.version);
+  if (!match) throw new Error('Unexpected HDC package version.');
+  return match[1];
+};
+
 describe('Flutter web startup recovery', () => {
-  it('renders a visible Build 26 loading state before Flutter starts', () => {
+  it('renders the current build loading state before Flutter starts', () => {
     const index = read('web/index.html');
+    const buildNumber = currentBuildNumber();
 
     expect(index).toContain('id="hdc-startup"');
-    expect(index).toContain('Build 26');
+    expect(index).toContain(`Build ${buildNumber}`);
     expect(index).toContain('Opening your secure workspace');
     expect(index).toContain('src="hdc_mark.png"');
     expect(index).toContain('src="hdc_startup.js"');

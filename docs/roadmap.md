@@ -1,6 +1,6 @@
 # HelpDesk Connect delivery roadmap
 
-Last updated: 2026-09-06
+Last updated: 2026-09-07
 
 ## Delivered baseline
 
@@ -150,3 +150,40 @@ Flutter analysis/widget tests, API tests, PostgreSQL isolation, encrypted
 backup/restore rehearsal, release synchronization, and the production-shaped
 web build. Merge to `main` and production deployment remain separate explicit
 approval gates.
+
+## Delivered interface and hardening milestones — Builds 25–26
+
+- Build 25 completed the application-wide HDC visual and interaction redesign
+  while preserving provider authority, account isolation, and responsive
+  behavior.
+- Build 26 consolidated registration, controlled-location, release, News
+  history, recognition-consent, and CI/deployment hardening as the prerequisite
+  for public knowledge.
+
+## Build 27 — Versioned HDC Knowledge Base
+
+Build 27 activates public Knowledge Base discovery, safe troubleshooting
+guides, related guidance, authenticated helpfulness feedback, and handoff into
+the existing service-request flow. It adds a versioned internal authoring and
+publication workflow and makes published HDC content available to Nexus only as
+retrieval material; it does not authorize generated troubleshooting claims.
+
+Release gates:
+
+1. Public results contain only published snapshots and preserve the last public
+   version while a newer draft or review is prepared.
+2. Admin may draft and request review; only Owner and Super Admin may publish,
+   archive, or reopen archived knowledge.
+3. Published slugs and version history are immutable and retained; stale editor
+   updates return a version conflict instead of overwriting newer work.
+4. Feedback is authenticated, unique per member/article/version, and rejects a
+   version that changes during submission.
+5. The four starter guides include safety and escalation boundaries, and Nexus
+   retrieval remains limited to published, Nexus-ready HDC content with
+   generation disabled.
+6. All 25 migrations rebuild cleanly on PostgreSQL 18, restricted-role grants
+   and knowledge triggers pass, encrypted backup/restore includes knowledge
+   inventory, and Flutter/API/release/deploy-preview checks are green.
+7. Production promotion follows the reviewed sequence in
+   `docs/build27-production-readiness.md`; a frontend-only deploy is not a
+   successful Build 27 release.

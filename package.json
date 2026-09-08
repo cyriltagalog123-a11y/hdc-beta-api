@@ -1,6 +1,6 @@
 {
   "name": "hdc-beta-api",
-  "version": "0.6.4-build.26",
+  "version": "0.6.4-build.27",
   "private": true,
   "type": "module",
   "engines": {
@@ -9,6 +9,7 @@
   "scripts": {
     "backup:postgres": "node scripts/postgres/backup.mjs",
     "db:rehearse-clean": "node scripts/postgres/rehearse-clean-schema.mjs",
+    "db:rehearse-build27-upgrade": "node scripts/postgres/rehearse-build27-upgrade.mjs",
     "build:web": "bash scripts/build-netlify-web.sh",
     "test:postgres": "node scripts/postgres/run-integration-tests.mjs",
     "test:backup-rehearsal": "node scripts/postgres/run-backup-rehearsal-integration.mjs",

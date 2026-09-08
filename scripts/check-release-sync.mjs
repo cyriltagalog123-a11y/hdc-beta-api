@@ -12,16 +12,20 @@ const [, semanticVersion, buildNumber] = release;
 const expected = {
   flutter: `version: ${semanticVersion}+${buildNumber}`,
   app: `${semanticVersion} Beta (Build ${buildNumber})`,
+  login: `CONTROLLED BETA • BUILD ${buildNumber}`,
   footer: `HelpDesk Connect Beta v${semanticVersion} Build ${buildNumber}`,
   health: `${semanticVersion}-build${buildNumber}`,
   startup: `Build ${buildNumber}`,
+  recovery: `Build ${buildNumber}`,
 };
 const files = {
   flutter: await read('pubspec.yaml'),
   app: await read('lib/core/config/app_config.dart'),
+  login: await read('lib/features/authentication/login_screen.dart'),
   footer: await read('lib/features/dashboard/dashboard_screen.dart'),
   health: await read('netlify/functions/api.mts'),
   startup: await read('web/index.html'),
+  recovery: await read('web/hdc_startup.js'),
 };
 for (const [target, marker] of Object.entries(expected)) {
   assert.ok(files[target].includes(marker), `${target} release marker is not synchronized: expected ${marker}`);

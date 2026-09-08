@@ -228,6 +228,23 @@ class HdcWorkflowApiClient {
         'That platform role application has already been reviewed.',
       'role_application_not_found' =>
         'That platform role application is no longer available.',
+      'knowledge_management_forbidden' || 'knowledge_publish_forbidden' =>
+        'Your HDC internal role cannot publish or archive knowledge.',
+      'knowledge_article_not_found' =>
+        'That HDC Knowledge Base guide is no longer available.',
+      'knowledge_slug_conflict' =>
+        'That Knowledge Base link is already in use. Choose another slug.',
+      'knowledge_slug_locked' ||
+      'knowledge_version_conflict' ||
+      'knowledge_article_version_changed' ||
+      'knowledge_delete_not_allowed' when safeServerMessage != null =>
+        safeServerMessage,
+      'invalid_knowledge_classification' ||
+      'invalid_knowledge_content' ||
+      'invalid_knowledge_version' ||
+      'knowledge_safety_notice_required' ||
+      'knowledge_escalation_required' =>
+        'Review the Knowledge Base guide fields and try again.',
       'recovery_review_not_found' =>
         'That account recovery request is no longer available.',
       'recovery_review_already_completed' =>
@@ -235,8 +252,7 @@ class HdcWorkflowApiClient {
       'service_request_not_found' =>
         'The service request is no longer available.',
       'proposal_not_found' => 'The proposal is no longer available.',
-      'proposal_already_exists' =>
-        'You already have a proposal for this request. Refresh it before editing.',
+      'proposal_already_exists' => 'You already have a proposal for this request. Refresh it before editing.',
       'technician_already_selected' =>
         'A technician has already been selected for this request.',
       'request_not_accepting_proposals' =>

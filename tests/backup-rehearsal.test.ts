@@ -171,6 +171,8 @@ describe('encrypted PostgreSQL restore rehearsal', () => {
     expect(backup).toContain("privilegeMode: 'authenticated-hdc-allowlist-v1'");
     expect(backup).toContain('excludedExtensions: [');
     expect(backup).toContain('excludedSchemas: [');
+    expect(backup).toContain('AS knowledge_articles');
+    expect(backup).toContain('knowledgeArticles: Number(row.knowledge_articles)');
     expect(restore).toContain("'--no-acl'");
     expect(restore).toContain('applyPortablePrivileges(');
     expect(restore).toContain(
@@ -180,6 +182,9 @@ describe('encrypted PostgreSQL restore rehearsal', () => {
     expect(restore).toContain('manifest.excludedSchemas');
     expect(restore).toContain("has_table_privilege(");
     expect(restore).toContain("'hdc_app', 'public.hdc_private_messages', 'INSERT'");
+    expect(restore).toContain("'hdc_app', 'public.hdc_knowledge_articles'");
+    expect(restore).toContain('app_knowledge_versions_immutable');
+    expect(restore).toContain('knowledgeFeedback: Number(row.knowledge_feedback)');
     expect(restore).toContain('AS application_policies');
   });
 });

@@ -62,13 +62,13 @@ describe('HDC News, recognition, and Build 27 preparation', () => {
     expect(dashboard).toContain('KnowledgeBaseScreen');
   });
 
-  it('keeps Knowledge Base implementation explicitly deferred to Build 27', () => {
+  it('activates the reviewed Knowledge Base in Build 27', () => {
     const kb = read('lib/features/knowledge_base/knowledge_base_screen.dart');
-    expect(kb).toContain('BUILD 27 READY');
-    expect(kb).toContain('Search becomes active in Build 27');
-    expect(kb).toContain('enabled: false');
-    expect(kb).toContain('Nexus knowledge retrieval foundation');
-    expect(kb).toContain('does not fabricate articles, search results, or Nexus answers');
+    expect(kb).toContain('BUILD 27 • LIVE KNOWLEDGE');
+    expect(kb).toContain('Search the HDC Knowledge Base');
+    expect(kb).toContain('HDC only returns reviewed, published knowledge here.');
+    expect(kb).toContain('this release does not allow Nexus to invent');
+    expect(kb).not.toContain('enabled: false');
   });
 
   it('does not leave temporary one-shot patch machinery in the review branch', () => {

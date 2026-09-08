@@ -6534,7 +6534,13 @@ async function handleReadiness(req: Request): Promise<Response> {
           EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0018') AND
           EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0019') AND
           EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0020') AND
-          EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0021')
+          EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0021') AND
+          EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0022') AND
+          EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0023') AND
+          EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0024') AND
+          to_regclass('public.hdc_knowledge_articles') IS NOT NULL AND
+          to_regclass('public.hdc_knowledge_article_versions') IS NOT NULL AND
+          to_regclass('public.hdc_knowledge_feedback') IS NOT NULL
         ) AS latest_schema_ready,
         EXISTS (
           SELECT 1
@@ -6625,7 +6631,7 @@ async function handleHdcApiRequestCore(
     return json({
       service: 'hdc-beta-api',
       status: 'ok',
-      build: '0.6.4-build26',
+      build: '0.6.4-build27',
     });
   }
   if (path === '/api/health/ready') return await handleReadiness(req);
