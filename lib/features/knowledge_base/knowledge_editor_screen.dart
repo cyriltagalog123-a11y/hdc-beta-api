@@ -518,10 +518,12 @@ class _KnowledgeEditorScreenState extends State<KnowledgeEditorScreen> {
                                   ),
                                   validator: (value) {
                                     final text = value?.trim() ?? '';
-                                    if (text.isEmpty)
+                                    if (text.isEmpty) {
                                       return 'Write this step or remove it.';
-                                    if (text.length > 700)
+                                    }
+                                    if (text.length > 700) {
                                       return 'Keep each step within 700 characters.';
+                                    }
                                     if (_steps
                                             .where(
                                               (step) =>
@@ -611,10 +613,12 @@ class _KnowledgeEditorScreenState extends State<KnowledgeEditorScreen> {
                               .map((tag) => tag.trim())
                               .where((tag) => tag.isNotEmpty)
                               .toList();
-                          if (tags.length > 16)
+                          if (tags.length > 16) {
                             return 'Use no more than 16 tags.';
-                          if (tags.any((tag) => tag.length > 48))
+                          }
+                          if (tags.any((tag) => tag.length > 48)) {
                             return 'Keep each tag within 48 characters.';
+                          }
                           return null;
                         },
                       ),
