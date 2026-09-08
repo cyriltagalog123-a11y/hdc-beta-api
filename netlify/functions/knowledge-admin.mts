@@ -156,7 +156,22 @@ function parsePayload(body: Record<string, unknown>) {
   } as const;
 }
 
-async function list(sql: DbClient, roles: readonly string[]): Promise<Response> {
+async function list(req: Request, sql: DbClient, roles: readonly string[]): Promise<Response> {
+  const params = new URL(req.url).searchParams;
+  const query = cleanText(params.get('q'), 180).toLowerCase();
+  const category = cleanText(params.get('category'), 40);
+  const status = cleanText(params.get('status'), 24);
+  const offsetText = params.get('offset') ?? '0';
+  const limitText = params.get('limit') ?? '50';
+  const offset = Number(offsetText);
+  const limit = Number(limitText);
+  if (
+    (category && !categories.has(category)) || (status && !statuses.has(status)) ||
+    !/^\d+$/.test(offsetText) || !Number.isSafeInteger(offset) || offset > 1_000_000 ||
+    !/^\d+$/.test(limitText) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100
+  ) {
+    return json({ error: 'invalid_knowledge_filters' }, 400);
+  }
   const rows = await sql`
     SELECT
       id, public_article_id, slug, category, title, summary, body, steps, tags,
@@ -164,15 +179,24 @@ async function list(sql: DbClient, roles: readonly string[]): Promise<Response> 
       status, version, published_version, ever_published, published_at,
       created_at, updated_at
     FROM public.hdc_knowledge_articles
+    WHERE (${category} = '' OR category = ${category})
+      AND (${status} = '' OR status = ${status})
+      AND (${query} = '' OR position(${query} in lower(
+        title || ' ' || summary || ' ' || slug || ' ' || public_article_id || ' ' ||
+        array_to_string(tags, ' ')
+      )) > 0)
     ORDER BY
       CASE status WHEN 'review' THEN 0 WHEN 'draft' THEN 1 WHEN 'published' THEN 2 ELSE 3 END,
       is_featured DESC,
-      updated_at DESC
-    LIMIT 300
+      updated_at DESC,
+      id DESC
+    LIMIT ${limit + 1} OFFSET ${offset}
   `;
   return json({
     canPublish: canPublish(roles),
-    articles: rows.map((row) => articleView(row)),
+    articles: rows.slice(0, limit).map((row) => articleView(row)),
+    hasMore: rows.length > limit,
+    nextOffset: rows.length > limit ? offset + limit : null,
   });
 }
 
@@ -505,7 +529,7 @@ async function handle(req: Request): Promise<Response> {
     if (req.method === 'GET') {
       const view = new URL(req.url).searchParams.get('view');
       if (view === 'history') return await history(req, sql, authorization.internalRoles);
-      return await list(sql, authorization.internalRoles);
+      return await list(req, sql, authorization.internalRoles);
     }
     if (req.method === 'POST') {
       return await create(req, sql, authorization.userId, authorization.internalRoles);

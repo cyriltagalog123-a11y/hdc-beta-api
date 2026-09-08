@@ -87,6 +87,11 @@ or archive. Published URLs and version history are retained, concurrent edits
 fail closed, and Nexus retrieval is limited to published, Nexus-ready HDC
 content without generation authority.
 
+Knowledge Management adds searchable, paginated authoring lists, category moves,
+archive/restore actions, a step editor with reorder and Undo, and an unsaved-content
+preview. Draft, review, and publication are separate actions. See the
+[Knowledge Management guide](docs/knowledge-management.md) for everyday tasks.
+
 Public registration remains canonical at `POST /api/auth/register` and requires
 the controlled HDC location contract. `POST /api/auth/register-v2` remains a
 deprecated compatibility alias. Public News preserves published history and

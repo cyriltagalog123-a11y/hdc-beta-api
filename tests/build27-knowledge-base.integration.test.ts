@@ -188,6 +188,33 @@ describe.skipIf(!runPostgresIntegration).sequential(
       expect(retrievals.every((item) => item.nexusReady === true)).toBe(true);
     });
 
+    it('finds and pages management guides by category, status, text, and ID', async () => {
+      const path = '/api/internal/knowledge?category=printers_peripherals&status=published&q=USB&limit=1';
+      const first = await adminKnowledge(path, {}, admin.token);
+      expectStatus(first, 200);
+      const firstArticles = first.body.articles as Record<string, unknown>[];
+      expect(firstArticles).toHaveLength(1);
+      expect(first.body.hasMore).toBe(true);
+      expect(first.body.nextOffset).toBe(1);
+
+      const second = await adminKnowledge(`${path}&offset=1`, {}, admin.token);
+      expectStatus(second, 200);
+      const secondArticles = second.body.articles as Record<string, unknown>[];
+      expect(secondArticles).toHaveLength(1);
+      expect(second.body.hasMore).toBe(false);
+      expect(new Set([...firstArticles, ...secondArticles].map((article) => article.publicArticleId)))
+        .toEqual(new Set(['KB-PRN-001', 'KB-HST-001']));
+
+      const exact = await adminKnowledge('/api/internal/knowledge?q=KB-PRN-001', {}, owner.token);
+      expectStatus(exact, 200);
+      expect((exact.body.articles as Record<string, unknown>[]).map((article) => article.publicArticleId))
+        .toEqual(['KB-PRN-001']);
+      const literal = await adminKnowledge('/api/internal/knowledge?q=%25_%27', {}, admin.token);
+      expectStatus(literal, 200);
+      expect(literal.body.articles).toEqual([]);
+      expectStatus(await adminKnowledge(path, {}, member.token), 403);
+    });
+
     it('lets Admin draft/review but reserves publication for Owner or Super Admin', async () => {
       const unsafe = await adminKnowledge('/api/internal/knowledge', {
         method: 'POST',
@@ -450,6 +477,30 @@ describe.skipIf(!runPostgresIntegration).sequential(
       expect(versions.length).toBe(5);
       expect(versions[0].workflowStatus).toBe('archived');
       expect(versions.some((version) => version.workflowStatus === 'published')).toBe(true);
+
+      const restored = await adminKnowledge('/api/internal/knowledge', {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...basePayload,
+          id: workingArticle.id,
+          expectedVersion: workingArticle.version,
+          title: 'Working changes held for review after restoring the guide',
+          category: 'pc_laptop',
+          status: 'review',
+          changeNote: 'Restore published visibility without publishing working edits',
+        }),
+      }, owner.token);
+      expectStatus(restored, 200);
+      const restoredArticle = restored.body.article as Record<string, unknown>;
+      expect(restoredArticle.publicVisible).toBe(true);
+      expect(restoredArticle.publishedVersion).toBe(4);
+      expect(restoredArticle.category).toBe('pc_laptop');
+      const visibleAgain = await publicKnowledge(`/api/knowledge?slug=${basePayload.slug}`);
+      expectStatus(visibleAgain, 200);
+      const publicArticle = visibleAgain.body.article as Record<string, unknown>;
+      expect(publicArticle.title).toBe(finalTitle);
+      expect(publicArticle.category).toBe(basePayload.category);
+      expect(publicArticle.version).toBe(4);
     });
   },
 );
