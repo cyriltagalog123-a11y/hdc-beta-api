@@ -78,16 +78,22 @@ Map<String, dynamic> _article({
 
 Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
+  // ensureVisible can jump the scroll position without laying out a frame.
+  await tester.pump();
   await tester.tap(finder);
   // Dialogs can sit above an indeterminate progress bar while actions are locked.
   // Advance navigation without waiting for a network request to settle.
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 400));
   await tester.pump();
+  if (find.byType(LinearProgressIndicator).evaluate().isEmpty) {
+    await tester.pumpAndSettle();
+  }
 }
 
 Future<void> _fill(WidgetTester tester, Finder finder, String text) async {
   await tester.ensureVisible(finder);
+  await tester.pump();
   await tester.enterText(finder, text);
   await tester.pump();
 }
@@ -141,6 +147,8 @@ Future<void> _library(WidgetTester tester, _Client client) async {
 }
 
 void main() {
+  setUpAll(() => WidgetController.hitTestWarningShouldBeFatal = true);
+  tearDownAll(() => WidgetController.hitTestWarningShouldBeFatal = false);
   testWidgets(
     'creates a draft with ordered steps and a preview that makes no writes',
     (tester) async {
@@ -172,7 +180,13 @@ void main() {
         find.text('UNSAVED PREVIEW · only you can see this'),
         findsOneWidget,
       );
-      expect(find.text('Check the power.'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is SelectableText && widget.data == 'Check the power.',
+        ),
+        findsOneWidget,
+      );
       expect(client.writes, isEmpty);
       await _tap(tester, find.byType(BackButton));
       expect(find.text('Publish…'), findsNothing);
