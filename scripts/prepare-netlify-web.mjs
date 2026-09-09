@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { cp, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { prepareWebRelease } from './lib/web-release.mjs';
 
 const buildDirectory = new URL('../build/web/', import.meta.url);
 const resetSource = new URL('../public/reset-password/', import.meta.url);
@@ -127,16 +128,16 @@ if (!flutterBootstrap.includes('"useLocalCanvasKit":true')) {
     'Flutter web renderer resources must be self-hosted. Build with --no-web-resources-cdn.',
   );
 }
-const normalizedBootstrap = flutterBootstrap.replace(
-  /serviceWorkerVersion: "[^"]+"/,
-  `serviceWorkerVersion: "${packageJson.version}"`,
-);
-if (normalizedBootstrap === flutterBootstrap) {
-  throw new Error('Flutter service-worker version marker could not be normalized.');
-}
+const preparedRelease = prepareWebRelease({
+  bootstrap: flutterBootstrap,
+  worker: await readFile(new URL('flutter_service_worker.js', buildDirectory), 'utf8'),
+  entrypoint: await readFile(new URL('main.dart.js', buildDirectory), 'utf8'),
+  version: packageJson.version,
+  revision: process.env.COMMIT_REF || process.env.GITHUB_SHA || null,
+});
 await writeFile(
   new URL('flutter_bootstrap.js', buildDirectory),
-  normalizedBootstrap,
+  preparedRelease.bootstrap,
   'utf8',
 );
 
@@ -157,6 +158,6 @@ await cp(resetSource, resetDestination, { recursive: true, force: true });
 
 await writeFile(
   new URL('hdc-release.json', buildDirectory),
-  `${JSON.stringify({ service: 'hdc-web', version: packageJson.version })}\n`,
+  `${JSON.stringify(preparedRelease.release)}\n`,
   'utf8',
 );

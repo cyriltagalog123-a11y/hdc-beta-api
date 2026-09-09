@@ -88,8 +88,10 @@ class HdcWorkflowApiClient {
     if (body != null) request.body = jsonEncode(body);
 
     try {
-      final streamed = await _client.send(request).timeout(_requestTimeout);
-      final response = await http.Response.fromStream(streamed);
+      final response = await _client
+          .send(request)
+          .then(http.Response.fromStream)
+          .timeout(_requestTimeout);
       final decoded = _decodeObject(response.body);
 
       if (response.statusCode < 200 || response.statusCode >= 300) {

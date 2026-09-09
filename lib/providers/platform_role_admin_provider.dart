@@ -12,33 +12,41 @@ class PlatformRoleAdminProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool _isSaving = false;
   Object? _lastError;
+  bool _disposed = false;
+  int _bindingVersion = 0;
+  int _searchGeneration = 0;
 
   PlatformRoleAdminProvider({this.client});
 
   bool get backendAvailable => client != null;
-  bool get hasAccess => _identity?.internalRoles.any(
+  bool get hasAccess => !_disposed && (_identity?.internalRoles.any(
         (role) =>
             role == HDCInternalRole.owner ||
             role == HDCInternalRole.superAdmin ||
             role == HDCInternalRole.admin,
-      ) ?? false;
+      ) ?? false);
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
   Object? get lastError => _lastError;
   List<PlatformRoleAdminMember> get members => _members;
 
   void bindIdentity(AccountIdentity? identity) {
+    if (_disposed) return;
     if (_identity?.id == identity?.id &&
         setEquals(_identity?.internalRoles, identity?.internalRoles)) {
       return;
     }
     _identity = identity;
+    _bindingVersion += 1;
     _members = const [];
+    _isLoading = false;
+    _isSaving = false;
     _lastError = null;
     notifyListeners();
   }
 
   Future<void> search([String query = '']) async {
+    if (_disposed) return;
     final api = client;
     if (api == null) {
       _lastError = StateError('The HDC platform-role admin API is unavailable.');
@@ -50,6 +58,10 @@ class PlatformRoleAdminProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    final binding = _bindingVersion;
+    final generation = ++_searchGeneration;
+    bool current() =>
+        _isCurrent(binding) && generation == _searchGeneration;
     _isLoading = true;
     _lastError = null;
     notifyListeners();
@@ -58,6 +70,7 @@ class PlatformRoleAdminProvider extends ChangeNotifier {
       final response = await api.get(
         '/api/internal/platform-role-admin?q=$encoded',
       );
+      if (!current()) return;
       final raw = response['members'];
       if (raw is! List) {
         throw const HdcWorkflowException(
@@ -73,11 +86,14 @@ class PlatformRoleAdminProvider extends ChangeNotifier {
             ),
       );
     } on Object catch (error) {
+      if (!current()) return;
       _lastError = error;
       rethrow;
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (current()) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -94,6 +110,13 @@ class PlatformRoleAdminProvider extends ChangeNotifier {
     if (api == null || !hasAccess) {
       throw StateError('This account cannot manage platform roles.');
     }
+    if (_isSaving) {
+      throw StateError('Wait for the current role change to finish.');
+    }
+    final binding = _bindingVersion;
+    // Invalidate searches that started before this role change.
+    _searchGeneration += 1;
+    _isLoading = false;
     _isSaving = true;
     _lastError = null;
     notifyListeners();
@@ -107,6 +130,11 @@ class PlatformRoleAdminProvider extends ChangeNotifier {
           'reason': reason.trim(),
         },
       );
+      if (!_isCurrent(binding)) {
+        throw StateError('Your account changed. Reopen role management.');
+      }
+      _searchGeneration += 1;
+      _isLoading = false;
       final rawMember = response['member'];
       if (rawMember is! Map) {
         throw const HdcWorkflowException(
@@ -121,11 +149,23 @@ class PlatformRoleAdminProvider extends ChangeNotifier {
         _members.map((item) => item.id == updated.id ? updated : item),
       );
     } on Object catch (error) {
-      _lastError = error;
+      if (_isCurrent(binding)) _lastError = error;
       rethrow;
     } finally {
-      _isSaving = false;
-      notifyListeners();
+      if (_isCurrent(binding)) {
+        _isSaving = false;
+        notifyListeners();
+      }
     }
+  }
+
+  bool _isCurrent(int binding) => hasAccess && binding == _bindingVersion;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _bindingVersion += 1;
+    _members = const [];
+    super.dispose();
   }
 }

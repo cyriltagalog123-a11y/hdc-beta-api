@@ -42,6 +42,11 @@
     Cache-Control = "no-cache, no-store, must-revalidate"
 
 [[headers]]
+  for = "/hdc-release.json"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
   for = "/hdc_startup.js"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"

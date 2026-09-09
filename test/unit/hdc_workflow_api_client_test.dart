@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +10,30 @@ import 'package:hdc_app/core/auth/auth_session_store.dart';
 
 void main() {
   group('HdcWorkflowApiClient', () {
+    testWidgets('times out when headers arrive but the response body stalls',
+        (tester) async {
+      final body = StreamController<List<int>>();
+      final client = HdcWorkflowApiClient(
+        baseUri: Uri.parse('https://example.test'),
+        sessionStore: MemoryAuthSessionStore(),
+        client: MockClient.streaming((request, requestBody) async {
+          return http.StreamedResponse(body.stream, 200);
+        }),
+      );
+      final result = expectLater(
+        client.getPublic('/api/knowledge'),
+        throwsA(isA<HdcWorkflowException>().having(
+          (error) => error.code,
+          'code',
+          'network_timeout',
+        )),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 26));
+      await result;
+      await body.close();
+    });
+
     test('sends the process session token to the HDC workflow API', () async {
       final store = MemoryAuthSessionStore();
       await store.write(

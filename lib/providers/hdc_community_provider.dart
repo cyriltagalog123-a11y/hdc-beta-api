@@ -105,6 +105,10 @@ class HdcBadgeItem {
 class HdcCommunityProvider extends ChangeNotifier {
   final HdcWorkflowApiClient? client;
   String? _userId;
+  bool _disposed = false;
+  int _bindingVersion = 0;
+  int _refreshGeneration = 0;
+  final Map<String, int> _readGenerations = {};
   bool isLoading = false;
   String? errorMessage;
   double receivedAverage = 0;
@@ -116,8 +120,10 @@ class HdcCommunityProvider extends ChangeNotifier {
   HdcCommunityProvider({required this.client});
 
   void bindUser(String? userId) {
-    if (_userId == userId) return;
+    if (_disposed || _userId == userId) return;
     _userId = userId;
+    _bindingVersion += 1;
+    isLoading = false;
     receivedAverage = 0;
     receivedCount = 0;
     ratingOpportunities = const [];
@@ -128,23 +134,28 @@ class HdcCommunityProvider extends ChangeNotifier {
   }
 
   Future<void> refreshAll() async {
-    if (_userId == null || client == null) return;
+    if (_disposed || _userId == null || client == null) return;
+    final binding = _bindingVersion;
+    final generation = ++_refreshGeneration;
     isLoading = true;
     errorMessage = null;
     notifyListeners();
     try {
       await Future.wait([refreshRatings(notify: false), refreshSuggestions(notify: false), refreshBadges(notify: false)]);
     } on Object catch (error) {
-      errorMessage = '$error';
+      if (_isCurrent(binding) && generation == _refreshGeneration) {
+        errorMessage = '$error';
+      }
     } finally {
-      isLoading = false;
-      notifyListeners();
+      if (_isCurrent(binding) && generation == _refreshGeneration) {
+        isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
-  Future<void> refreshRatings({bool notify = true}) async {
-    if (_userId == null || client == null) return;
-    final data = await client!.get('/api/community?view=ratings');
+  Future<void> refreshRatings({bool notify = true}) =>
+      _read('ratings', (data) {
     final received = data['received'] is Map
         ? Map<String, dynamic>.from(data['received'] as Map)
         : const <String, dynamic>{};
@@ -160,28 +171,23 @@ class HdcCommunityProvider extends ChangeNotifier {
       }
     }
     ratingOpportunities = List.unmodifiable(items);
-    if (notify) notifyListeners();
-  }
+  }, notify: notify);
 
-  Future<void> refreshSuggestions({bool notify = true}) async {
-    if (_userId == null || client == null) return;
-    final data = await client!.get('/api/community?view=suggestions');
+  Future<void> refreshSuggestions({bool notify = true}) =>
+      _read('suggestions', (data) {
     final raw = data['suggestions'];
     suggestions = raw is List
         ? List.unmodifiable(raw.whereType<Map>().map((e) => HdcSuggestionItem.fromJson(Map<String, dynamic>.from(e))))
         : const [];
-    if (notify) notifyListeners();
-  }
+  }, notify: notify);
 
-  Future<void> refreshBadges({bool notify = true}) async {
-    if (_userId == null || client == null) return;
-    final data = await client!.get('/api/community?view=badges');
+  Future<void> refreshBadges({bool notify = true}) =>
+      _read('badges', (data) {
     final raw = data['badges'];
     badges = raw is List
         ? List.unmodifiable(raw.whereType<Map>().map((e) => HdcBadgeItem.fromJson(Map<String, dynamic>.from(e))))
         : const [];
-    if (notify) notifyListeners();
-  }
+  }, notify: notify);
 
   Future<void> submitRating({
     required String transactionKind,
@@ -206,13 +212,14 @@ class HdcCommunityProvider extends ChangeNotifier {
         ? 'commerce_complete'
         : null;
     if (action == null) return;
+    final binding = _bindingVersion;
     await _post({
       'action': action,
       'purchaseRequestId': item.transactionId,
       'version': item.version,
     });
     await refreshRatings();
-    await refreshBadges();
+    if (_isCurrent(binding)) await refreshBadges();
   }
 
   Future<void> submitSuggestion({
@@ -241,12 +248,50 @@ class HdcCommunityProvider extends ChangeNotifier {
   }
 
   Future<void> _post(Map<String, Object?> body) async {
-    if (_userId == null || client == null) {
+    if (_disposed || _userId == null || client == null) {
       throw const HdcWorkflowException(
         code: 'authentication_required',
         message: 'Sign in to use HDC community features.',
       );
     }
+    final binding = _bindingVersion;
     await client!.post('/api/community', body: body);
+    if (!_isCurrent(binding)) {
+      throw const HdcWorkflowException(
+        code: 'session_changed',
+        message: 'Your account changed. Reopen the community workspace.',
+      );
+    }
+  }
+
+  bool _isCurrent(int binding) =>
+      !_disposed && _userId != null && binding == _bindingVersion;
+
+  Future<void> _read(
+    String view,
+    void Function(Map<String, dynamic>) apply, {
+    required bool notify,
+  }) async {
+    if (_disposed || _userId == null || client == null) return;
+    final binding = _bindingVersion;
+    final generation = (_readGenerations[view] ?? 0) + 1;
+    _readGenerations[view] = generation;
+    bool current() =>
+        _isCurrent(binding) && generation == _readGenerations[view];
+    try {
+      final data = await client!.get('/api/community?view=$view');
+      if (!current()) return;
+      apply(data);
+      if (notify) notifyListeners();
+    } on Object {
+      if (current()) rethrow;
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _bindingVersion += 1;
+    super.dispose();
   }
 }

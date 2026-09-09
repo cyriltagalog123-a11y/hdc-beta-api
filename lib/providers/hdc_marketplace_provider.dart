@@ -49,6 +49,7 @@ class HdcMarketplaceProvider extends ChangeNotifier {
     _purchaseRequests = const [];
     _purchaseError = null;
     _isLoadingPurchases = false;
+    _isSaving = false;
     final version = _bindingVersion;
     scheduleMicrotask(() {
       if (_disposed || version != _bindingVersion) return;
