@@ -61,7 +61,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   HDCBrandMark(size: 88, darkSurface: true),
                   SizedBox(height: 18),
                   HDCSignalPill(
-                    label: 'BUILD 25 • HDC NETWORK',
+                    label: 'BUILD 27 • HDC NETWORK',
                     icon: Icons.hub_outlined,
                     light: true,
                   ),
