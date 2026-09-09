@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -69,6 +70,45 @@ AccountIdentity _identity(String id) {
 }
 
 void main() {
+  test('switching accounts releases a pending save without accepting its result',
+      () async {
+    final store = MemoryAuthSessionStore();
+    await store.write(StoredAuthSession(
+      token: 'test-buyer-token',
+      expiresAt: DateTime.now().add(const Duration(hours: 1)),
+    ));
+    final response = Completer<http.Response>();
+    final provider = HdcMarketplaceProvider(
+      client: HdcWorkflowApiClient(
+        baseUri: Uri.parse('https://example.test'),
+        sessionStore: store,
+        client: MockClient((request) async {
+          if (request.method == 'POST') return response.future;
+          if (request.url.path == '/api/commerce/catalog') {
+            return http.Response(jsonEncode({'listings': [_product()]}), 200);
+          }
+          return http.Response(jsonEncode({'purchaseRequests': []}), 200);
+        }),
+      ),
+    );
+    provider.bindIdentity(_identity(_userId));
+    await pumpEventQueue();
+    final saving = provider.requestPurchase(
+      product: provider.products.single,
+      quantity: 1,
+      buyerNote: '',
+    );
+    await pumpEventQueue();
+    expect(provider.isSaving, isTrue);
+    provider.bindIdentity(_identity(_secondUserId));
+    expect(provider.isSaving, isFalse);
+    response.complete(http.Response(jsonEncode({'purchaseRequest': _purchase()}), 201));
+    await saving;
+    expect(provider.purchaseRequests, isEmpty);
+    expect(provider.purchaseError, isNull);
+    provider.dispose();
+  });
+
   test('guest catalog is public and does not send an authorization header',
       () async {
     final provider = HdcMarketplaceProvider(

@@ -93,6 +93,7 @@ class HdcKnowledgeProvider extends ChangeNotifier {
   final HdcWorkflowApiClient? client;
 
   int _searchGeneration = 0;
+  bool _disposed = false;
 
   bool isLoading = false;
   String? errorMessage;
@@ -104,6 +105,7 @@ class HdcKnowledgeProvider extends ChangeNotifier {
   HdcKnowledgeProvider({required this.client});
 
   Future<void> search({String query = '', String? category}) async {
+    if (_disposed) return;
     final searchGeneration = ++_searchGeneration;
     if (client == null) {
       errorMessage = 'HDC Knowledge Base services are unavailable.';
@@ -149,12 +151,20 @@ class HdcKnowledgeProvider extends ChangeNotifier {
       if (searchGeneration != _searchGeneration) return;
       errorMessage = '$error';
       articles = const [];
+      categoryCounts = const {};
     } finally {
       if (searchGeneration == _searchGeneration) {
         isLoading = false;
         notifyListeners();
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _searchGeneration += 1;
+    super.dispose();
   }
 
   Future<(HdcKnowledgeArticle, List<HdcKnowledgeArticle>)> loadArticle(

@@ -14,6 +14,10 @@ class HdcNewsProvider extends ChangeNotifier {
   bool _loadingAdmin = false;
   bool _saving = false;
   Object? _lastError;
+  bool _disposed = false;
+  int _bindingVersion = 0;
+  int _publicGeneration = 0;
+  int _adminGeneration = 0;
 
   HdcNewsProvider({required this.client});
 
@@ -26,7 +30,7 @@ class HdcNewsProvider extends ChangeNotifier {
 
   bool get canManage {
     final identity = _identity;
-    if (identity == null) return false;
+    if (_disposed || identity == null) return false;
     return identity.internalRoles.any(
       (role) => role == HDCInternalRole.owner ||
           role == HDCInternalRole.superAdmin ||
@@ -35,17 +39,22 @@ class HdcNewsProvider extends ChangeNotifier {
   }
 
   void bindIdentity(AccountIdentity? identity) {
+    if (_disposed) return;
     if (_identity?.id == identity?.id &&
         setEquals(_identity?.internalRoles, identity?.internalRoles)) {
       return;
     }
     _identity = identity;
-    if (!canManage) _adminPosts = const [];
+    _bindingVersion += 1;
+    _adminPosts = const [];
+    _loadingAdmin = false;
+    _saving = false;
+    _lastError = null;
     notifyListeners();
   }
 
-  Future<void> loadPublic() async {
-    if (_loadingPublic) return;
+  Future<void> loadPublic({bool force = false}) async {
+    if (_disposed || (_loadingPublic && !force)) return;
     final api = client;
     if (api == null) {
       _lastError = const HdcWorkflowException(
@@ -55,35 +64,48 @@ class HdcNewsProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    final generation = ++_publicGeneration;
     _loadingPublic = true;
     _lastError = null;
     notifyListeners();
     try {
       final response = await api.getPublic('/api/news');
-      _publicPosts = _decodePosts(response['posts']);
+      if (!_disposed && generation == _publicGeneration) {
+        _publicPosts = _decodePosts(response['posts']);
+      }
     } on Object catch (error) {
-      _lastError = error;
+      if (!_disposed && generation == _publicGeneration) {
+        _lastError = error;
+      }
     } finally {
-      _loadingPublic = false;
-      notifyListeners();
+      if (!_disposed && generation == _publicGeneration) {
+        _loadingPublic = false;
+        notifyListeners();
+      }
     }
   }
 
-  Future<void> loadAdmin() async {
-    if (_loadingAdmin || !canManage) return;
+  Future<void> loadAdmin({bool force = false}) async {
+    if ((_loadingAdmin && !force) || !canManage) return;
     final api = client;
     if (api == null) return;
+    final binding = _bindingVersion;
+    final generation = ++_adminGeneration;
+    bool current() =>
+        _isCurrent(binding) && generation == _adminGeneration;
     _loadingAdmin = true;
     _lastError = null;
     notifyListeners();
     try {
       final response = await api.get('/api/internal/news');
-      _adminPosts = _decodePosts(response['posts']);
+      if (current()) _adminPosts = _decodePosts(response['posts']);
     } on Object catch (error) {
-      _lastError = error;
+      if (current()) _lastError = error;
     } finally {
-      _loadingAdmin = false;
-      notifyListeners();
+      if (current()) {
+        _loadingAdmin = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -115,6 +137,8 @@ class HdcNewsProvider extends ChangeNotifier {
         message: 'HDC news services are unavailable in this environment.',
       );
     }
+    _ensureNoWrite();
+    final binding = _bindingVersion;
     _saving = true;
     _lastError = null;
     notifyListeners();
@@ -136,6 +160,7 @@ class HdcNewsProvider extends ChangeNotifier {
       final response = id == null
           ? await api.post('/api/internal/news', body: payload)
           : await api.put('/api/internal/news', body: payload);
+      _ensureCurrent(binding);
       final rawPost = response['post'];
       if (rawPost is! Map) {
         throw const HdcWorkflowException(
@@ -146,14 +171,17 @@ class HdcNewsProvider extends ChangeNotifier {
       final post = HdcNewsPost.fromJson(
         rawPost.map((key, value) => MapEntry('$key', value)),
       );
-      await Future.wait([loadAdmin(), loadPublic()]);
+      await Future.wait([loadAdmin(force: true), loadPublic(force: true)]);
+      _ensureCurrent(binding);
       return post;
     } on Object catch (error) {
-      _lastError = error;
+      if (_isCurrent(binding)) _lastError = error;
       rethrow;
     } finally {
-      _saving = false;
-      notifyListeners();
+      if (_isCurrent(binding)) {
+        _saving = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -167,19 +195,53 @@ class HdcNewsProvider extends ChangeNotifier {
     }
     final api = client;
     if (api == null) return;
+    _ensureNoWrite();
+    final binding = _bindingVersion;
     _saving = true;
     _lastError = null;
     notifyListeners();
     try {
       await api.delete('/api/internal/news?id=${Uri.encodeQueryComponent(post.id)}');
-      await Future.wait([loadAdmin(), loadPublic()]);
+      _ensureCurrent(binding);
+      await Future.wait([loadAdmin(force: true), loadPublic(force: true)]);
+      _ensureCurrent(binding);
     } on Object catch (error) {
-      _lastError = error;
+      if (_isCurrent(binding)) _lastError = error;
       rethrow;
     } finally {
-      _saving = false;
-      notifyListeners();
+      if (_isCurrent(binding)) {
+        _saving = false;
+        notifyListeners();
+      }
     }
+  }
+
+  bool _isCurrent(int binding) => canManage && binding == _bindingVersion;
+
+  void _ensureCurrent(int binding) {
+    if (!_isCurrent(binding)) {
+      throw const HdcWorkflowException(
+        code: 'session_changed',
+        message: 'Your account changed. Reopen news management.',
+      );
+    }
+  }
+
+  void _ensureNoWrite() {
+    if (_saving) {
+      throw const HdcWorkflowException(
+        code: 'news_request_in_progress',
+        message: 'Wait for the current news change to finish.',
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _bindingVersion += 1;
+    _adminPosts = const [];
+    super.dispose();
   }
 
   List<HdcNewsPost> _decodePosts(Object? raw) {
