@@ -63,7 +63,12 @@ const buildMarkerPattern = /\b(?:BUILD|Build)\s+(\d+)\b/g;
 
 for (const path of userFacingSourceFiles) {
   const source = await read(path);
-  for (const match of source.matchAll(buildMarkerPattern)) {
+  const visibleSource = source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+
+  for (const match of visibleSource.matchAll(buildMarkerPattern)) {
     if (match[1] !== buildNumber) {
       staleReleaseMarkers.push(`${path}: ${match[0]}`);
     }
