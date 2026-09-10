@@ -6,6 +6,7 @@ import '../core/api/hdc_workflow_api_client.dart';
 import '../models/account_identity.dart';
 import '../models/account_recovery_review.dart';
 import '../models/hdc_internal_dashboard.dart';
+import '../models/hdc_operations_report.dart';
 import '../models/platform_role_application.dart';
 import '../models/transaction_toolbox.dart';
 
@@ -27,7 +28,8 @@ class HdcInternalDashboardProvider extends ChangeNotifier {
 
   HdcInternalDashboardProvider({this.client});
 
-  bool get hasAccess => _boundUserId != null && _boundRoles.isNotEmpty;
+  bool get hasAccess => !_disposed && _boundUserId != null && _boundRoles.isNotEmpty;
+  String get reportSessionKey => '$_boundUserId:$_bindingVersion';
   bool get backendAvailable => client != null;
   HDCInternalDashboardSnapshot? get snapshot => _snapshot;
   Map<String, int> get statistics =>
@@ -124,6 +126,51 @@ class HdcInternalDashboardProvider extends ChangeNotifier {
         _announce();
       }
     }
+  }
+
+  Future<HdcOperationsReport> loadReport({
+    required String report,
+    String scope = 'current',
+    String query = '',
+    int offset = 0,
+    String? id,
+    String? section,
+    int sectionOffset = 0,
+  }) async {
+    final api = client;
+    final userId = _boundUserId;
+    final bindingVersion = _bindingVersion;
+    if (!hasAccess || api == null || userId == null) {
+      throw const HdcWorkflowException(
+        code: 'internal_access_required',
+        message: 'Sign in with an authorized internal account to view reports.',
+      );
+    }
+    final path = Uri(path: '/api/internal/reports', queryParameters: {
+      'report': report,
+      'scope': scope,
+      'q': query,
+      'offset': '$offset',
+      if (id != null) 'id': id,
+      if (section != null) 'section': section,
+      if (section != null) 'sectionOffset': '$sectionOffset',
+    }).toString();
+    final response = await api.get(path);
+    if (!_isCurrent(userId, bindingVersion)) {
+      throw const HdcWorkflowException(
+        code: 'operations_request_stale',
+        message: 'The signed-in account or its permissions changed. Reopen the report.',
+      );
+    }
+    final result = HdcOperationsReport.fromJson(response);
+    if (result.userId != userId || result.report != report ||
+        (id != null && (result.records.length != 1 || result.records.single.id != id))) {
+      throw const HdcWorkflowException(
+        code: 'invalid_server_response',
+        message: 'HDC returned an invalid private report.',
+      );
+    }
+    return result;
   }
 
   Future<void> loadReviewQueue() async {

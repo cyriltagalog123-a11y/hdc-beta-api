@@ -12,6 +12,7 @@ import '../../providers/hdc_profile_provider.dart';
 import '../authentication/account_security_screen.dart';
 import 'member_profile_edit_screen.dart';
 import 'role_profile_edit_screen.dart';
+import 'role_profile_preview_screen.dart';
 
 class ProfileCenterScreen extends StatefulWidget {
   final HDCPlatformRole? initialRole;
@@ -116,7 +117,11 @@ class _ProfileCenterScreenState extends State<ProfileCenterScreen> {
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: ListView(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.symmetric(
+            horizontal: MediaQuery.sizeOf(context).width > 1040
+                ? (MediaQuery.sizeOf(context).width - 1000) / 2 : 20,
+            vertical: 20,
+          ),
           children: [
             const HDCFlowHero(
               eyebrow: 'IDENTITY & WORKSPACES',
@@ -127,7 +132,7 @@ class _ProfileCenterScreenState extends State<ProfileCenterScreen> {
               tags: [
                 HDCFlowTag(label: 'Shared identity', icon: Icons.person_outline_rounded),
                 HDCFlowTag(label: 'Role-aware', icon: Icons.badge_outlined),
-                HDCFlowTag(label: 'Server-backed', icon: Icons.verified_user_outlined),
+                HDCFlowTag(label: 'Private account', icon: Icons.verified_user_outlined),
               ],
             ),
             const SizedBox(height: 18),
@@ -229,73 +234,46 @@ class _ProfileCenterScreenState extends State<ProfileCenterScreen> {
 class _MemberProfileCard extends StatelessWidget {
   final HDCMemberProfile profile;
   final VoidCallback onEdit;
-
-  const _MemberProfileCard({
-    required this.profile,
-    required this.onEdit,
-  });
+  const _MemberProfileCard({required this.profile, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 25,
-                  backgroundColor: HDCColors.primary.withValues(alpha: 0.10),
-                  child: Text(
-                    _initials(profile.displayName),
-                    style: const TextStyle(
-                      color: HDCColors.primary,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        profile.displayName,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        profile.email,
-                        style: const TextStyle(
-                          color: HDCColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Chip(label: Text('Master')),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _CompletionBar(value: profile.completionPercent),
-                ),
-                const SizedBox(width: 18),
-                FilledButton.tonalIcon(
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Edit'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
+    final contact = switch (profile.contactPreference) {
+      'email' => 'Email',
+      'phone' => 'Phone',
+      _ => 'In-app messages',
+    };
+    return Card(child: Padding(padding: const EdgeInsets.all(20), child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Chip(avatar: Icon(Icons.lock_outline, size: 16), label: Text('Your member account')),
+        const SizedBox(height: 10),
+        Row(children: [
+          CircleAvatar(radius: 25, child: Text(_initials(profile.displayName))),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(profile.displayName, style: Theme.of(context).textTheme.titleLarge),
+            Text(profile.email),
+          ])),
+        ]),
+        const SizedBox(height: 16),
+        Text(profile.bio.isEmpty ? 'Add a short introduction about yourself.' : profile.bio),
+        const SizedBox(height: 10),
+        Wrap(spacing: 12, runSpacing: 8, children: [
+          Text('Location: ${profile.location.isEmpty ? 'Not added' : profile.location}'),
+          Text('Preferred contact: $contact'),
+        ]),
+        const SizedBox(height: 12),
+        const Text('Your sign-in email and account security stay private. Choose public contact details separately for each role profile.'),
+        const SizedBox(height: 16),
+        _CompletionBar(value: profile.completionPercent),
+        const SizedBox(height: 8),
+        Text(profile.missingEssentials.isEmpty ? 'Profile essentials complete. A photo is optional.'
+          : 'To complete: ${profile.missingEssentials.join(', ')}. A photo is optional.'),
+        const SizedBox(height: 12),
+        FilledButton.tonalIcon(onPressed: onEdit, icon: const Icon(Icons.edit_outlined), label: const Text('Edit member profile')),
+      ],
+    )));
   }
 }
 
@@ -340,73 +318,37 @@ class _SelectedWorkspaceCard extends StatelessWidget {
   final HDCPlatformRoleProfile? profile;
   final bool loading;
   final VoidCallback onOpen;
-
-  const _SelectedWorkspaceCard({
-    required this.role,
-    required this.profile,
-    required this.loading,
-    required this.onOpen,
-  });
+  const _SelectedWorkspaceCard({required this.role, required this.profile, required this.loading, required this.onOpen});
 
   @override
   Widget build(BuildContext context) {
-    final displayName = profile?.publicName ?? role.label;
+    final current = profile;
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: HDCColors.primary,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: Icon(_roleIcon(role), color: Colors.white),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${role.label} workspace',
-                  style: const TextStyle(color: Colors.white70),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  displayName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 19,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                if (profile?.headline.isNotEmpty == true) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    profile!.headline,
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
+      decoration: BoxDecoration(color: HDCColors.primary, borderRadius: BorderRadius.circular(18)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('${role.label} workspace', style: const TextStyle(color: Colors.white70)),
+        const SizedBox(height: 6),
+        Text(current?.publicName ?? role.label,
+          style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800)),
+        if (current?.headline.isNotEmpty == true) Text(current!.headline, style: const TextStyle(color: Colors.white70)),
+        const SizedBox(height: 8),
+        Text(current?.isPublic == true ? 'Visibility: Public role profile' : 'Visibility: Private role profile',
+          style: const TextStyle(color: Colors.white)),
+        const SizedBox(height: 14),
+        Wrap(spacing: 10, runSpacing: 10, children: [
           FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: HDCColors.primary,
-            ),
-            onPressed: loading ? null : onOpen,
-            child: const Text('Open'),
+            style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: HDCColors.primary),
+            onPressed: loading ? null : onOpen, child: const Text('Edit profile'),
           ),
-        ],
-      ),
+          FilledButton.tonalIcon(
+            onPressed: current == null || loading ? null : () => Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => RoleProfilePreviewScreen(role: role, userId: current.userId),
+            )),
+            icon: const Icon(Icons.visibility_outlined), label: const Text('Preview profile'),
+          ),
+        ]),
+      ]),
     );
   }
 }

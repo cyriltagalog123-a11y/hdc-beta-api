@@ -53,6 +53,7 @@ import {
   privateMessageStorageBytes,
 } from './_lib/private-messaging.mjs';
 import { internalDashboardPermissions } from './_lib/internal-dashboard.mjs';
+import { handleOperationsReport, knowledgeOperationsOverview } from './_lib/operations-reports.mjs';
 import {
   canApprovePlatformRoles,
   isApprovalPlatformRoleCode,
@@ -1813,7 +1814,7 @@ async function handleInternalDashboard(
     statistics.pendingRecoveryReviews = Number(rows[0]?.pending_count ?? 0);
   }
 
-  if (permissions.canApprovePlatformRoles) {
+  if (basePermissions.canApprovePlatformRoles) {
     const rows = await sql`
       SELECT count(*)::int AS pending_count
       FROM public.hdc_service_disputes
@@ -1874,6 +1875,13 @@ async function handleInternalDashboard(
     );
   }
 
+  const knowledgeOverview = permissions.hasPrivilegedResourceAccess
+    ? await knowledgeOperationsOverview(sql) : null;
+  if (knowledgeOverview) {
+    statistics.knowledgeReview = knowledgeOverview.reviewCount;
+    statistics.publishedKnowledge = knowledgeOverview.publishedCount;
+  }
+
   const activityRows = permissions.hasPrivilegedResourceAccess
     ? await sql`
         SELECT event_type, event_status, created_at
@@ -1897,6 +1905,7 @@ async function handleInternalDashboard(
       userId: user.id,
       displayName: user.displayName,
     },
+    knowledgeActivities: knowledgeOverview?.activities ?? [],
     permissions,
     statistics,
     assignments: assignmentRows.map((row) =>
@@ -6656,6 +6665,7 @@ async function handleHdcApiRequestCore(
 
   const isInternalPath =
     path === '/api/internal/dashboard' ||
+    path === '/api/internal/reports' ||
     path === '/api/internal/role-applications' ||
     path.startsWith('/api/internal/role-applications/') ||
     path === '/api/internal/account-recovery' ||
@@ -6841,6 +6851,17 @@ async function handleHdcApiRequestCore(
 
       if (path === '/api/internal/dashboard') {
         return await handleInternalDashboard(req, sql, session.user);
+      }
+      if (path === '/api/internal/reports') {
+        requireInternalDashboardAccess(session.user);
+        const reviewScope = await platformRoleReviewScope(sql, session.user);
+        return await handleOperationsReport(req, sql, {
+          userId: session.user.id,
+          internalRoles: session.user.internalRoles,
+          allReviewRoles: reviewScope.allRoles,
+          reviewRoles: [...reviewScope.roles],
+          canReviewRecovery: await hasAccountRecoveryReviewAccess(sql, session.user),
+        });
       }
       if (path === '/api/internal/role-applications') {
         return await handleListRoleApplications(req, sql, session.user);
@@ -7302,6 +7323,7 @@ export const config: Config = {
     '/api/roles/overview',
     '/api/role-applications',
     '/api/internal/dashboard',
+    '/api/internal/reports',
     '/api/internal/role-applications',
     '/api/internal/role-applications/:id',
     '/api/internal/account-recovery',

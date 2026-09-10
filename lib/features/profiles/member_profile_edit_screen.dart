@@ -59,6 +59,9 @@ class _MemberProfileEditScreenState
         contactPreference: _contactPreference,
       );
       if (!mounted) return;
+      if (context.read<HDCAuthProvider>().identity?.id != saved.userId) {
+        return;
+      }
       context
           .read<HDCAuthProvider>()
           .updateDisplayNameFromProfile(saved.displayName);
