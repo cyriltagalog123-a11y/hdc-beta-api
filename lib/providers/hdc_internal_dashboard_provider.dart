@@ -146,15 +146,20 @@ class HdcInternalDashboardProvider extends ChangeNotifier {
         message: 'Sign in with an authorized internal account to view reports.',
       );
     }
-    final path = Uri(path: '/api/internal/reports', queryParameters: {
+    final parameters = <String, String>{
       'report': report,
       'scope': scope,
       'q': query,
       'offset': '$offset',
-      if (id != null) 'id': id,
-      if (section != null) 'section': section,
       if (section != null) 'sectionOffset': '$sectionOffset',
-    }).toString();
+    };
+    if (id != null) {
+      parameters['id'] = id;
+    }
+    if (section != null) {
+      parameters['section'] = section;
+    }
+    final path = Uri(path: '/api/internal/reports', queryParameters: parameters).toString();
     final response = await api.get(path);
     if (!_isCurrent(userId, bindingVersion)) {
       throw const HdcWorkflowException(
