@@ -187,3 +187,19 @@ Release gates:
 7. Production promotion follows the reviewed sequence in
    `docs/build27-production-readiness.md`; a frontend-only deploy is not a
    successful Build 27 release.
+
+### Build 27 operations and profile follow-up
+
+Make every private operations snapshot open its authorized records and individual
+details. Show Knowledge Base creator, review submitter and publisher attribution
+directly in operations. Improve member-profile completeness, visibility and role
+profile previews. See `docs/build27-operations-reports.md` for behavior and gates.
+
+## Build 28 — Shop Technology
+
+Prepare the existing commerce foundation for a clearer catalog, product details,
+seller inventory workspace and buyer purchase history. Preserve server stock,
+role, participant and payment authority. Delivery order, open decisions and
+acceptance gates are recorded in `docs/build28-shop-technology.md`.
+
+This is a planned next build; the Build 27 follow-up does not change shop code.
