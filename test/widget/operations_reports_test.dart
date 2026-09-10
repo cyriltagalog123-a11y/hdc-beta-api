@@ -56,7 +56,14 @@ void main() {
     expect(find.text('private-member@example.test'), findsNothing);
     await tester.tap(find.text('Jamie Member'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('private-member@example.test'), 220);
+    await tester.scrollUntilVisible(
+      find.text('private-member@example.test'),
+      220,
+      scrollable: find.descendant(
+        of: find.byType(ListView),
+        matching: find.byType(Scrollable),
+      ).first,
+    );
     expect(find.text('private-member@example.test'), findsOneWidget);
     expect(tester.takeException(), isNull);
     provider.bindIdentity(null);
