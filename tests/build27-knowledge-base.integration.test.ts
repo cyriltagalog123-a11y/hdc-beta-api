@@ -346,6 +346,67 @@ describe.skipIf(!runPostgresIntegration).sequential(
       `).rejects.toThrow(/slugs are permanent/i);
     });
 
+    it('opens every owner snapshot and preserves creator, submitter and publisher attribution', async () => {
+      const dashboard = await mainApi('/api/internal/dashboard', {}, owner.token);
+      expectStatus(dashboard, 200);
+      const statistics = dashboard.body.statistics as Record<string, number>;
+      expect(statistics.knowledgeReview).toBeGreaterThanOrEqual(1);
+      const activities = dashboard.body.knowledgeActivities as Record<string, unknown>[];
+      expect(activities.find((item) => item.id === workingArticle.id)).toMatchObject({
+        created_by: 'HDC Knowledge Admin', submitted_by: 'HDC Knowledge Admin',
+        published_by: 'HDC Knowledge Owner',
+      });
+      for (const key of Object.keys(statistics)) {
+        const report = await mainApi(`/api/internal/reports?report=${key}&limit=1`, {}, owner.token);
+        expectStatus(report, 200);
+        expect(report.response.headers.get('cache-control')).toBe('no-store');
+        expect(report.body).toMatchObject({ privateWorkspace: true, userId: owner.id, report: key });
+        expect((report.body.records as unknown[]).length).toBeLessThanOrEqual(1);
+        // These fixtures do not mutate knowledge or internal structure in other test files.
+        if (key.startsWith('knowledge') || key === 'publishedKnowledge' || key === 'myAssignments') {
+          expect(report.body.total).toBe(statistics[key]);
+        }
+      }
+      const detail = await mainApi(`/api/internal/reports?report=knowledgeReview&id=${workingArticle.id}`, {}, owner.token);
+      expectStatus(detail, 200);
+      const record = (detail.body.records as Record<string, unknown>[])[0];
+      expect(record.data).toMatchObject({
+        'Created by': 'HDC Knowledge Admin', 'Submitted for review by': 'HDC Knowledge Admin',
+        'Published by': 'HDC Knowledge Owner', 'Working version': 3, 'Published version': 2,
+      });
+      const versions = (detail.body.sections as {items: Record<string, unknown>[]}[])[0].items;
+      expect(versions.map((v) => [v.version, v.author])).toEqual([
+        [3, 'HDC Knowledge Admin'], [2, 'HDC Knowledge Owner'], [1, 'HDC Knowledge Admin'],
+      ]);
+      const publicResult = await publicKnowledge(`/api/knowledge?slug=${basePayload.slug}`);
+      expect(JSON.stringify(publicResult.body)).not.toContain('HDC Knowledge Admin');
+      expect(JSON.stringify(publicResult.body)).not.toContain('HDC Knowledge Owner');
+    });
+
+    it('pages member records, finds individual accounts and denies unauthorized drill-down', async () => {
+      const query = encodeURIComponent('HDC Knowledge');
+      const path = `/api/internal/reports?report=activeMembers&scope=all&q=${query}&limit=1`;
+      const first = await mainApi(path, {}, owner.token);
+      const second = await mainApi(`${path}&offset=1`, {}, owner.token);
+      expectStatus(first, 200);
+      expectStatus(second, 200);
+      expect(first.body.total).toBe(3);
+      expect(first.body.hasMore).toBe(true);
+      expect((first.body.records as {id: string}[])[0].id)
+        .not.toBe((second.body.records as {id: string}[])[0].id);
+      const detail = await mainApi(`/api/internal/reports?report=activeMembers&id=${member.id}`, {}, owner.token);
+      expectStatus(detail, 200);
+      expect((detail.body.records as {data: Record<string, unknown>}[])[0].data.Email).toBe(member.email);
+      expect(JSON.stringify(detail.body)).not.toMatch(/password_hash|identity_fingerprint|token_hash|answer_digest/);
+      expectStatus(await mainApi(path, {}, member.token), 403);
+      expectStatus(await mainApi('/api/internal/reports?report=pendingDisputes', {}, admin.token), 403);
+      const literal = await mainApi('/api/internal/reports?report=activeMembers&q=%27%20OR%201%3D1', {}, owner.token);
+      expectStatus(literal, 200);
+      expect(literal.body.total).toBe(0);
+      const absent = await mainApi('/api/internal/reports?report=activeMembers&id=00000000-0000-0000-0000-000000000000', {}, owner.token);
+      expectStatus(absent, 404);
+    });
+
     it('publishes a newer version, tracks member feedback by version, and retains history after archive', async () => {
       const finalTitle = 'Build 27 controlled network guide approved update';
       const republished = await adminKnowledge('/api/internal/knowledge', {

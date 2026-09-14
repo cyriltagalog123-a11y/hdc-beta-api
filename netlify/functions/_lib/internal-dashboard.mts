@@ -23,7 +23,9 @@ export type InternalDashboardStatisticKey =
   | 'activeStaffAssignments'
   | 'activeMembers'
   | 'openServiceRequests'
-  | 'activeServiceTransactions';
+  | 'activeServiceTransactions'
+  | 'knowledgeReview'
+  | 'publishedKnowledge';
 
 export function internalDashboardPermissions(
   roles: Iterable<InternalRoleCode>,
@@ -63,6 +65,8 @@ export function internalDashboardStatisticKeys(
       'activeMembers',
       'openServiceRequests',
       'activeServiceTransactions',
+      'knowledgeReview',
+      'publishedKnowledge',
     );
   }
   return keys;

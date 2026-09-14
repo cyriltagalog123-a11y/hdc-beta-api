@@ -38,6 +38,8 @@ describe('HDC private internal dashboard permissions', () => {
       'activeMembers',
       'openServiceRequests',
       'activeServiceTransactions',
+      'knowledgeReview',
+      'publishedKnowledge',
     ]);
   });
 

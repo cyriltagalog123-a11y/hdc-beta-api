@@ -25,16 +25,14 @@ class HDCMemberProfile {
     required this.updatedAt,
   });
 
-  int get completionPercent {
-    final completed = <bool>[
-      displayName.trim().isNotEmpty,
-      email.trim().isNotEmpty,
-      bio.trim().isNotEmpty,
-      location.trim().isNotEmpty,
-      avatarUrl.trim().isNotEmpty,
-    ].where((value) => value).length;
-    return (completed * 100 / 5).round();
-  }
+  List<String> get missingEssentials => [
+    if (displayName.trim().isEmpty) 'Display name',
+    if (email.trim().isEmpty) 'Email',
+    if (bio.trim().isEmpty) 'About you',
+    if (location.trim().isEmpty) 'Location',
+  ];
+
+  int get completionPercent => ((4 - missingEssentials.length) * 100 / 4).round();
 
   factory HDCMemberProfile.fromJson(Map<String, dynamic> json) {
     final now = DateTime.now();

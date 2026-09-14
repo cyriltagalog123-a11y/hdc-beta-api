@@ -438,6 +438,51 @@ describe.skipIf(!runPostgresIntegration).sequential(
       expect(rows[0].transaction_status).toBe('disputed');
       expect(Number(rows[0].open_disputes)).toBe(1);
       expect(Number(rows[0].opened_events)).toBe(1);
+
+      const caseRows = await setupSql!`SELECT id FROM public.hdc_service_disputes WHERE transaction_id = ${transactionId}`;
+      const disputeId = String(caseRows[0].id);
+      const evidence = await api(`/api/service-transactions/${transactionId}/documents`, {
+        method: 'POST', body: JSON.stringify({
+          clientReference: nextReference('DOC-CLIENT'), documentType: 'disputeEvidence',
+          title: 'Diagnostic evidence', content: 'The device still stops during startup after the repair.', disputeId,
+        }),
+      }, customer.token);
+      expectStatus(evidence, 201);
+      // More than a page proves the report does not silently omit case history.
+      for (let index = 0; index < 26; index += 1) {
+        await setupSql!`INSERT INTO public.hdc_service_dispute_events
+          (id, dispute_id, transaction_id, actor_id, event_type, message)
+          VALUES (${nextReference('DSE')}, ${disputeId}, ${transactionId}, ${customer.id}::uuid,
+            'participantNote', ${`Recorded case note ${index + 1}`})`;
+      }
+      const rawReviewer = await registerAccount('Operations Reviewer');
+      await setupSql!`INSERT INTO public.hdc_internal_role_assignments(user_id, role, is_active)
+        VALUES (${rawReviewer.id}::uuid, 'owner', true)`;
+      const reviewer = await loginAccount(rawReviewer);
+      const path = `/api/internal/reports?report=pendingDisputes&id=${disputeId}`;
+      expectStatus(await api(path, {}, outsider.token), 403);
+      const detail = await api(path, {}, reviewer.token);
+      expectStatus(detail, 200);
+      const record = (detail.body.records as {data: Record<string, unknown>}[])[0];
+      expect(record.data).toMatchObject({ 'Transaction ID': transactionId, 'Reason': 'workQuality' });
+      const sections = detail.body.sections as {key: string; items: Record<string, unknown>[]; hasMore: boolean; nextOffset: number}[];
+      const history = sections.find((section) => section.key === 'history')!;
+      expect(history.items).toHaveLength(25);
+      expect(history.hasMore).toBe(true);
+      expect(history.nextOffset).toBe(25);
+      expect(sections.find((section) => section.key === 'evidence')!.items[0])
+        .toMatchObject({title: 'Diagnostic evidence', content: 'The device still stops during startup after the repair.'});
+      const rest = await api(`${path}&section=history&sectionOffset=25`, {}, reviewer.token);
+      expectStatus(rest, 200);
+      const restSections = rest.body.sections as {items: unknown[]; hasMore: boolean}[];
+      expect(restSections).toHaveLength(1);
+      expect(restSections[0].items).toHaveLength(2);
+      expect(restSections[0].hasMore).toBe(false);
+      // Existing tokens lose report access as soon as the live role is revoked.
+      await setupSql!`UPDATE public.hdc_internal_role_assignments SET is_active = false
+        WHERE user_id = ${reviewer.id}::uuid`;
+      expectStatus(await api(path, {}, reviewer.token), 403);
+
     });
   },
 );

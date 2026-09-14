@@ -81,6 +81,13 @@ class HdcProfileProvider extends ChangeNotifier {
       final response = await api.get('/api/profiles');
       if (!_isCurrent(userId, bindingVersion)) return;
       final bundle = HDCProfileBundle.fromJson(response);
+      if (bundle.memberProfile.userId != userId ||
+          bundle.roleProfiles.entries.any((entry) =>
+            entry.value.userId != userId || entry.value.role != entry.key)) {
+        throw const HdcWorkflowException(
+          code: 'invalid_server_response', message: 'HDC returned a profile for a different account.',
+        );
+      }
       _memberProfile = bundle.memberProfile;
       _roleProfiles = bundle.roleProfiles;
       _boundRoles = Set<HDCPlatformRole>.unmodifiable(
@@ -106,6 +113,8 @@ class HdcProfileProvider extends ChangeNotifier {
     required String avatarUrl,
     required String contactPreference,
   }) async {
+    final userId = _boundUserId;
+    final bindingVersion = _bindingVersion;
     final response = await _save(
       '/api/profiles/member',
       body: {
@@ -118,6 +127,7 @@ class HdcProfileProvider extends ChangeNotifier {
     );
     final value = _requiredObject(response, 'memberProfile');
     final member = HDCMemberProfile.fromJson(value);
+    _validateSavedIdentity(userId, bindingVersion, member.userId);
     _memberProfile = member;
     _announce();
     return member;
@@ -133,12 +143,20 @@ class HdcProfileProvider extends ChangeNotifier {
         message: 'Activate this platform role before editing its profile.',
       );
     }
+    final userId = _boundUserId;
+    final bindingVersion = _bindingVersion;
     final response = await _save(
       '/api/profiles/${Uri.encodeComponent(role.code)}',
       body: body,
     );
     final value = _requiredObject(response, 'roleProfile');
     final profile = HDCPlatformRoleProfile.fromJson(value);
+    _validateSavedIdentity(userId, bindingVersion, profile.userId);
+    if (profile.role != role) {
+      throw const HdcWorkflowException(
+        code: 'invalid_server_response', message: 'HDC returned a different workspace profile.',
+      );
+    }
     _roleProfiles = Map<HDCPlatformRole, HDCPlatformRoleProfile>.unmodifiable({
       ..._roleProfiles,
       role: profile,
@@ -146,6 +164,19 @@ class HdcProfileProvider extends ChangeNotifier {
     _selectedRole = role;
     _announce();
     return profile;
+  }
+
+  void _validateSavedIdentity(String? userId, int version, String returnedUserId) {
+    if (userId == null || !_isCurrent(userId, version)) {
+      throw const HdcWorkflowException(
+        code: 'profile_request_stale', message: 'The signed-in account changed while saving.',
+      );
+    }
+    if (returnedUserId != userId) {
+      throw const HdcWorkflowException(
+        code: 'invalid_server_response', message: 'HDC returned a profile for a different account.',
+      );
+    }
   }
 
   Future<Map<String, dynamic>> _save(
@@ -158,6 +189,11 @@ class HdcProfileProvider extends ChangeNotifier {
       throw const HdcWorkflowException(
         code: 'profile_backend_unavailable',
         message: 'HDC profiles require the authenticated HDC API.',
+      );
+    }
+    if (_isSaving) {
+      throw const HdcWorkflowException(
+        code: 'profile_save_in_progress', message: 'Wait for your current profile save to finish.',
       );
     }
 

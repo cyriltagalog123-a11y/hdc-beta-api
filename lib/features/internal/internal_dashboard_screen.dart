@@ -13,6 +13,7 @@ import 'account_recovery_review_screen.dart';
 import 'dispute_resolution_screen.dart';
 import 'platform_role_management_screen.dart';
 import 'suggestion_management_screen.dart';
+import 'operations_report_screen.dart';
 
 class InternalDashboardScreen extends StatefulWidget {
   const InternalDashboardScreen({super.key});
@@ -83,6 +84,12 @@ class _InternalDashboardScreenState extends State<InternalDashboardScreen> {
     );
   }
 
+  void _openReport(String key, {String? id}) {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => OperationsReportScreen(reportKey: key, recordId: id),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final workspace = context.watch<HdcInternalDashboardProvider>();
@@ -151,8 +158,7 @@ class _InternalDashboardScreenState extends State<InternalDashboardScreen> {
                           ),
                           const SizedBox(height: 6),
                           const Text(
-                            'Only information permitted for this account is '
-                            'included in the private response.',
+                            'Tap a snapshot to open its records, then select a record for full details.',
                             style: TextStyle(color: HDCColors.textSecondary),
                           ),
                           const SizedBox(height: 14),
@@ -164,7 +170,29 @@ class _InternalDashboardScreenState extends State<InternalDashboardScreen> {
                           else
                             _StatisticsGrid(
                               statistics: workspace.statistics,
+                              onOpenReport: _openReport,
                             ),
+                          if (workspace.permissions.hasPrivilegedResourceAccess) ...[
+                            const SizedBox(height: 26),
+                            Text('Knowledge Base activity', style: Theme.of(context).textTheme.titleLarge),
+                            const SizedBox(height: 6),
+                            const Text('Creator, review submitter and publisher are shown by account name and member ID.'),
+                            if (workspace.snapshot?.knowledgeActivities.isEmpty ?? true)
+                              const Padding(padding: EdgeInsets.symmetric(vertical: 12),
+                                child: Text('No Knowledge Base activity is available yet.')),
+                            for (final activity in workspace.snapshot?.knowledgeActivities ?? <Map<String, dynamic>>[])
+                              Card(child: ListTile(
+                                title: Text('${activity['title']}'),
+                                subtitle: Text(
+                                  '${operationsLabel('${activity['status']}')}\n'
+                                  'Created by: ${_knowledgeActor(activity, 'created_by', 'creator_member_id')}\n'
+                                  'Submitted by: ${_knowledgeActor(activity, 'submitted_by', 'submitter_member_id')}\n'
+                                  'Published by: ${_knowledgeActor(activity, 'published_by', 'publisher_member_id')}',
+                                ),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () => _openReport('knowledgeReview', id: '${activity['id']}'),
+                              )),
+                          ],
                           const SizedBox(height: 26),
                           _AuthorizedScope(
                             permissions: workspace.permissions,
@@ -452,74 +480,38 @@ class _PriorityAction extends StatelessWidget {
 
 class _StatisticsGrid extends StatelessWidget {
   final Map<String, int> statistics;
-
-  const _StatisticsGrid({required this.statistics});
+  final ValueChanged<String> onOpenReport;
+  const _StatisticsGrid({required this.statistics, required this.onOpenReport});
 
   @override
   Widget build(BuildContext context) {
-    final entries = statistics.entries.toList(growable: false)
-      ..sort(
-        (a, b) => _statisticOrder(a.key).compareTo(_statisticOrder(b.key)),
-      );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 920
-            ? 4
-            : constraints.maxWidth >= 600
-                ? 3
-                : 2;
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: entries.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columns,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: constraints.maxWidth < 420
-                ? 0.95
-                : columns == 2
-                    ? 1.25
-                    : 1.45,
+    final entries = statistics.entries.toList()
+      ..sort((a, b) => _statisticOrder(a.key).compareTo(_statisticOrder(b.key)));
+    return LayoutBuilder(builder: (context, constraints) {
+      final columns = constraints.maxWidth >= 920 ? 4 : constraints.maxWidth >= 600 ? 3 : constraints.maxWidth >= 340 ? 2 : 1;
+      final width = (constraints.maxWidth - 12 * (columns - 1)) / columns;
+      return Wrap(spacing: 12, runSpacing: 12, children: entries.map((entry) {
+        final details = _statisticDetails(entry.key);
+        return SizedBox(width: width, child: Card(
+          margin: EdgeInsets.zero,
+          child: InkWell(
+            onTap: () => onOpenReport(entry.key),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(padding: const EdgeInsets.all(16), child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [Icon(details.$2, color: details.$3), const Spacer(),
+                  const Icon(Icons.chevron_right, size: 18)]),
+                const SizedBox(height: 12),
+                Text('${entry.value}', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900)),
+                const SizedBox(height: 3),
+                Text(details.$1, style: const TextStyle(fontWeight: FontWeight.w600)),
+              ],
+            )),
           ),
-          itemBuilder: (context, index) {
-            final entry = entries[index];
-            final details = _statisticDetails(entry.key);
-            return Card(
-              margin: EdgeInsets.zero,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(details.$2, color: details.$3),
-                    const Spacer(),
-                    Text(
-                      '${entry.value}',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      details.$1,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: HDCColors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
+        ));
+      }).toList());
+    });
   }
 }
 
@@ -863,9 +855,13 @@ class _AccessUnavailable extends StatelessWidget {
     case 'activeStaffAssignments':
       return ('Staff assignments', Icons.groups_outlined, HDCColors.info);
     case 'activeMembers':
-      return ('Active members', Icons.people_outline, HDCColors.success);
+      return ('Active accounts', Icons.people_outline, HDCColors.success);
     case 'openServiceRequests':
       return ('Open service requests', Icons.campaign_outlined, HDCColors.warning);
+    case 'knowledgeReview':
+      return ('Guides for review', Icons.fact_check_outlined, HDCColors.warning);
+    case 'publishedKnowledge':
+      return ('Published guides', Icons.menu_book_outlined, HDCColors.success);
     case 'activeServiceTransactions':
       return ('Active transactions', Icons.handshake_outlined, HDCColors.primary);
     default:
@@ -882,6 +878,8 @@ int _statisticOrder(String key) {
     'activeMembers',
     'openServiceRequests',
     'activeServiceTransactions',
+    'knowledgeReview',
+    'publishedKnowledge',
     'activeDepartments',
     'activeSections',
     'activeStaffAssignments',
@@ -908,4 +906,12 @@ String _dateTimeLabel(DateTime value) {
   final hour = local.hour.toString().padLeft(2, '0');
   final minute = local.minute.toString().padLeft(2, '0');
   return '${local.year}-$month-$day $hour:$minute';
+}
+
+String _knowledgeActor(Map<String, dynamic> row, String name, String memberId) {
+  final value = row[name];
+  if (value is! String || value.isEmpty) {
+    return 'Not recorded';
+  }
+  return row[memberId] == null ? value : '$value (${row[memberId]})';
 }

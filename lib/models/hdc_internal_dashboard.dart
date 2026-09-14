@@ -90,6 +90,7 @@ class HDCInternalDashboardSnapshot {
   final Map<String, int> statistics;
   final List<HDCInternalStaffAssignment> assignments;
   final List<HDCInternalActivity> recentActivities;
+  final List<Map<String, dynamic>> knowledgeActivities;
 
   const HDCInternalDashboardSnapshot({
     required this.userId,
@@ -98,6 +99,7 @@ class HDCInternalDashboardSnapshot {
     required this.statistics,
     required this.assignments,
     required this.recentActivities,
+    this.knowledgeActivities = const [],
   });
 
   factory HDCInternalDashboardSnapshot.fromJson(Map<String, dynamic> json) {
@@ -117,6 +119,7 @@ class HDCInternalDashboardSnapshot {
       displayName: _requiredString(account, 'displayName'),
       permissions: HDCInternalDashboardPermissions.fromJson(permissions),
       statistics: Map<String, int>.unmodifiable(statistics),
+      knowledgeActivities: List.unmodifiable(_objectList(json['knowledgeActivities'] ?? const [])),
       assignments: List<HDCInternalStaffAssignment>.unmodifiable(
         _objectList(json['assignments']).map(
           HDCInternalStaffAssignment.fromJson,
@@ -141,6 +144,7 @@ class HDCInternalDashboardSnapshot {
       }),
       assignments: assignments,
       recentActivities: recentActivities,
+      knowledgeActivities: knowledgeActivities,
     );
   }
 }
