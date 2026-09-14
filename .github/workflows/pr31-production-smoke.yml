@@ -1,0 +1,59 @@
+name: PR31 production smoke verification
+on:
+  push:
+    branches: ['codex/verify-pr31-production']
+permissions: {}
+jobs:
+  production-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Verify deployed release and public health endpoints
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const origin = 'https://hdc-beta-api.netlify.app';
+          const expectedRevision = '21e0e08c6a53a459ffb12af0083810297b85ffb2';
+          async function get(path, expectedStatus) {
+            const response = await fetch(new URL(path, origin), {
+              headers: { 'Cache-Control': 'no-cache' },
+              redirect: 'error',
+              signal: AbortSignal.timeout(20000),
+            });
+            assert.equal(response.status, expectedStatus, path + ' HTTP status');
+            return response;
+          }
+          const [root, releaseResponse, healthResponse, readyResponse, reports] = await Promise.all([
+            get('/', 200),
+            get('/hdc-release.json', 200),
+            get('/api/health', 200),
+            get('/api/health/ready', 200),
+            get('/api/internal/reports?report=activeMembers', 401),
+          ]);
+          const [html, release, health, readiness] = await Promise.all([
+            root.text(), releaseResponse.json(), healthResponse.json(), readyResponse.json(),
+          ]);
+          assert.match(html, /HDC/i);
+          assert.equal(release.revision, expectedRevision, 'Production release revision');
+          assert.equal(release.version, '0.6.4-build.27', 'Production release version');
+          assert.equal(health.status, 'ok', 'API liveness');
+          assert.equal(health.build, '0.6.4-build27', 'API build');
+          assert.equal(readiness.status, 'ready', 'Production readiness');
+          for (const check of ['database', 'workflowAuthority', 'privateMessaging', 'transactionTools', 'authBootstrap', 'legalRecords', 'latestSchema']) {
+            assert.equal(readiness.checks?.[check], 'ok', check);
+          }
+          assert.match(root.headers.get('content-security-policy') ?? '', /default-src 'self'/);
+          assert.equal(root.headers.get('x-content-type-options'), 'nosniff');
+          assert.equal(root.headers.get('x-frame-options'), 'DENY');
+          assert.match(root.headers.get('strict-transport-security') ?? '', /max-age=/);
+          for (const response of [root, releaseResponse, reports]) {
+            assert.match(response.headers.get('cache-control') ?? '', /no-store/);
+          }
+          await reports.body?.cancel();
+          console.log(JSON.stringify({
+            revision: release.revision, version: release.version,
+            root: 200, health: 200, readiness: readiness.checks,
+            unauthenticatedOperationsReports: 401, securityHeaders: 'passed', cachePolicy: 'passed',
+          }));
+          NODE
