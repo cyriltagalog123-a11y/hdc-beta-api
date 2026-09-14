@@ -1,6 +1,6 @@
 # HelpDesk Connect delivery roadmap
 
-Last updated: 2026-09-07
+Last updated: 2026-09-14
 
 ## Delivered baseline
 
@@ -160,7 +160,7 @@ approval gates.
   history, recognition-consent, and CI/deployment hardening as the prerequisite
   for public knowledge.
 
-## Build 27 — Versioned HDC Knowledge Base
+## Delivered Build 27 — Versioned HDC Knowledge Base
 
 Build 27 activates public Knowledge Base discovery, safe troubleshooting
 guides, related guidance, authenticated helpfulness feedback, and handoff into
@@ -188,7 +188,12 @@ Release gates:
    `docs/build27-production-readiness.md`; a frontend-only deploy is not a
    successful Build 27 release.
 
-### Build 27 operations and profile follow-up
+### Delivered Build 27 operations and profile follow-up
+
+PR #31 was merged and deployed on 2026-09-14 as `21e0e08`. Main CI,
+fresh production backup/full restore and live public verification passed.
+See [Build 27 closeout](build27-closeout.md) for the exact release identity,
+verification boundaries and selected Build 28 preparation.
 
 Make every private operations snapshot open its authorized records and individual
 details. Show Knowledge Base creator, review submitter and publisher attribution
