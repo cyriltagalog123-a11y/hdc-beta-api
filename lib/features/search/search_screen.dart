@@ -756,8 +756,8 @@ class _EmptyDirectory extends StatelessWidget {
           ? 'No public technicians yet'
           : 'No technicians match this search',
       description: directoryIsEmpty
-          ? 'Approved technicians remain private until they enable '
-                '“Publicly discoverable profile” in their Technician profile.'
+          ? 'Technicians appear automatically once approved and active. '
+                'Each technician chooses which additional profile details to share.'
           : 'Try another name, skill, specialty, or service area.',
       actions: [
         if (!directoryIsEmpty)

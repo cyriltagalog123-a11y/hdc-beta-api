@@ -114,6 +114,8 @@ describe('Build 24A Customer request and Technician discovery redesign', () => {
     expect(search).not.toContain('Icons.star');
     expect(search).not.toContain('distanceKm');
     expect(search).not.toContain('sampleTechnicians');
+    expect(search).toContain('Technicians appear automatically once approved and active.');
+    expect(search).not.toContain('Approved technicians remain private until');
   });
 
   it('documents the unchanged data and authority boundary', () => {
