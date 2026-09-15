@@ -24,7 +24,7 @@
   "dependencies": {
     "@netlify/functions": "^6.0.0",
     "bcryptjs": "^3.0.2",
-    "jose": "^6.2.10",
+    "jose": "^6.2.12",
     "postgres": "^3.4.7"
   },
   "devDependencies": {
