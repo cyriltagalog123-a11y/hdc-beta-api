@@ -59,7 +59,8 @@ void main() {
         ChangeNotifierProvider.value(value: profiles),
       ], child: MaterialApp(home: SearchScreen(draft: ServiceRequestDraft()))));
       await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(find.text('View Profile'), 350, scrollable: find.byType(Scrollable).first);
+      await tester.scrollUntilVisible(find.text('View Profile').hitTestable(), 350, scrollable: find.byType(Scrollable).first);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('View Profile'));
       await tester.pumpAndSettle();
       expect(find.byType(PublicTechnicianProfileScreen), findsOneWidget);

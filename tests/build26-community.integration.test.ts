@@ -507,10 +507,10 @@ describe.skipIf(!runPostgresIntegration).sequential(
     it('lists a newly approved technician for guests without a profile visit and enforces chosen field visibility', async () => {
       const submitted = await mainApi('/api/role-applications', {
         method: 'POST', body: JSON.stringify({ role: 'technician', answers: {
-          phone: '+639121234567', country: 'Philippines', city: 'Cebu City',
+          phone: '+639121234567', country: 'Philippines', city: 'Cebu City, Central Visayas, Philippines',
           reason: 'I repair computers and want to offer device diagnostics through HDC.',
           agreedToPlatformStandards: true, primarySpecialty: 'Laptop diagnostics',
-          yearsExperience: 5, serviceArea: 'Cebu City',
+          yearsExperience: 5, serviceArea: 'Cebu City, Central Visayas, Philippines',
           validIdentificationConfirmed: true, backgroundCheckConsent: true,
         } }),
       }, outsider.token);
@@ -546,7 +546,7 @@ describe.skipIf(!runPostgresIntegration).sequential(
       const write = {
         publicName: 'HDC Directory Regression', isPublic: false,
         headline: 'Private headline', description: 'Private biography',
-        location: 'Cebu City', contactEmail: 'tech-contact@example.invalid',
+        location: 'Cebu City, Central Visayas, Philippines', contactEmail: 'tech-contact@example.invalid',
         contactPhone: '+639181234567',
         details: { yearsExperience: 5, skills: ['Board diagnostics'], publicFields: ['skills', 'contactEmail'] },
       };

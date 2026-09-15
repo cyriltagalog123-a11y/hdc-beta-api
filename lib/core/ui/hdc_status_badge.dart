@@ -67,13 +67,15 @@ class HDCStatusBadge extends StatelessWidget {
                   : Icon(icon, size: 13, color: color),
             ),
             const SizedBox(width: 7),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.05,
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.05,
+                ),
               ),
             ),
           ],
