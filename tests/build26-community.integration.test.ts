@@ -585,9 +585,17 @@ describe.skipIf(!runPostgresIntegration).sequential(
       expectStatus(await mainApi(`/api/discovery/technicians/${profileId}`), 404);
       expect(JSON.stringify((await mainApi('/api/discovery/technicians')).body)).not.toContain(profileId);
       await sql!`UPDATE public.hdc_user_roles SET is_active = true WHERE user_id = ${outsider.id}::uuid AND role = 'technician'`;
-      await sql!`UPDATE public.hdc_users SET status = 'suspended' WHERE id = ${outsider.id}::uuid`;
-      expectStatus(await mainApi(`/api/discovery/technicians/${profileId}`), 404);
-      expect(JSON.stringify((await mainApi('/api/discovery/technicians')).body)).not.toContain(profileId);
+      for (const status of ['suspended', 'revoked']) {
+        await sql!`UPDATE public.hdc_user_roles SET status = ${status} WHERE user_id = ${outsider.id}::uuid AND role = 'technician'`;
+        expectStatus(await mainApi(`/api/discovery/technicians/${profileId}`), 404);
+        expect(JSON.stringify((await mainApi('/api/discovery/technicians')).body)).not.toContain(profileId);
+      }
+      await sql!`UPDATE public.hdc_user_roles SET status = 'active' WHERE user_id = ${outsider.id}::uuid AND role = 'technician'`;
+      for (const status of ['disabled', 'locked']) {
+        await sql!`UPDATE public.hdc_users SET status = ${status} WHERE id = ${outsider.id}::uuid`;
+        expectStatus(await mainApi(`/api/discovery/technicians/${profileId}`), 404);
+        expect(JSON.stringify((await mainApi('/api/discovery/technicians')).body)).not.toContain(profileId);
+      }
       await sql!`UPDATE public.hdc_users SET status = 'active' WHERE id = ${outsider.id}::uuid`;
     }, 60_000);
 

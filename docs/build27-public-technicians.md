@@ -28,7 +28,8 @@ as consent to reveal contacts or other details to guests. Private stored values
 are retained when a field is hidden.
 
 Server reads select active accounts with an active, approved technician role.
-Suspension or role deactivation removes both search and direct profile access.
+Role suspension/revocation, deactivation, or a disabled/locked account removes
+both search and direct profile access.
 Eligibility, selected fields, reputation totals and a page of reviews come from
 one database statement. Reviews are ordered by creation time and ID, limited to
 20 per page, and exclude withdrawn ratings and ratings received as a customer or
