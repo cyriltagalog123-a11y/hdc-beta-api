@@ -6,6 +6,7 @@ import '../core/api/hdc_workflow_api_client.dart';
 import '../models/account_identity.dart';
 import '../models/service_request.dart';
 import '../models/technician_directory_entry.dart';
+import '../models/technician_public_profile.dart';
 
 class TechnicianDiscoveryProvider extends ChangeNotifier {
   final HdcWorkflowApiClient? client;
@@ -67,7 +68,7 @@ class TechnicianDiscoveryProvider extends ChangeNotifier {
     scheduleMicrotask(() {
       if (_disposed || bindingVersion != _bindingVersion) return;
       notifyListeners();
-      if (userId == null || client == null) return;
+      if (client == null) return;
       unawaited(refreshDirectory());
       if (canBrowse) unawaited(refreshOpportunities());
     });
@@ -86,14 +87,14 @@ class TechnicianDiscoveryProvider extends ChangeNotifier {
   Future<void> _loadDirectory() async {
     final api = client;
     final userId = _boundUserId;
-    if (_disposed || api == null || userId == null) return;
+    if (_disposed || api == null) return;
     final bindingVersion = _bindingVersion;
     _isLoadingDirectory = true;
     _directoryError = null;
     notifyListeners();
 
     try {
-      final response = await api.get('/api/discovery/technicians');
+      final response = await api.getPublic('/api/discovery/technicians');
       if (!_isCurrent(userId, bindingVersion)) return;
       final values = _objectList(response['technicians'])
           .map(TechnicianDirectoryEntry.fromJson)
@@ -101,13 +102,35 @@ class TechnicianDiscoveryProvider extends ChangeNotifier {
       _technicians = List<TechnicianDirectoryEntry>.unmodifiable(values);
       _directoryUpdatedAt = _responseTime(response['updatedAt']);
     } on Object catch (error) {
-      if (_isCurrent(userId, bindingVersion)) _directoryError = error;
+      if (_isCurrent(userId, bindingVersion)) {
+        _technicians = const [];
+        _directoryUpdatedAt = null;
+        _directoryError = error;
+      }
     } finally {
       if (_isCurrent(userId, bindingVersion)) {
         _isLoadingDirectory = false;
         notifyListeners();
       }
     }
+  }
+
+  Future<TechnicianPublicProfile> fetchPublicProfile(
+    String profileId, {
+    int reviewPage = 0,
+  }) async {
+    final api = client;
+    if (_disposed || api == null) {
+      throw StateError('Technician profiles are unavailable.');
+    }
+    final response = await api.getPublic(
+      '/api/discovery/technicians/${Uri.encodeComponent(profileId)}?reviewPage=$reviewPage',
+    );
+    final profile = TechnicianPublicProfile.fromJson(response);
+    if (profile.technician.profileId != profileId || profile.reviewPage != reviewPage) {
+      throw const FormatException('The public profile response did not match.');
+    }
+    return profile;
   }
 
   Future<void> refreshOpportunities() {
@@ -190,7 +213,7 @@ class TechnicianDiscoveryProvider extends ChangeNotifier {
     return candidateTokens.intersection(requestedTokens).isEmpty ? 0 : 1;
   }
 
-  bool _isCurrent(String userId, int bindingVersion) =>
+  bool _isCurrent(String? userId, int bindingVersion) =>
       !_disposed && _boundUserId == userId && _bindingVersion == bindingVersion;
 
   @override

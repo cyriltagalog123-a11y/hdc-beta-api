@@ -156,6 +156,8 @@ class _MemberProfileEditScreenState
                               maxLength: 500,
                               decoration: const InputDecoration(
                                 labelText: 'Profile photo URL (optional)',
+                                helperText: 'Use an HTTPS image URL. Shown on your approved Technician profile.',
+                                helperMaxLines: 3,
                                 prefixIcon: Icon(Icons.image_outlined),
                               ),
                               validator: _optionalHttpUrlValidator,
@@ -263,8 +265,8 @@ String? _optionalHttpUrlValidator(String? value) {
   final uri = Uri.tryParse(input);
   if (uri == null ||
       !uri.hasAuthority ||
-      (uri.scheme != 'https' && uri.scheme != 'http')) {
-    return 'Enter a complete http:// or https:// URL.';
+      uri.scheme != 'https' || uri.userInfo.isNotEmpty) {
+    return 'Enter a complete https:// image URL without login credentials.';
   }
   return null;
 }

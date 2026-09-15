@@ -88,7 +88,8 @@ void main() {
         sessionStore: store,
         client: MockClient((request) async {
           requestedPaths.add(request.url.path);
-          expect(request.headers['authorization'], 'Bearer discovery-token');
+          expect(request.headers['authorization'],
+              request.url.path == '/api/discovery/opportunities' ? 'Bearer discovery-token' : isNull);
           if (request.url.path == '/api/discovery/technicians') {
             return http.Response(
               jsonEncode({
@@ -185,5 +186,54 @@ void main() {
       'Cebu Device Lab',
     );
     provider.dispose();
+  });
+
+  test('guests load public profiles without credentials and clear failed directory refreshes', () async {
+    var available = true;
+    final provider = TechnicianDiscoveryProvider(client: HdcWorkflowApiClient(
+      baseUri: Uri.parse('https://example.test'),
+      sessionStore: MemoryAuthSessionStore(),
+      client: MockClient((request) async {
+        expect(request.headers['authorization'], isNull);
+        if (!available) {
+          return http.Response('{"error":"technician_profile_not_found"}', 404);
+        }
+        final technician = _technician(id: 'guest-tech', name: 'Public Tech', location: '');
+        if (request.url.path.endsWith('/guest-tech')) {
+          return http.Response(jsonEncode({
+            'technician': technician, 'reviews': [], 'reviewPage': 0, 'hasMoreReviews': false,
+          }), 200);
+        }
+        return http.Response(jsonEncode({'technicians': [technician]}), 200);
+      }),
+    ));
+    addTearDown(provider.dispose);
+    await provider.refreshDirectory();
+    expect(provider.technicians.single.publicName, 'Public Tech');
+    expect(provider.technicians.single.ratingLabel, 'No ratings yet');
+    expect(provider.opportunities, isEmpty);
+    final profile = await provider.fetchPublicProfile('guest-tech');
+    expect(profile.technician.profileId, 'guest-tech');
+    expect(profile.reviews, isEmpty);
+    available = false;
+    await provider.refreshDirectory();
+    expect(provider.technicians, isEmpty);
+    expect(provider.directoryUpdatedAt, isNull);
+    expect(provider.directoryError, isNotNull);
+    await expectLater(provider.fetchPublicProfile('guest-tech'), throwsA(isA<HdcWorkflowException>()));
+  });
+
+  test('rejects public profile responses for a different profile or review page', () async {
+    final provider = TechnicianDiscoveryProvider(client: HdcWorkflowApiClient(
+      baseUri: Uri.parse('https://example.test'),
+      sessionStore: MemoryAuthSessionStore(),
+      client: MockClient((_) async => http.Response(jsonEncode({
+        'technician': _technician(id: 'tech-one', name: 'Public Tech', location: ''),
+        'reviews': [], 'reviewPage': 0, 'hasMoreReviews': false,
+      }), 200)),
+    ));
+    addTearDown(provider.dispose);
+    await expectLater(provider.fetchPublicProfile('different-tech'), throwsFormatException);
+    await expectLater(provider.fetchPublicProfile('tech-one', reviewPage: 1), throwsFormatException);
   });
 }

@@ -504,6 +504,157 @@ describe.skipIf(!runPostgresIntegration).sequential(
       expect(sellerBadgeKeys).toContain('first_marketplace_complete');
     });
 
+    it('lists a newly approved technician for guests without a profile visit and enforces chosen field visibility', async () => {
+      const submitted = await mainApi('/api/role-applications', {
+        method: 'POST', body: JSON.stringify({ role: 'technician', answers: {
+          phone: '+639121234567', country: 'Philippines', city: 'Cebu City',
+          reason: 'I repair computers and want to offer device diagnostics through HDC.',
+          agreedToPlatformStandards: true, primarySpecialty: 'Laptop diagnostics',
+          yearsExperience: 5, serviceArea: 'Cebu City',
+          validIdentificationConfirmed: true, backgroundCheckConsent: true,
+        } }),
+      }, outsider.token);
+      expectStatus(submitted, 201);
+      const applicationId = String((submitted.body.application as Record<string, unknown>).id);
+      const before = await mainApi('/api/discovery/technicians');
+      expectStatus(before, 200);
+      expect(JSON.stringify(before.body)).not.toContain('HDC Rating Outsider');
+      const approved = await mainApi(`/api/internal/role-applications/${applicationId}`, {
+        method: 'PUT', body: JSON.stringify({ decision: 'approved', note: 'Public directory approval regression.' }),
+      }, owner.token);
+      expectStatus(approved, 200);
+      const seeded = await sql!`
+        SELECT id, is_public FROM public.hdc_platform_role_profiles
+        WHERE user_id = ${outsider.id}::uuid AND role = 'technician'
+      `;
+      const profileId = String(seeded[0].id);
+      expect(seeded[0].is_public).toBe(false);
+      const directory = await mainApi('/api/discovery/technicians');
+      expectStatus(directory, 200);
+      expect(directory.response.headers.get('cache-control')).toBe('no-store');
+      expect((directory.body.technicians as Record<string, unknown>[])
+        .some((entry) => entry.profileId === profileId)).toBe(true);
+      const initial = await mainApi(`/api/discovery/technicians/${profileId}`);
+      expectStatus(initial, 200);
+      expect(initial.body.technician).toMatchObject({
+        publicName: 'HDC Rating Outsider', ratingCount: 0, averageRating: null,
+        contactPhone: '', contactEmail: '', location: '', details: { yearsExperience: null },
+      });
+      for (const privateValue of [outsider.id, outsider.email, '+639121234567', applicationId]) {
+        expect(JSON.stringify(initial.body)).not.toContain(privateValue);
+      }
+      const write = {
+        publicName: 'HDC Directory Regression', isPublic: false,
+        headline: 'Private headline', description: 'Private biography',
+        location: 'Cebu City', contactEmail: 'tech-contact@example.invalid',
+        contactPhone: '+639181234567',
+        details: { yearsExperience: 5, skills: ['Board diagnostics'], publicFields: ['skills', 'contactEmail'] },
+      };
+      const saved = await mainApi('/api/profiles/technician', {
+        method: 'PUT', body: JSON.stringify(write),
+      }, outsider.token);
+      expectStatus(saved, 200);
+      const publicProfile = await mainApi(`/api/discovery/technicians/${profileId}`);
+      expectStatus(publicProfile, 200);
+      expect(publicProfile.body.technician).toMatchObject({
+        publicName: write.publicName, headline: '', description: '', location: '', contactPhone: '',
+        contactEmail: write.contactEmail, details: { yearsExperience: 5, skills: ['Board diagnostics'] },
+      });
+      const hide = await mainApi('/api/profiles/technician', {
+        method: 'PUT', body: JSON.stringify({ ...write, details: { ...write.details, publicFields: [] } }),
+      }, outsider.token);
+      expectStatus(hide, 200);
+      const hidden = await mainApi(`/api/discovery/technicians/${profileId}`);
+      expect(JSON.stringify(hidden.body)).not.toContain(write.contactEmail);
+      expect(JSON.stringify(hidden.body)).not.toContain('Board diagnostics');
+      const privateProfile = await mainApi('/api/profiles', {}, outsider.token);
+      expectStatus(privateProfile, 200);
+      expect(JSON.stringify(privateProfile.body)).toContain(write.contactEmail);
+      const ownProfiles = privateProfile.body.roleProfiles as Record<string, unknown>[];
+      expect(ownProfiles.find((p) => p.role === 'technician')?.isPublic).toBe(true);
+      for (const path of ['/api/profiles', '/api/discovery/opportunities']) {
+        expectStatus(await mainApi(path), 401);
+      }
+      expectStatus(await mainApi('/api/profiles/technician', { method: 'PUT', body: JSON.stringify(write) }), 401);
+      expectStatus(await mainApi('/api/profiles/technician', { method: 'PUT', body: JSON.stringify(write) }, buyer.token), 403);
+      expectStatus(await mainApi(`/api/discovery/technicians/${profileId}`, { method: 'PUT' }), 405);
+      expectStatus(await mainApi('/api/discovery/technicians/not-a-profile'), 404);
+      expectStatus(await mainApi(`/api/discovery/technicians/${profileId}?reviewPage=-1`), 400);
+
+      await sql!`UPDATE public.hdc_user_roles SET is_active = false WHERE user_id = ${outsider.id}::uuid AND role = 'technician'`;
+      expectStatus(await mainApi(`/api/discovery/technicians/${profileId}`), 404);
+      expect(JSON.stringify((await mainApi('/api/discovery/technicians')).body)).not.toContain(profileId);
+      await sql!`UPDATE public.hdc_user_roles SET is_active = true WHERE user_id = ${outsider.id}::uuid AND role = 'technician'`;
+      await sql!`UPDATE public.hdc_users SET status = 'suspended' WHERE id = ${outsider.id}::uuid`;
+      expectStatus(await mainApi(`/api/discovery/technicians/${profileId}`), 404);
+      expect(JSON.stringify((await mainApi('/api/discovery/technicians')).body)).not.toContain(profileId);
+      await sql!`UPDATE public.hdc_users SET status = 'active' WHERE id = ${outsider.id}::uuid`;
+    }, 60_000);
+
+    it('publishes paged real service-provider reviews, excludes buyer ratings, and removes withdrawn reviews', async () => {
+      const existing = await mainApi('/api/discovery/technicians');
+      expectStatus(existing, 200);
+      const profile = (existing.body.technicians as Record<string, unknown>[])
+        .find((entry) => entry.publicName === 'HDC Rating Technician')!;
+      expect(profile).toBeDefined();
+      const baseline = Number(profile.ratingCount);
+      let lastTransaction = '';
+      for (let index = 0; index < 21; index += 1) {
+        lastTransaction = await createCompletedService();
+        const rating = await communityApi('/api/community', {
+          method: 'POST', body: JSON.stringify({
+            action: 'submit_rating', transactionKind: 'service', transactionId: lastTransaction,
+            score: 4, review: `Public directory completed service ${index}`,
+          }),
+        }, customer.token);
+        expectStatus(rating, 201);
+      }
+      const profileId = String(profile.profileId);
+      const first = await mainApi(`/api/discovery/technicians/${profileId}`);
+      expectStatus(first, 200);
+      expect((first.body.technician as Record<string, unknown>).ratingCount).toBe(baseline + 21);
+      expect((first.body.technician as Record<string, unknown>).averageRating).toBe(
+        Math.round((Number(profile.averageRating ?? 0) * baseline + 84) / (baseline + 21) * 100) / 100,
+      );
+      expect((first.body.reviews as unknown[]).length).toBe(20);
+      expect(first.body.hasMoreReviews).toBe(true);
+      const next = await mainApi(`/api/discovery/technicians/${profileId}?reviewPage=1`);
+      expectStatus(next, 200);
+      const reviews = [...first.body.reviews as Record<string, unknown>[], ...next.body.reviews as Record<string, unknown>[]];
+      expect(new Set(reviews.map((review) => review.publicRatingId)).size).toBe(reviews.length);
+      for (const review of reviews) {
+        expect(Object.keys(review).sort()).toEqual(['createdAt', 'publicRatingId', 'review', 'score']);
+      }
+      for (const privateValue of [customer.id, customer.email, technician.id, lastTransaction]) {
+        expect(JSON.stringify(first.body)).not.toContain(privateValue);
+      }
+      // This approved technician is also a service customer; that reputation is separate.
+      await sql!`
+        INSERT INTO public.hdc_user_roles(user_id, role, is_active) VALUES (${customer.id}::uuid, 'technician', true)
+        ON CONFLICT(user_id, role) DO UPDATE SET is_active = true, status = 'active'
+      `;
+      const reciprocal = await communityApi('/api/community', {
+        method: 'POST', body: JSON.stringify({ action: 'submit_rating', transactionKind: 'service',
+          transactionId: lastTransaction, score: 5, review: 'Rated as a customer, not a technician.' }),
+      }, technician.token);
+      expectStatus(reciprocal, 201);
+      const directory = await mainApi('/api/discovery/technicians');
+      const customerProfile = (directory.body.technicians as Record<string, unknown>[])
+        .find((entry) => entry.publicName === 'HDC Rating Customer');
+      expect(customerProfile?.ratingCount).toBe(0);
+      expect(customerProfile?.averageRating).toBeNull();
+      const ratingId = String((first.body.reviews as Record<string, unknown>[])[0].publicRatingId);
+      const withdrawn = await communityApi('/api/community', {
+        method: 'POST', body: JSON.stringify({ action: 'withdraw_rating', ratingId: String((await sql!`
+          SELECT id FROM public.hdc_transaction_ratings WHERE public_rating_id = ${ratingId}
+        `)[0].id) }),
+      }, customer.token);
+      expectStatus(withdrawn, 200);
+      const refreshed = await mainApi(`/api/discovery/technicians/${profileId}`);
+      expect((refreshed.body.technician as Record<string, unknown>).ratingCount).toBe(baseline + 20);
+      expect(JSON.stringify(refreshed.body)).not.toContain(ratingId);
+    }, 180_000);
+
     it('tracks suggestions, restricts full management to Owner, and awards Helpful Contributor only after implementation', async () => {
       const submitted = await communityApi('/api/community', {
         method: 'POST',

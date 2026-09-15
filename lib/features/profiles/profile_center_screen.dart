@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/ui/hdc_colors.dart';
 import '../../core/ui/hdc_flow.dart';
+import '../../core/ui/hdc_profile_avatar.dart';
 import '../../models/account_identity.dart';
 import '../../models/hdc_profile.dart';
 import '../../providers/hdc_auth_provider.dart';
@@ -249,7 +250,7 @@ class _MemberProfileCard extends StatelessWidget {
         const Chip(avatar: Icon(Icons.lock_outline, size: 16), label: Text('Your member account')),
         const SizedBox(height: 10),
         Row(children: [
-          CircleAvatar(radius: 25, child: Text(_initials(profile.displayName))),
+          HdcProfileAvatar(avatarUrl: profile.avatarUrl, name: profile.displayName),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(profile.displayName, style: Theme.of(context).textTheme.titleLarge),
@@ -333,7 +334,9 @@ class _SelectedWorkspaceCard extends StatelessWidget {
           style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800)),
         if (current?.headline.isNotEmpty == true) Text(current!.headline, style: const TextStyle(color: Colors.white70)),
         const SizedBox(height: 8),
-        Text(current?.isPublic == true ? 'Visibility: Public role profile' : 'Visibility: Private role profile',
+        Text(role == HDCPlatformRole.technician
+            ? 'Automatically listed · You choose shared details'
+            : current?.isPublic == true ? 'Visibility: Public role profile' : 'Visibility: Private role profile',
           style: const TextStyle(color: Colors.white)),
         const SizedBox(height: 14),
         Wrap(spacing: 10, runSpacing: 10, children: [
@@ -476,16 +479,6 @@ class _ProfileErrorCard extends StatelessWidget {
       ),
     );
   }
-}
-
-String _initials(String name) {
-  final words = name
-      .trim()
-      .split(RegExp(r'\s+'))
-      .where((value) => value.isNotEmpty)
-      .take(2);
-  final result = words.map((word) => word[0].toUpperCase()).join();
-  return result.isEmpty ? 'H' : result;
 }
 
 IconData _roleIcon(HDCPlatformRole role) {

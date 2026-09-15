@@ -103,16 +103,16 @@ describe('Build 24A Customer request and Technician discovery redesign', () => {
       "Key('hdc-technician-area')",
       "Key('hdc-technician-results')",
       'Public profiles only',
-      'Technician-published details',
+      'PublicTechnicianProfileScreen',
       'areaMatchRank(',
-      'hasPublicContact',
+      'View Profile',
+      'technician.ratingLabel',
     ]) {
       expect(search).toContain(marker);
     }
 
     expect(search).not.toContain('Icons.star');
     expect(search).not.toContain('distanceKm');
-    expect(search).not.toContain('technician.rating');
     expect(search).not.toContain('sampleTechnicians');
   });
 

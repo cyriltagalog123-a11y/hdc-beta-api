@@ -10,6 +10,10 @@ class TechnicianDirectoryEntry {
   final String website;
   final Map<String, dynamic> details;
   final DateTime updatedAt;
+  final String avatarUrl;
+  final int ratingCount;
+  final double? averageRating;
+  final int completedServices;
 
   const TechnicianDirectoryEntry({
     required this.profileId,
@@ -23,7 +27,15 @@ class TechnicianDirectoryEntry {
     required this.website,
     required this.details,
     required this.updatedAt,
+    this.avatarUrl = '',
+    this.ratingCount = 0,
+    this.averageRating,
+    this.completedServices = 0,
   });
+
+  String get ratingLabel => ratingCount == 0 || averageRating == null
+      ? 'No ratings yet'
+      : '${averageRating!.toStringAsFixed(1)} / 5 · $ratingCount ${ratingCount == 1 ? 'rating' : 'ratings'}';
 
   List<String> get skills => _stringList(details['skills']);
   List<String> get specialties => _stringList(details['specialties']);
@@ -59,6 +71,10 @@ class TechnicianDirectoryEntry {
       contactEmail: _string(json['contactEmail']),
       contactPhone: _string(json['contactPhone']),
       website: _string(json['website']),
+      avatarUrl: _string(json['avatarUrl']),
+      ratingCount: _integer(json['ratingCount']) ?? 0,
+      averageRating: _number(json['averageRating']),
+      completedServices: _integer(json['completedServices']) ?? 0,
       details: rawDetails is Map
           ? Map<String, dynamic>.unmodifiable(
               rawDetails.map((key, value) => MapEntry('$key', value)),

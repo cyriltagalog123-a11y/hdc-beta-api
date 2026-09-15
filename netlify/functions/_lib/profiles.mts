@@ -34,6 +34,13 @@ export type ProfileDetails = Record<string, ProfileDetailValue>;
 
 const contactPreferenceSet = new Set<string>(MEMBER_CONTACT_PREFERENCES);
 
+// Core public identity and earned reputation cannot be hidden or supplied here.
+export const TECHNICIAN_PUBLIC_FIELDS = [
+  'headline', 'description', 'location', 'contactEmail', 'contactPhone',
+  'website', 'skills', 'specialties', 'serviceRadiusKm', 'hourlyRate',
+  'availability', 'emergencyService',
+] as const;
+
 function normalizedText(value: unknown, maxLength: number): string | null {
   if (value === undefined || value === null) return '';
   if (typeof value !== 'string') return null;
@@ -152,8 +159,12 @@ function technicianDetails(input: Record<string, unknown>): ProfileDetails | nul
     'hourlyRate',
     'availability',
     'emergencyService',
+    'publicFields',
   ])) return null;
 
+  const publicFields = normalizedStringList(input.publicFields, 12);
+  if (!publicFields || publicFields.some((field) =>
+    !TECHNICIAN_PUBLIC_FIELDS.some((allowed) => allowed === field))) return null;
   const skills = normalizedStringList(input.skills);
   const specialties = normalizedStringList(input.specialties);
   const yearsExperience = normalizedNumber(input.yearsExperience, 0, 80, true);
@@ -166,6 +177,7 @@ function technicianDetails(input: Record<string, unknown>): ProfileDetails | nul
       availability === null || emergencyService === null) return null;
 
   return {
+    publicFields,
     skills,
     specialties,
     yearsExperience: yearsExperience ?? null,
@@ -287,6 +299,10 @@ export function normalizeMemberProfileWrite(
   const bio = normalizedParagraph(input.bio, 1200);
   const location = normalizedText(input.location, 200);
   const avatarUrl = normalizedHttpUrl(input.avatarUrl);
+  if (avatarUrl) {
+    const url = new URL(avatarUrl);
+    if (url.protocol !== 'https:' || url.username || url.password) return null;
+  }
   const contactPreference = normalizedText(
     input.contactPreference ?? 'in_app',
     20,
@@ -342,7 +358,7 @@ export function normalizePlatformRoleProfileWrite(
     contactEmail,
     contactPhone,
     website,
-    isPublic,
+    isPublic: role === 'technician' ? true : isPublic,
     details,
   };
 }

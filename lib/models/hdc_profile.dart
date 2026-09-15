@@ -1,5 +1,20 @@
 import 'account_identity.dart';
 
+const technicianPublicFieldLabels = <String, String>{
+  'headline': 'Headline',
+  'description': 'About / description',
+  'location': 'Service area',
+  'contactEmail': 'Contact email',
+  'contactPhone': 'Contact phone',
+  'website': 'Website',
+  'skills': 'Skills',
+  'specialties': 'Specialties',
+  'serviceRadiusKm': 'Service radius',
+  'hourlyRate': 'Hourly rate',
+  'availability': 'Availability',
+  'emergencyService': 'Emergency service',
+};
+
 class HDCMemberProfile {
   final String userId;
   final String displayName;
@@ -88,6 +103,13 @@ class HDCPlatformRoleProfile {
     required this.updatedAt,
   });
 
+  Set<String> get technicianPublicFields {
+    final fields = details['publicFields'];
+    return fields is List
+        ? fields.whereType<String>().where(technicianPublicFieldLabels.containsKey).toSet()
+        : <String>{};
+  }
+
   int get completionPercent {
     final hasPublicContact = contactEmail.trim().isNotEmpty ||
         contactPhone.trim().isNotEmpty ||
@@ -122,7 +144,7 @@ class HDCPlatformRoleProfile {
       contactEmail: _string(json['contactEmail']),
       contactPhone: _string(json['contactPhone']),
       website: _string(json['website']),
-      isPublic: json['isPublic'] == true,
+      isPublic: role == HDCPlatformRole.technician || json['isPublic'] == true,
       details: rawDetails is Map
           ? Map<String, dynamic>.unmodifiable(
               rawDetails.map((key, value) => MapEntry('$key', value)),

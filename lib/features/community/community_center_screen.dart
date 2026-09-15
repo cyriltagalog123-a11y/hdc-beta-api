@@ -184,11 +184,11 @@ class _RatingTransactionCard extends StatelessWidget {
           title: Text('Rate ${item.counterpartyName}'),
           content: SizedBox(
             width: 440,
-            child: Column(
+            child: SingleChildScrollView(child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                Wrap(
+                  alignment: WrapAlignment.center,
                   children: [
                     for (var i = 1; i <= 5; i++)
                       IconButton(
@@ -208,10 +208,12 @@ class _RatingTransactionCard extends StatelessWidget {
                   decoration: const InputDecoration(
                     labelText: 'Optional review',
                     hintText: 'Share specific, useful feedback about this completed transaction.',
+                    helperText: 'Service ratings and reviews appear on the technician’s public profile. Leave out private contact or account details.',
+                    helperMaxLines: 4,
                   ),
                 ),
               ],
-            ),
+            )),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),

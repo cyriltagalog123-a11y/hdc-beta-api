@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/account_identity.dart';
+import '../search/public_technician_profile_screen.dart';
 import '../../providers/hdc_profile_provider.dart';
 
 class RoleProfilePreviewScreen extends StatelessWidget {
@@ -15,6 +16,9 @@ class RoleProfilePreviewScreen extends StatelessWidget {
     final profile = profiles.profileFor(role);
     final allowed = profiles.memberProfile?.userId == userId &&
         profiles.activeRoles.contains(role) && profile?.userId == userId;
+    if (allowed && profile != null && role == HDCPlatformRole.technician) {
+      return PublicTechnicianProfileScreen(profileId: profile.id);
+    }
     return Scaffold(
       appBar: AppBar(title: Text('${role.label} profile preview')),
       body: !allowed || profile == null
