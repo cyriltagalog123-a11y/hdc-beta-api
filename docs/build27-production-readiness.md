@@ -1,4 +1,10 @@
-# Build 27 production readiness
+# Build 27 production readiness — original rollout record
+
+Status: historical rollout plan. Build 27 and the PR #31 operations/profile
+update are deployed. See [Build 27 closeout](build27-closeout.md) for the verified
+production commit, recovery evidence and acceptance results as of 2026-09-14.
+Do not repeat the migration sequence below without first checking the current
+production ledger; PR #31 required no database migration.
 
 Build 27 is a coordinated database, API, and Flutter release. A successful
 frontend deploy by itself is not a successful release.

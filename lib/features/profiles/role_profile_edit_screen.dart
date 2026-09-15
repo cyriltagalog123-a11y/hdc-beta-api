@@ -24,6 +24,8 @@ class _RoleProfileEditScreenState extends State<RoleProfileEditScreen> {
   final _formKey = GlobalKey<FormState>();
   final Map<String, TextEditingController> _controllers = {};
   late bool _isPublic;
+  late final String? _editingUserId;
+  late final Set<String> _publicFields;
   late bool _emergencyService;
   late bool _pickupAvailable;
   late bool _deliveryAvailable;
@@ -36,6 +38,8 @@ class _RoleProfileEditScreenState extends State<RoleProfileEditScreen> {
     super.initState();
     final profiles = context.read<HdcProfileProvider>();
     final profile = profiles.profileFor(role);
+    _editingUserId = profiles.memberProfile?.userId;
+    _publicFields = profile?.technicianPublicFields ?? <String>{};
     final details = profile?.details ?? const <String, dynamic>{};
     final defaultName = profiles.memberProfile?.displayName ?? role.label;
 
@@ -84,6 +88,9 @@ class _RoleProfileEditScreenState extends State<RoleProfileEditScreen> {
   Future<void> _save() async {
     if (_formKey.currentState?.validate() != true) return;
     final profiles = context.read<HdcProfileProvider>();
+    if (!_canEdit(profiles)) {
+      return;
+    }
     try {
       await profiles.saveRoleProfile(
         role,
@@ -95,7 +102,7 @@ class _RoleProfileEditScreenState extends State<RoleProfileEditScreen> {
           'contactEmail': _controller('contactEmail').text.trim(),
           'contactPhone': _controller('contactPhone').text.trim(),
           'website': _controller('website').text.trim(),
-          'isPublic': _isPublic,
+          'isPublic': role == HDCPlatformRole.technician || _isPublic,
           'details': _detailsPayload(),
         },
       );
@@ -121,6 +128,7 @@ class _RoleProfileEditScreenState extends State<RoleProfileEditScreen> {
         };
       case HDCPlatformRole.technician:
         return {
+          'publicFields': _publicFields.toList()..sort(),
           'skills': _stringList('skills'),
           'specialties': _stringList('specialties'),
           'yearsExperience': _integer('yearsExperience'),
@@ -187,10 +195,20 @@ class _RoleProfileEditScreenState extends State<RoleProfileEditScreen> {
     return value.isEmpty ? null : double.tryParse(value);
   }
 
+  bool _canEdit(HdcProfileProvider profiles) =>
+      _editingUserId != null && profiles.memberProfile?.userId == _editingUserId &&
+      profiles.activeRoles.contains(role) && profiles.profileFor(role)?.userId == _editingUserId;
+
   @override
   Widget build(BuildContext context) {
     final profiles = context.watch<HdcProfileProvider>();
     final existingProfile = profiles.profileFor(role);
+    if (!_canEdit(profiles)) {
+      return Scaffold(
+        appBar: AppBar(title: Text('${role.label} Profile')),
+        body: const Center(child: Text('This profile is no longer available to this account.')),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: Text('${role.label} Profile')),
@@ -241,6 +259,7 @@ class _RoleProfileEditScreenState extends State<RoleProfileEditScreen> {
                           maxLines: 7,
                         ),
                         HdcLocationPicker(
+                          required: role != HDCPlatformRole.technician,
                           value: _controller('location').text.isEmpty ? null : _controller('location').text,
                           label: 'Profile location or service area',
                           helperText: 'Choose a supported region and province/city.',
@@ -282,7 +301,35 @@ class _RoleProfileEditScreenState extends State<RoleProfileEditScreen> {
                           keyboardType: TextInputType.url,
                           validator: _optionalHttpUrlValidator,
                         ),
-                        SwitchListTile.adaptive(
+                        if (role == HDCPlatformRole.technician) ...[
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Your approved Technician profile appears in search automatically. '
+                            'Everyone can view your public name, profile photo (if added), '
+                            'stated experience, and HDC service ratings and reviews.',
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Choose additional public details below. Unselected details '
+                            'remain private, even when filled in. Save to apply your choices.',
+                          ),
+                          for (final field in technicianPublicFieldLabels.entries)
+                            SwitchListTile.adaptive(
+                              key: Key('hdc-public-field-${field.key}'),
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(field.value),
+                              subtitle: Text(_publicFields.contains(field.key)
+                                  ? 'Shown to everyone' : 'Only you can see this'),
+                              value: _publicFields.contains(field.key),
+                              onChanged: (value) => setState(() {
+                                if (value) {
+                                  _publicFields.add(field.key);
+                                } else {
+                                  _publicFields.remove(field.key);
+                                }
+                              }),
+                            ),
+                        ] else SwitchListTile.adaptive(
                           contentPadding: EdgeInsets.zero,
                           title: const Text('Publicly discoverable profile'),
                           subtitle: const Text(

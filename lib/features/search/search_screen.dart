@@ -9,12 +9,14 @@ import '../../core/ui/hdc_brand.dart';
 import '../../core/ui/hdc_card.dart';
 import '../../core/ui/hdc_colors.dart';
 import '../../core/ui/hdc_flow.dart';
+import '../../core/ui/hdc_profile_avatar.dart';
+import '../authentication/registered_user_gate.dart';
+import 'public_technician_profile_screen.dart';
 import '../../core/ui/hdc_spacing.dart';
 import '../../core/ui/hdc_status_badge.dart';
 import '../../models/account_identity.dart';
 import '../../models/service_request_draft.dart';
 import '../../models/technician_directory_entry.dart';
-import '../../providers/hdc_auth_provider.dart';
 import '../../providers/hdc_profile_provider.dart';
 import '../../providers/technician_discovery_provider.dart';
 import '../profiles/profile_center_screen.dart';
@@ -79,71 +81,25 @@ class _SearchScreenState extends State<SearchScreen> {
     setState(() => _areaController.text = location);
   }
 
-  void _postRequest() {
-    Navigator.of(
-      context,
-    ).push(HDCPageRoute<void>(page: const CreateServiceRequestScreen()));
+  Future<void> _postRequest() async {
+    if (!await requireRegisteredUser(context, action: 'post a service request')) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    await Navigator.of(context).push(
+      HDCPageRoute<void>(page: const CreateServiceRequestScreen()),
+    );
   }
 
-  void _showContact(TechnicianDirectoryEntry technician) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(22, 4, 22, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              HDCStatusBadge(
-                label: 'Technician-published details',
-                tone: HDCStatusTone.info,
-                icon: Icons.verified_user_outlined,
-              ),
-              const SizedBox(height: HDCSpacing.md),
-              Text(
-                technician.publicName,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: HDCSpacing.xs),
-              const Text(
-                'These are the public contact details supplied by this '
-                'technician. Private account information is not shown.',
-                style: TextStyle(
-                  color: HDCColors.textSecondary,
-                  height: 1.45,
-                ),
-              ),
-              const SizedBox(height: HDCSpacing.md),
-              if (technician.contactEmail.isNotEmpty)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.email_outlined),
-                  title: const Text('Email'),
-                  subtitle: SelectableText(technician.contactEmail),
-                ),
-              if (technician.contactPhone.isNotEmpty)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.phone_outlined),
-                  title: const Text('Phone'),
-                  subtitle: SelectableText(technician.contactPhone),
-                ),
-              if (technician.website.isNotEmpty)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.language_outlined),
-                  title: const Text('Website'),
-                  subtitle: SelectableText(technician.website),
-                ),
-            ],
-          ),
-        ),
-      ),
+  Future<void> _openProfile(TechnicianDirectoryEntry technician) async {
+    await Navigator.of(context).push(
+      HDCPageRoute<void>(page: PublicTechnicianProfileScreen(profileId: technician.profileId)),
     );
+    if (mounted) {
+      await _refresh();
+    }
   }
 
   String _lastUpdated(DateTime? value) {
@@ -162,16 +118,8 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<HDCAuthProvider>();
     final discovery = context.watch<TechnicianDiscoveryProvider>();
     final profiles = context.watch<HdcProfileProvider>();
-    final authenticated =
-        auth.authenticated && !auth.guestMode && auth.identity != null;
-
-    if (!authenticated) {
-      return const _DirectorySignInRequired();
-    }
-
     final technicians = discovery.searchTechnicians(
       query: _queryController.text,
       serviceArea: _areaController.text,
@@ -254,18 +202,20 @@ class _SearchScreenState extends State<SearchScreen> {
                           label: const Text('Post a Service Request'),
                         ),
                       ),
-                      if (ownTechnicianProfile != null &&
-                          !ownTechnicianProfile.isPublic) ...[
+                      if (ownTechnicianProfile != null) ...[
                         const SizedBox(height: HDCSpacing.md),
-                        _PrivateTechnicianProfileNotice(
-                          onPublish: () {
-                            Navigator.of(context).push(
+                        _TechnicianVisibilityNotice(
+                          onPublish: () async {
+                            await Navigator.of(context).push(
                               HDCPageRoute<void>(
                                 page: const ProfileCenterScreen(
                                   initialRole: HDCPlatformRole.technician,
                                 ),
                               ),
                             );
+                            if (mounted) {
+                              await _refresh();
+                            }
                           },
                         ),
                       ],
@@ -277,8 +227,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       HDCSectionCard(
                         title: 'Search the directory',
                         subtitle:
-                            'Area matches are prioritized; no estimated '
-                            'distance or rating is invented.',
+                            'Search details shared by technicians. Ratings come from completed HDC services.',
                         child: LayoutBuilder(
                           builder: (context, constraints) {
                             final wide = constraints.maxWidth >= 720;
@@ -316,7 +265,8 @@ class _SearchScreenState extends State<SearchScreen> {
                                 ),
                                 suffixIcon: IconButton(
                                   tooltip: 'Use my profile location',
-                                  onPressed: () => _useProfileArea(profiles),
+                                  onPressed: profiles.memberProfile == null
+                                      ? null : () => _useProfileArea(profiles),
                                   icon: const Icon(Icons.my_location),
                                 ),
                               ),
@@ -373,7 +323,7 @@ class _SearchScreenState extends State<SearchScreen> {
                           technicians: technicians,
                           searchArea: _areaController.text,
                           onMap: _openMap,
-                          onContact: _showContact,
+                          onProfile: _openProfile,
                         ),
                     ],
                   ),
@@ -446,13 +396,13 @@ class _TechnicianGrid extends StatelessWidget {
   final List<TechnicianDirectoryEntry> technicians;
   final String searchArea;
   final Future<void> Function(String location) onMap;
-  final ValueChanged<TechnicianDirectoryEntry> onContact;
+  final ValueChanged<TechnicianDirectoryEntry> onProfile;
 
   const _TechnicianGrid({
     required this.technicians,
     required this.searchArea,
     required this.onMap,
-    required this.onContact,
+    required this.onProfile,
   });
 
   @override
@@ -481,9 +431,7 @@ class _TechnicianGrid extends StatelessWidget {
                   onMap: technician.location.isEmpty
                       ? null
                       : () => onMap(technician.location),
-                  onContact: technician.hasPublicContact
-                      ? () => onContact(technician)
-                      : null,
+                  onProfile: () => onProfile(technician),
                 ),
               ),
           ],
@@ -497,13 +445,13 @@ class _TechnicianCard extends StatelessWidget {
   final TechnicianDirectoryEntry technician;
   final int areaRank;
   final VoidCallback? onMap;
-  final VoidCallback? onContact;
+  final VoidCallback? onProfile;
 
   const _TechnicianCard({
     required this.technician,
     required this.areaRank,
     required this.onMap,
-    required this.onContact,
+    required this.onProfile,
   });
 
   @override
@@ -522,18 +470,9 @@ class _TechnicianCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: HDCColors.secondary.withValues(alpha: 0.11),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(
-                  Icons.engineering_outlined,
-                  color: HDCColors.secondary,
-                  size: 27,
-                ),
+              HdcProfileAvatar(
+                avatarUrl: technician.avatarUrl,
+                name: technician.publicName,
               ),
               const SizedBox(width: HDCSpacing.sm),
               Expanded(
@@ -568,6 +507,8 @@ class _TechnicianCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: HDCSpacing.sm),
+          Text(technician.ratingLabel),
           if (areaRank > 0) ...[
             const SizedBox(height: HDCSpacing.sm),
             const HDCStatusBadge(
@@ -652,11 +593,9 @@ class _TechnicianCard extends StatelessWidget {
                 ),
               ),
               FilledButton.tonalIcon(
-                onPressed: onContact,
+                onPressed: onProfile,
                 icon: const Icon(Icons.contact_page_outlined),
-                label: Text(
-                  onContact == null ? 'No Public Contact' : 'Public Contact',
-                ),
+                label: const Text('View Profile'),
               ),
             ],
           ),
@@ -701,10 +640,10 @@ class _FactChip extends StatelessWidget {
   }
 }
 
-class _PrivateTechnicianProfileNotice extends StatelessWidget {
+class _TechnicianVisibilityNotice extends StatelessWidget {
   final VoidCallback onPublish;
 
-  const _PrivateTechnicianProfileNotice({required this.onPublish});
+  const _TechnicianVisibilityNotice({required this.onPublish});
 
   @override
   Widget build(BuildContext context) {
@@ -724,13 +663,12 @@ class _PrivateTechnicianProfileNotice extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Your Technician profile is private',
+                  'Your Technician profile is automatically listed',
                   style: TextStyle(fontWeight: FontWeight.w900),
                 ),
                 SizedBox(height: 5),
                 Text(
-                  'Enable “Publicly discoverable profile” before customers '
-                  'can find it.',
+                  'Choose the optional details everyone can see in your public profile.',
                   style: TextStyle(
                     color: HDCColors.textSecondary,
                     height: 1.4,
@@ -772,8 +710,7 @@ class _DirectoryError extends StatelessWidget {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  'Existing profile data was not changed. Check the '
-                  'connection and try again.',
+                  'Check the connection and try again to see current public profiles.',
                   style: TextStyle(color: HDCColors.textSecondary),
                 ),
               ],
@@ -819,8 +756,8 @@ class _EmptyDirectory extends StatelessWidget {
           ? 'No public technicians yet'
           : 'No technicians match this search',
       description: directoryIsEmpty
-          ? 'Approved technicians remain private until they enable '
-                '“Publicly discoverable profile” in their Technician profile.'
+          ? 'Technicians appear automatically once approved and active. '
+                'Each technician chooses which additional profile details to share.'
           : 'Try another name, skill, specialty, or service area.',
       actions: [
         if (!directoryIsEmpty)
@@ -835,36 +772,6 @@ class _EmptyDirectory extends StatelessWidget {
           label: const Text('Post a Service Request'),
         ),
       ],
-    );
-  }
-}
-
-class _DirectorySignInRequired extends StatelessWidget {
-  const _DirectorySignInRequired();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Find a Technician')),
-      body: HDCSignalBackdrop(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(HDCSpacing.lg),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: const HDCEmptyState(
-                icon: Icons.lock_person_outlined,
-                title: 'Registered Account Required',
-                description:
-                    'Sign in to search approved public Technician profiles. '
-                    'Private profiles and internal account details are never '
-                    'listed.',
-                color: HDCColors.info,
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

@@ -1,3 +1,4 @@
+import { handleTechnicianDirectory } from './_lib/public-technicians.mjs';
 import type { Config, Context } from '@netlify/functions';
 import bcrypt from 'bcryptjs';
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
@@ -1582,32 +1583,10 @@ function platformRoleProfileView(
     contactEmail: String(row.contact_email ?? ''),
     contactPhone: String(row.contact_phone ?? ''),
     website: String(row.website ?? ''),
-    isPublic: Boolean(row.is_public),
+    isPublic: row.role === 'technician' || Boolean(row.is_public),
     details,
     version: Number(row.version ?? 1),
     createdAt: new Date(String(row.created_at)).toISOString(),
-    updatedAt: new Date(String(row.updated_at)).toISOString(),
-  };
-}
-
-function technicianDirectoryEntryView(
-  row: Record<string, unknown>,
-): Record<string, unknown> {
-  const details = row.details && typeof row.details === 'object' &&
-      !Array.isArray(row.details)
-    ? row.details
-    : {};
-  return {
-    profileId: String(row.id),
-    publicMemberId: String(row.public_member_id),
-    publicName: String(row.public_name),
-    headline: String(row.headline ?? ''),
-    description: String(row.description ?? ''),
-    location: String(row.location ?? ''),
-    contactEmail: String(row.contact_email ?? ''),
-    contactPhone: String(row.contact_phone ?? ''),
-    website: String(row.website ?? ''),
-    details,
     updatedAt: new Date(String(row.updated_at)).toISOString(),
   };
 }
@@ -1705,40 +1684,6 @@ async function handleProfilesOverview(
     memberProfile: memberProfileView(rowObject(memberRows[0])),
     roleProfiles: roleRows.map((row) =>
       platformRoleProfileView(rowObject(row))),
-  });
-}
-
-async function handleTechnicianDirectory(
-  req: Request,
-  sql: DbClient,
-): Promise<Response> {
-  if (req.method !== 'GET') return methodNotAllowed();
-
-  const rows = await sql`
-    SELECT
-      profile.*,
-      member.public_member_id
-    FROM public.hdc_platform_role_profiles profile
-    JOIN public.hdc_users member
-      ON member.id = profile.user_id
-      AND member.status = 'active'
-    JOIN public.hdc_user_roles assignment
-      ON assignment.user_id = profile.user_id
-      AND assignment.role::text = 'technician'
-      AND assignment.is_active = true
-      AND assignment.status = 'active'
-    WHERE profile.role = 'technician'
-      AND profile.is_public = true
-    ORDER BY
-      CASE WHEN profile.location = '' THEN 1 ELSE 0 END,
-      profile.updated_at DESC,
-      profile.public_name ASC
-  `;
-
-  return json({
-    technicians: rows.map((row) =>
-      technicianDirectoryEntryView(rowObject(row))),
-    updatedAt: new Date().toISOString(),
   });
 }
 
@@ -6689,6 +6634,7 @@ async function handleHdcApiRequestCore(
 
   const isDiscoveryPath =
     path === '/api/discovery/technicians' ||
+    path.startsWith('/api/discovery/technicians/') ||
     path === '/api/discovery/opportunities';
 
   const isCommercePath =
@@ -6739,6 +6685,14 @@ async function handleHdcApiRequestCore(
 
     if (path === '/api/commerce/catalog') {
       return await handleProductCatalog(req, sql);
+    }
+
+    if (path === '/api/discovery/technicians') {
+      return await handleTechnicianDirectory(req, sql);
+    }
+    const technicianMatch = /^\/api\/discovery\/technicians\/([^/]+)$/.exec(path);
+    if (technicianMatch) {
+      return await handleTechnicianDirectory(req, sql, technicianMatch[1]);
     }
 
     if (isPrivacyPath) {
@@ -6794,9 +6748,6 @@ async function handleHdcApiRequestCore(
       const session = await activeSession(req, sql);
       if (!session) return json({ error: 'unauthorized' }, 401);
 
-      if (path === '/api/discovery/technicians') {
-        return await handleTechnicianDirectory(req, sql);
-      }
       if (path === '/api/discovery/opportunities') {
         return await handleTechnicianOpportunities(req, sql, session.user);
       }
@@ -7340,6 +7291,7 @@ export const config: Config = {
     '/api/profiles/member',
     '/api/profiles/:role',
     '/api/discovery/technicians',
+    '/api/discovery/technicians/:id',
     '/api/discovery/opportunities',
     '/api/commerce/catalog',
     '/api/commerce/buyer-dashboard',

@@ -21,7 +21,7 @@ describe('Build 26 hardening contract', () => {
     const netlify = await read('netlify.toml');
     expect(ci).not.toContain('git push origin');
     expect(ci).not.toContain('contents: write');
-    expect(ci).toContain('npm audit --omit=dev --audit-level=high');
+    expect(ci).toContain('npm audit --audit-level=moderate');
     expect(netlify).toContain('bash scripts/netlify-build.sh');
   });
 
