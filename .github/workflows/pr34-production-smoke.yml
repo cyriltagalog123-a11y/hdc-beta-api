@@ -1,0 +1,114 @@
+name: PR34 production smoke verification
+on:
+  push:
+    branches: ['codex/verify-pr34-production']
+permissions: {}
+jobs:
+  production-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Verify production release, readiness, public profiles and private routes
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const origin = 'https://hdc-beta-api.netlify.app';
+          const expectedRevision = 'f113872fc1be6f65e341f23be37658f8b2a32993';
+          async function get(path, expectedStatus) {
+            const response = await fetch(new URL(path, origin), {
+              headers: { 'Cache-Control': 'no-cache' },
+              redirect: 'error',
+              signal: AbortSignal.timeout(20000),
+            });
+            assert.equal(response.status, expectedStatus, path + ' HTTP status');
+            return response;
+          }
+          const [root, releaseResponse, healthResponse, readyResponse, reports, privateProfiles, directoryResponse] = await Promise.all([
+            get('/', 200),
+            get('/hdc-release.json', 200),
+            get('/api/health', 200),
+            get('/api/health/ready', 200),
+            get('/api/internal/reports?report=activeMembers', 401),
+            get('/api/profiles', 401),
+            get('/api/discovery/technicians', 200),
+          ]);
+          const [html, release, health, readiness, directory] = await Promise.all([
+            root.text(), releaseResponse.json(), healthResponse.json(),
+            readyResponse.json(), directoryResponse.json(),
+          ]);
+          assert.match(html, /HDC/i);
+          assert.equal(release.revision, expectedRevision, 'Production release revision');
+          assert.equal(release.version, '0.6.4-build.27', 'Production release version');
+          assert.equal(health.status, 'ok', 'API liveness');
+          assert.equal(health.build, '0.6.4-build27', 'API build');
+          assert.equal(readiness.status, 'ready', 'Production readiness');
+          for (const check of ['database', 'workflowAuthority', 'privateMessaging', 'transactionTools', 'authBootstrap', 'legalRecords', 'latestSchema']) {
+            assert.equal(readiness.checks?.[check], 'ok', check);
+          }
+          assert.match(root.headers.get('content-security-policy') ?? '', /default-src 'self'/);
+          assert.equal(root.headers.get('x-content-type-options'), 'nosniff');
+          assert.equal(root.headers.get('x-frame-options'), 'DENY');
+          assert.match(root.headers.get('strict-transport-security') ?? '', /max-age=/);
+          for (const response of [root, releaseResponse, reports, privateProfiles, directoryResponse]) {
+            assert.match(response.headers.get('cache-control') ?? '', /no-store/);
+          }
+          await reports.body?.cancel();
+          await privateProfiles.body?.cancel();
+          const publicKeys = new Set([
+            'profileId', 'publicMemberId', 'publicName', 'avatarUrl', 'headline',
+            'description', 'location', 'contactEmail', 'contactPhone', 'website',
+            'details', 'ratingCount', 'averageRating', 'completedServices', 'updatedAt',
+          ]);
+          const detailKeys = new Set([
+            'yearsExperience', 'skills', 'specialties', 'serviceRadiusKm',
+            'hourlyRate', 'availability', 'emergencyService',
+          ]);
+          function verifyPublicEntry(entry) {
+            assert.ok(entry && typeof entry === 'object');
+            for (const key of Object.keys(entry)) assert.ok(publicKeys.has(key), 'Unexpected public field: ' + key);
+            for (const key of Object.keys(entry.details ?? {})) assert.ok(detailKeys.has(key), 'Unexpected public detail: ' + key);
+            assert.equal(typeof entry.publicName, 'string');
+            assert.equal(typeof entry.publicMemberId, 'string');
+            if (entry.avatarUrl) {
+              const image = new URL(entry.avatarUrl);
+              assert.equal(image.protocol, 'https:');
+              assert.equal(image.username, '');
+              assert.equal(image.password, '');
+            }
+          }
+          assert.ok(Array.isArray(directory.technicians), 'Public technician directory');
+          for (const entry of directory.technicians) verifyPublicEntry(entry);
+          let publicProfileVerified = false;
+          if (directory.technicians.length) {
+            const first = directory.technicians[0];
+            const response = await get('/api/discovery/technicians/' + encodeURIComponent(first.profileId), 200);
+            assert.match(response.headers.get('cache-control') ?? '', /no-store/);
+            const profile = await response.json();
+            verifyPublicEntry(profile.technician);
+            assert.equal(profile.technician.profileId, first.profileId);
+            assert.equal(profile.reviewPage, 0);
+            assert.ok(Array.isArray(profile.reviews) && profile.reviews.length <= 20);
+            const reviewKeys = new Set(['publicRatingId', 'score', 'review', 'createdAt']);
+            for (const review of profile.reviews) {
+              for (const key of Object.keys(review)) assert.ok(reviewKeys.has(key), 'Unexpected public review field: ' + key);
+              assert.ok(review.score >= 1 && review.score <= 5);
+            }
+            publicProfileVerified = true;
+          }
+          const [invalidProfile, invalidPage] = await Promise.all([
+            get('/api/discovery/technicians/not-a-profile-id', 404),
+            get('/api/discovery/technicians?reviewPage=-1', 400),
+          ]);
+          await invalidProfile.body?.cancel();
+          await invalidPage.body?.cancel();
+          console.log(JSON.stringify({
+            revision: release.revision, version: release.version,
+            root: 200, health: 200, readiness: readiness.checks,
+            unauthenticatedOperationsReports: 401, unauthenticatedPrivateProfiles: 401,
+            publicDirectory: 200, publicTechnicianCount: directory.technicians.length,
+            publicProfileVerified, publicFieldAllowlist: 'passed',
+            invalidProfile: 404, invalidReviewPage: 400,
+            securityHeaders: 'passed', cachePolicy: 'passed',
+          }));
+          NODE
