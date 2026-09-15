@@ -45,8 +45,8 @@ jobs:
       - name: Tests
         run: npm test
 
-      - name: Production dependency audit
-        run: npm audit --omit=dev --audit-level=high
+      - name: Production and test dependency audit
+        run: npm audit --audit-level=moderate
 
       - name: Secret-pattern sanity scan
         shell: bash

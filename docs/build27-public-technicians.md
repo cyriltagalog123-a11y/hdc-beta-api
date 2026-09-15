@@ -43,9 +43,16 @@ same-origin; the site sends no referrer. Avatar updates reject non-HTTPS URLs an
 URLs containing credentials. Review entry explains where service feedback is
 published.
 
-No migrations, dependencies, production secrets, shop implementation, release
-version bump, or generated bundles are included. The existing `details` JSON
-stores the allow-listed field preferences. The Build 27 label remains current.
+No migrations, production dependency changes, production secrets, shop
+implementation, release version bump, or generated bundles are included. The
+existing `details` JSON stores the allow-listed field preferences. The Build 27
+label remains current.
+
+The final dependency review identified the development-only Vitest advisory
+[GHSA-82fw-gwwq-j7x9](https://github.com/vitest-dev/vitest/security/advisories/GHSA-82fw-gwwq-j7x9).
+Vitest is pinned to patched version `4.1.11`; CI now audits both production and
+test dependencies and rejects moderate or higher advisories. The complete
+existing test suites run on the updated tool before release.
 
 ## Validation and release gates
 
