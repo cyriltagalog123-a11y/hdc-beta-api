@@ -1,14 +1,9 @@
 # Build 27 closeout and Build 28 handoff
 
-Reviewed baseline: 2026-09-14
+Reviewed baseline: 2026-09-16
 
-Follow-up: [public technician profiles](build27-public-technicians.md) is the
-additional Build 27 review change requested on 2026-09-15. The release evidence
-below describes PR #31; it does not claim this follow-up is already deployed.
-
-Status: production release and automated acceptance evidence verified.
-This closeout records the deployed baseline and the selected preparation work
-before Build 28. It does not start shop implementation.
+The public-technician follow-up in PR #34 is deployed. Build 28 is paused while
+the owner-requested [stability review](build27-stability-audit.md) completes.
 
 ## Confirmed release identity
 
@@ -16,19 +11,19 @@ before Build 28. It does not start shop implementation.
 | --- | --- |
 | Production application | https://hdc-beta-api.netlify.app/ |
 | Release | `0.6.4-build.27` |
-| Production/main commit | `21e0e08c6a53a459ffb12af0083810297b85ffb2` |
-| Reviewed source tree | `40e9ae3ab3cf435a680978a5b7a4f503d0dc1d02` |
-| Merged review | [PR #31](https://github.com/cyriltagalog123-a11y/hdc-beta-api/pull/31) |
-| Netlify production deploy | `6aa80c036df475000850e905`, ready at the production commit |
-| Main CI | [HDC CI #301](https://github.com/cyriltagalog123-a11y/hdc-beta-api/actions/runs/34859292247), success |
-| Live public smoke check | [PR31 production smoke verification](https://github.com/cyriltagalog123-a11y/hdc-beta-api/actions/runs/34859735212), success |
-| Previous production commit | `028a6a2f0d650394d651d12d927e73fb496cd059` |
-| Rollback branch | `rollback/build27-before-operations-pr31` |
+| Production/main commit | `f113872fc1be6f65e341f23be37658f8b2a32993` |
+| Reviewed source tree | `8660fa7cc415ee3a7325309e268059a6dc3011a8` |
+| Merged review | [PR #34](https://github.com/cyriltagalog123-a11y/hdc-beta-api/pull/34) |
+| Netlify production deploy | `6aa9d8461a063f8ee25b0791`, ready at the production commit |
+| Main CI | [HDC CI #307](https://github.com/cyriltagalog123-a11y/hdc-beta-api/actions/runs/34999889042), success |
+| Live public smoke check | [PR34 production verification](https://github.com/cyriltagalog123-a11y/hdc-beta-api/actions/runs/35037232759), success |
+| Previous production commit | `21e0e08c6a53a459ffb12af0083810297b85ffb2` |
+| Rollback branch | `rollback/build27-before-public-technicians-pr34` |
 
-The smoke workflow is isolated on `codex/verify-pr31-production`. Its commit
-differs from the application commit because it contains the verification
-workflow. The test explicitly asserted the live application's revision was
-`21e0e08c6a53a459ffb12af0083810297b85ffb2`.
+The smoke workflow's own commit differs because it includes verification code;
+it explicitly asserted the live revision above. It checked public technician
+search/profile privacy and private-route denial. Current main CI passed 186
+server tests, 100 Flutter tests, 18 PostgreSQL integrations and a release web build.
 
 ## Recovery evidence
 
@@ -46,7 +41,7 @@ A fresh production backup and complete isolated restore passed on
 The artifact is recovery evidence for this release, not a substitute for the
 fresh backup required before the next production release.
 
-## Acceptance evidence and boundaries
+## Earlier PR #31 acceptance evidence and boundaries
 
 | Area | Verified evidence |
 | --- | --- |

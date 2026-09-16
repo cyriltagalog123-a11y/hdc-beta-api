@@ -632,7 +632,7 @@ class _PurchaseCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                _StatusPill(label: request.status.label, color: color),
+                Flexible(child: _StatusPill(label: request.status.label, color: color)),
               ],
             ),
             const SizedBox(height: 9),

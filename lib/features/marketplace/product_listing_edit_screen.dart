@@ -104,7 +104,7 @@ class _ProductListingEditScreenState
       'title': _titleController.text.trim(),
       'description': _descriptionController.text.trim(),
       'condition': _condition.code,
-      'currency': 'PHP',
+      'currency': _listing?.currency ?? 'PHP',
       'unitPriceMinor': unitPriceMinor,
       'stockQuantity': stockQuantity,
       'status': status.code,
@@ -159,6 +159,7 @@ class _ProductListingEditScreenState
                     const SizedBox(height: 18),
                     DropdownButtonFormField<HDCPlatformRole>(
                       initialValue: _sellerRole,
+                      isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: 'Selling workspace',
                         border: OutlineInputBorder(),
@@ -183,6 +184,7 @@ class _ProductListingEditScreenState
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       initialValue: _categoryCode,
+                      isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: 'Technology category',
                         border: OutlineInputBorder(),
@@ -265,9 +267,9 @@ class _ProductListingEditScreenState
                             keyboardType: const TextInputType.numberWithOptions(
                               decimal: true,
                             ),
-                            decoration: const InputDecoration(
-                              labelText: 'Price (PHP)',
-                              prefixText: '₱ ',
+                            decoration: InputDecoration(
+                              labelText: 'Price (${_listing?.currency ?? 'PHP'})',
+                              prefixText: '${_listing?.currency ?? 'PHP'} ',
                               border: OutlineInputBorder(),
                             ),
                             validator: (value) => _priceMinor(value ?? '') == null

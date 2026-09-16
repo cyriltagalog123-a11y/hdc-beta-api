@@ -20,6 +20,7 @@ class HdcMarketplaceProvider extends ChangeNotifier {
   Object? _catalogError;
   Object? _purchaseError;
   int _bindingVersion = 0;
+  int _purchaseReadGeneration = 0;
   bool _disposed = false;
 
   HdcMarketplaceProvider({this.client});
@@ -90,20 +91,21 @@ class HdcMarketplaceProvider extends ChangeNotifier {
       return;
     }
     final version = _bindingVersion;
+    final generation = ++_purchaseReadGeneration;
     _isLoadingPurchases = true;
     _purchaseError = null;
     _announce();
     try {
       final response = await api.get('/api/commerce/buyer-dashboard');
-      if (!_isCurrent(userId, version)) return;
+      if (!_isCurrent(userId, version) || generation != _purchaseReadGeneration) return;
       _purchaseRequests = List<ProductPurchaseRequest>.unmodifiable(
         _objectList(response['purchaseRequests'])
             .map(ProductPurchaseRequest.fromJson),
       );
     } on Object catch (error) {
-      if (_isCurrent(userId, version)) _purchaseError = error;
+      if (_isCurrent(userId, version) && generation == _purchaseReadGeneration) _purchaseError = error;
     } finally {
-      if (_isCurrent(userId, version)) {
+      if (_isCurrent(userId, version) && generation == _purchaseReadGeneration) {
         _isLoadingPurchases = false;
         _announce();
       }
@@ -171,7 +173,13 @@ class HdcMarketplaceProvider extends ChangeNotifier {
       final request = ProductPurchaseRequest.fromJson(
         _requiredObject(response, 'purchaseRequest'),
       );
-      if (_isCurrent(userId, version)) _upsert(request);
+      if (!_isCurrent(userId, version)) {
+        throw const HdcWorkflowException(code: 'account_context_changed',
+          message: 'Your account changed. Refresh before continuing.');
+      }
+      _purchaseReadGeneration += 1;
+      _isLoadingPurchases = false;
+      _upsert(request);
       return request;
     } on Object catch (error) {
       if (_isCurrent(userId, version)) _purchaseError = error;

@@ -103,7 +103,7 @@ void main() {
     provider.bindIdentity(_identity(_secondUserId));
     expect(provider.isSaving, isFalse);
     response.complete(http.Response(jsonEncode({'purchaseRequest': _purchase()}), 201));
-    await saving;
+    await expectLater(saving, throwsA(isA<HdcWorkflowException>()));
     expect(provider.purchaseRequests, isEmpty);
     expect(provider.purchaseError, isNull);
     provider.dispose();
@@ -196,4 +196,32 @@ void main() {
     expect(provider.purchaseRequests, isEmpty);
     provider.dispose();
   });
+  test('a pending buyer dashboard cannot resurrect a cancelled request', () async {
+    final store = MemoryAuthSessionStore();
+    await store.write(StoredAuthSession(token: 'buyer-token', expiresAt: DateTime.now().add(const Duration(hours: 1))));
+    final stale = Completer<http.Response>();
+    var reads = 0;
+    final provider = HdcMarketplaceProvider(client: HdcWorkflowApiClient(
+      baseUri: Uri.parse('https://example.test'), sessionStore: store,
+      client: MockClient((request) async {
+        if (request.url.path == '/api/commerce/catalog') return http.Response('{"listings":[]}', 200);
+        if (request.method == 'PUT') return http.Response(jsonEncode({'purchaseRequest': {
+          ..._purchase(), 'status': 'cancelled', 'version': 2, 'cancelledAt': _timestamp,
+        }}), 200);
+        reads += 1;
+        return reads == 2 ? stale.future : http.Response(jsonEncode({'purchaseRequests': [_purchase()]}), 200);
+      }),
+    ));
+    provider.bindIdentity(_identity(_userId));
+    await pumpEventQueue();
+    final refresh = provider.refreshPurchases();
+    await pumpEventQueue();
+    await provider.cancelPurchase(provider.purchaseRequests.single);
+    stale.complete(http.Response(jsonEncode({'purchaseRequests': [_purchase()]}), 200));
+    await refresh;
+    expect(provider.purchaseRequests.single.status, ProductPurchaseStatus.cancelled);
+    expect(provider.isLoadingPurchases, isFalse);
+    provider.dispose();
+  });
+
 }

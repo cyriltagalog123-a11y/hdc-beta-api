@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -94,6 +95,14 @@ Future<MemoryAuthSessionStore> _sessionStore() async {
   );
   return store;
 }
+
+Map<String, Object?> _dashboard({bool activeRole = true, int version = 1, List<Map<String, Object?>>? listings}) => {
+  'canSell': activeRole,
+  'sellingProfiles': activeRole ? [{'profileId': 'profile-seller', 'role': 'seller', 'publicName': 'HDC Seller Shop'}] : [],
+  'summary': {'activeListings': 1, 'draftListings': 0, 'pausedListings': 0,
+    'soldListings': 0, 'lowStockListings': 1, 'pendingPurchaseRequests': 0},
+  'listings': listings ?? [_listing(version: version)], 'purchaseRequests': [],
+};
 
 void main() {
   test('Sales Center loads only the bound seller account listings', () async {
@@ -351,4 +360,90 @@ void main() {
     );
     provider.dispose();
   });
+  test('role revocation invalidates a pending dashboard response', () async {
+    final stale = Completer<http.Response>();
+    var reads = 0;
+    final provider = HdcSalesCenterProvider(client: HdcWorkflowApiClient(
+      baseUri: Uri.parse('https://example.test'), sessionStore: await _sessionStore(),
+      client: MockClient((_) async {
+        reads += 1;
+        if (reads == 1) return stale.future;
+        return http.Response(jsonEncode(_dashboard(activeRole: false, listings: [])), 200);
+      }),
+    ));
+    provider.bindIdentity(_identity({HDCPlatformRole.seller}));
+    await pumpEventQueue();
+    provider.bindIdentity(_identity({HDCPlatformRole.customer}));
+    await pumpEventQueue();
+    stale.complete(http.Response(jsonEncode(_dashboard()), 200));
+    await pumpEventQueue();
+    expect(provider.canSell, isFalse);
+    expect(provider.sellingProfiles, isEmpty);
+    expect(provider.listings, isEmpty);
+    expect(provider.isLoading, isFalse);
+    provider.dispose();
+  });
+
+  test('a listing save rejects duplicates and a pre-save read cannot overwrite it', () async {
+    final stale = Completer<http.Response>();
+    final saved = Completer<http.Response>();
+    var reads = 0;
+    var writes = 0;
+    final provider = HdcSalesCenterProvider(client: HdcWorkflowApiClient(
+      baseUri: Uri.parse('https://example.test'), sessionStore: await _sessionStore(),
+      client: MockClient((request) async {
+        if (request.method == 'POST') { writes += 1; return saved.future; }
+        reads += 1;
+        return reads == 2 ? stale.future : http.Response(jsonEncode(_dashboard()), 200);
+      }),
+    ));
+    provider.bindIdentity(_identity({HDCPlatformRole.seller}));
+    await pumpEventQueue();
+    final refresh = provider.refresh();
+    await pumpEventQueue();
+    final save = provider.createListing({'sellerRole': 'seller'});
+    await pumpEventQueue();
+    await expectLater(provider.createListing({'sellerRole': 'seller'}), throwsA(isA<HdcWorkflowException>()));
+    saved.complete(http.Response(jsonEncode({'listing': _listing(version: 2)}), 201));
+    await save;
+    stale.complete(http.Response(jsonEncode(_dashboard(version: 1)), 200));
+    await refresh;
+    expect(writes, 1);
+    expect(provider.listings.single.version, 2);
+    expect(provider.isLoading, isFalse);
+    provider.dispose();
+  });
+
+  test('a saved listing from another account is rejected', () async {
+    final provider = HdcSalesCenterProvider(client: HdcWorkflowApiClient(
+      baseUri: Uri.parse('https://example.test'), sessionStore: await _sessionStore(),
+      client: MockClient((request) async => http.Response(jsonEncode(request.method == 'GET'
+        ? _dashboard(listings: []) : {'listing': _listing(sellerUserId: 'different-owner')}), 200)),
+    ));
+    provider.bindIdentity(_identity({HDCPlatformRole.seller}));
+    await pumpEventQueue();
+    await expectLater(provider.createListing({'sellerRole': 'seller'}), throwsA(isA<HdcWorkflowException>()));
+    expect(provider.listings, isEmpty);
+    provider.dispose();
+  });
+
+  test('pending seller saves cannot return after role changes', () async {
+    final saved = Completer<http.Response>();
+    final provider = HdcSalesCenterProvider(client: HdcWorkflowApiClient(
+      baseUri: Uri.parse('https://example.test'), sessionStore: await _sessionStore(),
+      client: MockClient((request) async => request.method == 'GET'
+        ? http.Response(jsonEncode(_dashboard(activeRole: false, listings: [])), 200) : saved.future),
+    ));
+    provider.bindIdentity(_identity({HDCPlatformRole.seller}));
+    await pumpEventQueue();
+    final save = provider.createListing({'sellerRole': 'seller'});
+    await pumpEventQueue();
+    provider.bindIdentity(_identity({HDCPlatformRole.customer}));
+    saved.complete(http.Response(jsonEncode({'listing': _listing()}), 201));
+    await expectLater(save, throwsA(isA<HdcWorkflowException>()));
+    expect(provider.listings, isEmpty);
+    expect(provider.isSaving, isFalse);
+    provider.dispose();
+  });
+
 }

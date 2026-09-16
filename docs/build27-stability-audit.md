@@ -1,3 +1,44 @@
+# Build 27 stabilization review — 16 September 2026
+
+Build 28 is paused at the owner's request while the released Build 27 is audited.
+The reviewed production commit is `f113872fc1be6f65e341f23be37658f8b2a32993`,
+Netlify deploy `6aa9d8461a063f8ee25b0791`, release `0.6.4-build.27`.
+
+## Confirmed baseline
+
+- GitHub main and Netlify production both identify the reviewed commit.
+- Local repository checks passed: 25 immutable migrations, release identity,
+  portability, TypeScript, 186 server tests; the full dependency audit reported zero vulnerabilities.
+- Read-only production checks found 25 migrations through `0024`, no invalid
+  indexes, no unvalidated constraints, no disabled HDC triggers, no active
+  listings owned by inactive accounts, and no approved active technician missing a profile.
+- All seven live readiness checks returned `ok`.
+- Scheduled production backup [35074309788](https://github.com/cyriltagalog123-a11y/hdc-beta-api/actions/runs/35074309788)
+  passed on 16 September. Its complete isolated restore matched the source schema and row inventory.
+
+## Corrections under review
+
+1. Apply active-account checks to the public catalog and purchase submission,
+   and active-selling-role checks to existing seller decision/fulfillment paths.
+2. Authorize purchase completion participants before returning a version conflict;
+   reject malformed purchase IDs and versions with a validation response.
+3. Reject reuse of a purchase idempotency key with different details and serialize
+   a buyer's concurrent submissions and rate-limit accounting.
+4. Invalidate seller responses after role changes, reject duplicate listing saves
+   and mismatched-owner save responses, and prevent older reads from replacing
+   newly saved listings or cancelled requests.
+5. Preserve a listing's currency in the existing editor and fit long selling
+   profile names and purchase statuses on compact screens.
+6. Update stale release handoff evidence and add a reusable read-only live smoke check.
+
+These changes keep Build 27's version and state machine. They add no schema
+migration, fulfillment feature, photo storage, cart, or payment processing.
+New regression coverage exercises real PostgreSQL acceptance races, retry
+semantics, monetary immutability, account/role isolation, and Flutter async state.
+Candidate CI, responsive checks and release evidence are recorded below when complete.
+
+---
+
 # Build 27 stability audit — 9 September 2026
 
 ## Production baseline

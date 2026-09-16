@@ -589,7 +589,7 @@ class _SellerOrderCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                _OrderStatusChip(status: request.status),
+                Flexible(child: _OrderStatusChip(status: request.status)),
               ],
             ),
             const SizedBox(height: 12),
