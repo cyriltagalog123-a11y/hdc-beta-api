@@ -27,15 +27,15 @@ server tests, 100 Flutter tests, 18 PostgreSQL integrations and a release web bu
 
 ## Recovery evidence
 
-A fresh production backup and complete isolated restore passed on
-2026-09-14 before the release merge.
+A scheduled production backup and complete isolated restore passed on
+2026-09-16 against the current PR #34 production baseline.
 
-- Run: [34327269606, attempt 4](https://github.com/cyriltagalog123-a11y/hdc-beta-api/actions/runs/34327269606).
-- Artifact: [10354136981](https://github.com/cyriltagalog123-a11y/hdc-beta-api/actions/runs/34327269606/artifacts/10354136981).
-- Name: `hdc-encrypted-backup-34327269606-4`.
-- Size: 373823 bytes.
-- Archive digest: `sha256:513fd09d5522d078fc9389d6a01694f661527f3960fb4e037d671d23df1c7e50`.
-- Artifact expiration: 2026-10-14T14:59:26Z.
+- Run: [35074309788, attempt 1](https://github.com/cyriltagalog123-a11y/hdc-beta-api/actions/runs/35074309788).
+- Artifact: [10437915491](https://github.com/cyriltagalog123-a11y/hdc-beta-api/actions/runs/35074309788/artifacts/10437915491).
+- Name: `hdc-encrypted-backup-35074309788-1`.
+- Size: 374067 bytes.
+- Archive digest: `sha256:a9cfeb76f3cdfe0ccfa37d8af08c055a0d37874839a9eeb469ffbf14ee82e0d2`.
+- Artifact expiration: 2026-10-16T08:32:56Z.
 - Restore output confirmed that schema and row inventory matched.
 
 The artifact is recovery evidence for this release, not a substitute for the

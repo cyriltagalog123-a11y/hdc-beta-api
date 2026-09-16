@@ -41,6 +41,8 @@ class HdcSalesCenterProvider extends ChangeNotifier {
   bool get backendAvailable => client != null;
   Object? get lastError => _lastError;
   bool get canSell => _identitySellingRoles.isNotEmpty;
+  String? get currentUserId => _boundUserId;
+  int get accountContextVersion => _bindingVersion;
   bool get hasListingHistory => _listings.isNotEmpty;
   int get activeListingCount => _activeListingCount;
   int get draftListingCount => _draftListingCount;
@@ -85,7 +87,8 @@ class HdcSalesCenterProvider extends ChangeNotifier {
   Future<void> refresh({bool force = false}) async {
     final api = client;
     final userId = _boundUserId;
-    if (_disposed || api == null || userId == null || (_isLoading && !force)) return;
+    if (_disposed || api == null || userId == null || (_isLoading && !force))
+      return;
     final version = _bindingVersion;
     final generation = ++_refreshGeneration;
     _isLoading = true;
@@ -93,20 +96,20 @@ class HdcSalesCenterProvider extends ChangeNotifier {
     _announce();
     try {
       final response = await api.get('/api/commerce/seller-dashboard');
-      if (!_isCurrent(userId, version) || generation != _refreshGeneration) return;
+      if (!_isCurrent(userId, version) || generation != _refreshGeneration)
+        return;
       final receivedProfiles = List<HdcSellingProfile>.unmodifiable(
         _objectList(response['sellingProfiles'])
             .map(HdcSellingProfile.fromJson)
             .where((profile) => _identitySellingRoles.contains(profile.role)),
       );
       final summary = _requiredObject(response, 'summary');
-      final receivedListings = _objectList(response['listings'])
-          .map(ProductListing.fromJson)
-          .toList(growable: false);
-      final receivedPurchaseRequests =
-          _objectList(response['purchaseRequests'])
-              .map(ProductPurchaseRequest.fromJson)
-              .toList(growable: false);
+      final receivedListings = _objectList(
+        response['listings'],
+      ).map(ProductListing.fromJson).toList(growable: false);
+      final receivedPurchaseRequests = _objectList(
+        response['purchaseRequests'],
+      ).map(ProductPurchaseRequest.fromJson).toList(growable: false);
       if (receivedListings.any((item) => item.sellerUserId != userId)) {
         throw const HdcWorkflowException(
           code: 'invalid_server_response',
@@ -115,17 +118,21 @@ class HdcSalesCenterProvider extends ChangeNotifier {
       }
       _sellingProfiles = receivedProfiles;
       _listings = List<ProductListing>.unmodifiable(receivedListings);
-      _purchaseRequests =
-          List<ProductPurchaseRequest>.unmodifiable(receivedPurchaseRequests);
+      _purchaseRequests = List<ProductPurchaseRequest>.unmodifiable(
+        receivedPurchaseRequests,
+      );
       _activeListingCount = _summaryCount(summary, 'activeListings');
       _draftListingCount = _summaryCount(summary, 'draftListings');
       _pausedListingCount = _summaryCount(summary, 'pausedListings');
       _soldListingCount = _summaryCount(summary, 'soldListings');
       _lowStockListingCount = _summaryCount(summary, 'lowStockListings');
-      _pendingPurchaseRequestCount =
-          _summaryCount(summary, 'pendingPurchaseRequests');
+      _pendingPurchaseRequestCount = _summaryCount(
+        summary,
+        'pendingPurchaseRequests',
+      );
     } on Object catch (error) {
-      if (_isCurrent(userId, version) && generation == _refreshGeneration) _lastError = error;
+      if (_isCurrent(userId, version) && generation == _refreshGeneration)
+        _lastError = error;
     } finally {
       if (_isCurrent(userId, version) && generation == _refreshGeneration) {
         _isLoading = false;
@@ -157,8 +164,9 @@ class HdcSalesCenterProvider extends ChangeNotifier {
       listing.id,
       listing.writeBody(
         nextStatus: status,
-        nextStockQuantity:
-            status == ProductListingStatus.sold ? 0 : listing.stockQuantity,
+        nextStockQuantity: status == ProductListingStatus.sold
+            ? 0
+            : listing.stockQuantity,
       ),
     );
   }
@@ -192,11 +200,7 @@ class HdcSalesCenterProvider extends ChangeNotifier {
     try {
       final response = await api.put(
         '/api/commerce/purchase-requests/${request.id}/status',
-        body: {
-          'action': action,
-          'version': request.version,
-          'note': note,
-        },
+        body: {'action': action, 'version': request.version, 'note': note},
       );
       final updated = ProductPurchaseRequest.fromJson(
         _requiredObject(response, 'purchaseRequest'),
@@ -230,8 +234,10 @@ class HdcSalesCenterProvider extends ChangeNotifier {
       );
     }
     if (_isSaving) {
-      throw const HdcWorkflowException(code: 'commerce_request_in_progress',
-        message: 'Another marketplace change is still being saved.');
+      throw const HdcWorkflowException(
+        code: 'commerce_request_in_progress',
+        message: 'Another marketplace change is still being saved.',
+      );
     }
     final version = _bindingVersion;
     _isSaving = true;
@@ -246,8 +252,10 @@ class HdcSalesCenterProvider extends ChangeNotifier {
       );
       _requireCurrent(userId, version);
       if (listing.sellerUserId != userId) {
-        throw const HdcWorkflowException(code: 'invalid_server_response',
-          message: 'HDC rejected a marketplace response for another account.');
+        throw const HdcWorkflowException(
+          code: 'invalid_server_response',
+          message: 'HDC rejected a marketplace response for another account.',
+        );
       }
       _refreshGeneration += 1;
       _isLoading = false;
@@ -306,10 +314,7 @@ class HdcSalesCenterProvider extends ChangeNotifier {
     _pendingPurchaseRequestCount = 0;
   }
 
-  void _applySummaryDelta(
-    ProductListing? previous,
-    ProductListing current,
-  ) {
+  void _applySummaryDelta(ProductListing? previous, ProductListing current) {
     if (previous != null) {
       _changeStatusCount(previous.status, -1);
       if (_isLowStock(previous)) _lowStockListingCount -= 1;
@@ -342,8 +347,11 @@ class HdcSalesCenterProvider extends ChangeNotifier {
 
   void _requireCurrent(String userId, int version) {
     if (!_isCurrent(userId, version)) {
-      throw const HdcWorkflowException(code: 'account_context_changed',
-        message: 'Your account or selling permissions changed. Refresh before continuing.');
+      throw const HdcWorkflowException(
+        code: 'account_context_changed',
+        message:
+            'Your account or selling permissions changed. Refresh before continuing.',
+      );
     }
   }
 
@@ -370,15 +378,17 @@ List<Map<String, dynamic>> _objectList(Object? value) {
       message: 'HDC returned an invalid marketplace response.',
     );
   }
-  return value.map((item) {
-    if (item is! Map) {
-      throw const HdcWorkflowException(
-        code: 'invalid_server_response',
-        message: 'HDC returned an invalid marketplace response.',
-      );
-    }
-    return item.map((key, value) => MapEntry('$key', value));
-  }).toList(growable: false);
+  return value
+      .map((item) {
+        if (item is! Map) {
+          throw const HdcWorkflowException(
+            code: 'invalid_server_response',
+            message: 'HDC returned an invalid marketplace response.',
+          );
+        }
+        return item.map((key, value) => MapEntry('$key', value));
+      })
+      .toList(growable: false);
 }
 
 Map<String, dynamic> _requiredObject(

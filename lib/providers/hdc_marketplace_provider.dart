@@ -69,9 +69,9 @@ class HdcMarketplaceProvider extends ChangeNotifier {
     _announce();
     try {
       final response = await api.getPublic('/api/commerce/catalog');
-      final products = _objectList(response['listings'])
-          .map(MarketplaceProduct.fromJson)
-          .toList(growable: false);
+      final products = _objectList(
+        response['listings'],
+      ).map(MarketplaceProduct.fromJson).toList(growable: false);
       if (_disposed) return;
       _products = List<MarketplaceProduct>.unmodifiable(products);
     } on Object catch (error) {
@@ -97,15 +97,19 @@ class HdcMarketplaceProvider extends ChangeNotifier {
     _announce();
     try {
       final response = await api.get('/api/commerce/buyer-dashboard');
-      if (!_isCurrent(userId, version) || generation != _purchaseReadGeneration) return;
+      if (!_isCurrent(userId, version) || generation != _purchaseReadGeneration)
+        return;
       _purchaseRequests = List<ProductPurchaseRequest>.unmodifiable(
-        _objectList(response['purchaseRequests'])
-            .map(ProductPurchaseRequest.fromJson),
+        _objectList(
+          response['purchaseRequests'],
+        ).map(ProductPurchaseRequest.fromJson),
       );
     } on Object catch (error) {
-      if (_isCurrent(userId, version) && generation == _purchaseReadGeneration) _purchaseError = error;
+      if (_isCurrent(userId, version) && generation == _purchaseReadGeneration)
+        _purchaseError = error;
     } finally {
-      if (_isCurrent(userId, version) && generation == _purchaseReadGeneration) {
+      if (_isCurrent(userId, version) &&
+          generation == _purchaseReadGeneration) {
         _isLoadingPurchases = false;
         _announce();
       }
@@ -117,16 +121,12 @@ class HdcMarketplaceProvider extends ChangeNotifier {
     required int quantity,
     required String buyerNote,
   }) async {
-    return _writePurchase(
-      '/api/commerce/purchase-requests',
-      {
-        'listingId': product.id,
-        'quantity': quantity,
-        'buyerNote': buyerNote,
-        'clientRequestId': _newUuid(),
-      },
-      create: true,
-    );
+    return _writePurchase('/api/commerce/purchase-requests', {
+      'listingId': product.id,
+      'quantity': quantity,
+      'buyerNote': buyerNote,
+      'clientRequestId': _newUuid(),
+    }, create: true);
   }
 
   Future<ProductPurchaseRequest> cancelPurchase(
@@ -134,11 +134,7 @@ class HdcMarketplaceProvider extends ChangeNotifier {
   ) {
     return _writePurchase(
       '/api/commerce/purchase-requests/${request.id}/status',
-      {
-        'action': 'cancel',
-        'version': request.version,
-        'note': '',
-      },
+      {'action': 'cancel', 'version': request.version, 'note': ''},
       create: false,
     );
   }
@@ -174,8 +170,10 @@ class HdcMarketplaceProvider extends ChangeNotifier {
         _requiredObject(response, 'purchaseRequest'),
       );
       if (!_isCurrent(userId, version)) {
-        throw const HdcWorkflowException(code: 'account_context_changed',
-          message: 'Your account changed. Refresh before continuing.');
+        throw const HdcWorkflowException(
+          code: 'account_context_changed',
+          message: 'Your account changed. Refresh before continuing.',
+        );
       }
       _purchaseReadGeneration += 1;
       _isLoadingPurchases = false;
@@ -225,15 +223,17 @@ List<Map<String, dynamic>> _objectList(Object? value) {
       message: 'HDC returned an invalid marketplace response.',
     );
   }
-  return value.map((item) {
-    if (item is! Map) {
-      throw const HdcWorkflowException(
-        code: 'invalid_server_response',
-        message: 'HDC returned an invalid marketplace response.',
-      );
-    }
-    return item.map((key, value) => MapEntry('$key', value));
-  }).toList(growable: false);
+  return value
+      .map((item) {
+        if (item is! Map) {
+          throw const HdcWorkflowException(
+            code: 'invalid_server_response',
+            message: 'HDC returned an invalid marketplace response.',
+          );
+        }
+        return item.map((key, value) => MapEntry('$key', value));
+      })
+      .toList(growable: false);
 }
 
 Map<String, dynamic> _requiredObject(
@@ -255,7 +255,8 @@ String _newUuid() {
   final bytes = List<int>.generate(16, (_) => random.nextInt(256));
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  final hex = bytes.map((value) => value.toRadixString(16).padLeft(2, '0'))
+  final hex = bytes
+      .map((value) => value.toRadixString(16).padLeft(2, '0'))
       .join();
   return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
       '${hex.substring(12, 16)}-${hex.substring(16, 20)}-'

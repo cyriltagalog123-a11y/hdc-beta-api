@@ -82,7 +82,7 @@ describe.skipIf(process.env.HDC_POSTGRES_INTEGRATION !== '1').sequential('Build 
     expect(visible).not.toHaveProperty('sellerUserId');
     expect(visible).not.toHaveProperty('sellerProfileId');
     expect(visible).not.toHaveProperty('email');
-    await sql`UPDATE public.hdc_users SET status = 'suspended' WHERE id = ${seller.id}::uuid`;
+    await sql`UPDATE public.hdc_users SET status = 'disabled' WHERE id = ${seller.id}::uuid`;
     try {
       const hidden = await call('/api/commerce/catalog');
       expect((hidden.body.listings as Row[]).some((row) => row.id === item.id)).toBe(false);

@@ -1,13 +1,13 @@
 # HelpDesk Connect delivery roadmap
 
-Last updated: 2026-09-15
+Last updated: 2026-09-16
 
 ## Current Build 27 follow-up
 
 Approved technicians automatically enter public search. Guests can open their
 profiles, technicians select optional public fields, and completed-service
-ratings and reviews remain authoritative. See [scope and review gates](build27-public-technicians.md).
-Build 28 shop implementation remains pending this Build 27 review.
+ratings and reviews remain authoritative. PR #34 is deployed; see [scope and release evidence](build27-public-technicians.md).
+Build 28 is paused for the owner's [Build 27 stability audit](build27-stability-audit.md).
 
 ## Delivered baseline
 
