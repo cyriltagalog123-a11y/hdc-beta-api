@@ -345,6 +345,7 @@ class _CatalogTab extends StatelessWidget {
               final filter = DropdownButtonFormField<String>(
                 key: ValueKey(category),
                 initialValue: category ?? 'all',
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Category',
                   border: OutlineInputBorder(),
