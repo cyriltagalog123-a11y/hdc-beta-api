@@ -155,6 +155,7 @@ export function parseProductListingWrite(
     : wholeNumber(input.version, 1, Number.MAX_SAFE_INTEGER);
 
   if (
+    (input.version !== undefined && input.version !== null && version === null) ||
     !isSellingRoleCode(sellerRole) ||
     !categorySet.has(categoryCode) ||
     !title ||

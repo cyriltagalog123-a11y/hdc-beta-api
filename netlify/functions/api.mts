@@ -2325,6 +2325,7 @@ async function activeSellingProfile(
     JOIN public.hdc_user_roles assignment
       ON assignment.user_id = profile.user_id
      AND assignment.role::text = profile.role
+    JOIN public.hdc_users seller ON seller.id = profile.user_id AND seller.status = 'active'
     WHERE profile.user_id = ${userId}
       AND profile.role = ${role}
       AND assignment.is_active = true
@@ -2352,6 +2353,7 @@ async function handleProductCatalog(
      AND assignment.role::text = listing.seller_role
      AND assignment.is_active = true
      AND assignment.status = 'active'
+    JOIN public.hdc_users seller ON seller.id = listing.seller_user_id AND seller.status = 'active'
     WHERE listing.status = 'active'
       AND listing.stock_quantity > 0
       AND listing.published_at IS NOT NULL
@@ -2408,6 +2410,16 @@ async function handleCreateProductPurchaseRequest(
   }
 
   const result = await sql.begin(async (tx) => {
+    // Serialize one buyer's submissions so retries and rate checks see commits.
+    await tx`SELECT id FROM public.hdc_users WHERE id = ${user.id}::uuid FOR UPDATE`;
+    const retryRequest = (row: Record<string, unknown>) => {
+      if (String(row.listing_id) !== write.listingId || Number(row.quantity) !== write.quantity ||
+          String(row.buyer_note) !== write.buyerNote) {
+        throw new WorkflowHttpError('purchase_request_key_reused', 409,
+          'This request key was already used for different purchase details.');
+      }
+      return row;
+    };
     const retryRows = await tx`
       SELECT *
       FROM public.hdc_product_purchase_requests
@@ -2416,7 +2428,7 @@ async function handleCreateProductPurchaseRequest(
       LIMIT 1
     `;
     if (retryRows.length > 0) {
-      return { request: rowObject(retryRows[0]), created: false };
+      return { request: retryRequest(rowObject(retryRows[0])), created: false };
     }
 
     const recentRows = await tx`
@@ -2445,7 +2457,9 @@ async function handleCreateProductPurchaseRequest(
        AND assignment.role::text = listing.seller_role
        AND assignment.is_active = true
        AND assignment.status = 'active'
+      JOIN public.hdc_users seller ON seller.id = listing.seller_user_id AND seller.status = 'active'
       WHERE listing.id = ${write.listingId}
+        AND listing.published_at IS NOT NULL
         AND listing.status = 'active'
         AND listing.stock_quantity >= ${write.quantity}
       FOR UPDATE OF listing
@@ -2496,7 +2510,7 @@ async function handleCreateProductPurchaseRequest(
         LIMIT 1
       `;
       if (concurrentRetryRows.length > 0) {
-        return { request: rowObject(concurrentRetryRows[0]), created: false };
+        return { request: retryRequest(rowObject(concurrentRetryRows[0])), created: false };
       }
       const pendingRows = await tx`
         SELECT id
@@ -2591,6 +2605,14 @@ async function handleProductPurchaseRequestAction(
         409,
         'That purchase request is no longer pending.',
       );
+    }
+
+    if (write.action === 'decline') {
+      const role = String(lookup.seller_role) as SellingRoleCode;
+      if (!await activeSellingProfile(tx as unknown as DbClient, user.id, role)) {
+        throw new WorkflowHttpError('selling_role_required', 403,
+          'An active selling workspace is required to decide this request.');
+      }
     }
 
     const nextStatus = write.action === 'accept'

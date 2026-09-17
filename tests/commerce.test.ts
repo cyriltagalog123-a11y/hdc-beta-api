@@ -33,6 +33,12 @@ describe('marketplace listing contract', () => {
     });
   });
 
+  it('rejects invalid supplied listing versions instead of treating them as creates', () => {
+    for (const version of [0, -1, 1.5, '2', Number.MAX_SAFE_INTEGER + 1]) {
+      expect(parseProductListingWrite({ ...validWrite, version })).toBeNull();
+    }
+  });
+
   it('requires approved selling roles and truthful active stock', () => {
     expect(parseProductListingWrite({
       ...validWrite,

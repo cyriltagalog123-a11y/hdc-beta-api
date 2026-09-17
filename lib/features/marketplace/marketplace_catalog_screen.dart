@@ -345,6 +345,7 @@ class _CatalogTab extends StatelessWidget {
               final filter = DropdownButtonFormField<String>(
                 key: ValueKey(category),
                 initialValue: category ?? 'all',
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Category',
                   border: OutlineInputBorder(),
@@ -632,7 +633,7 @@ class _PurchaseCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                _StatusPill(label: request.status.label, color: color),
+                Flexible(child: _StatusPill(label: request.status.label, color: color)),
               ],
             ),
             const SizedBox(height: 9),

@@ -1,7 +1,7 @@
 # Build 27: public technician profiles
 
-Status: review branch; production promotion is pending the release gates.
-Date: 2026-09-15.
+Status: deployed in [PR #34](https://github.com/cyriltagalog123-a11y/hdc-beta-api/pull/34) on 2026-09-15.
+Verified again: 2026-09-16. See [closeout evidence](build27-closeout.md).
 
 Approved, active technicians appear in search as soon as their role is granted.
 The existing approval trigger creates the profile, so this no longer depends on
