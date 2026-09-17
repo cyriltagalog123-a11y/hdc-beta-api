@@ -87,8 +87,9 @@ class HdcSalesCenterProvider extends ChangeNotifier {
   Future<void> refresh({bool force = false}) async {
     final api = client;
     final userId = _boundUserId;
-    if (_disposed || api == null || userId == null || (_isLoading && !force))
+    if (_disposed || api == null || userId == null || (_isLoading && !force)) {
       return;
+    }
     final version = _bindingVersion;
     final generation = ++_refreshGeneration;
     _isLoading = true;
@@ -96,8 +97,9 @@ class HdcSalesCenterProvider extends ChangeNotifier {
     _announce();
     try {
       final response = await api.get('/api/commerce/seller-dashboard');
-      if (!_isCurrent(userId, version) || generation != _refreshGeneration)
+      if (!_isCurrent(userId, version) || generation != _refreshGeneration) {
         return;
+      }
       final receivedProfiles = List<HdcSellingProfile>.unmodifiable(
         _objectList(response['sellingProfiles'])
             .map(HdcSellingProfile.fromJson)
@@ -131,8 +133,9 @@ class HdcSalesCenterProvider extends ChangeNotifier {
         'pendingPurchaseRequests',
       );
     } on Object catch (error) {
-      if (_isCurrent(userId, version) && generation == _refreshGeneration)
+      if (_isCurrent(userId, version) && generation == _refreshGeneration) {
         _lastError = error;
+      }
     } finally {
       if (_isCurrent(userId, version) && generation == _refreshGeneration) {
         _isLoading = false;

@@ -97,16 +97,18 @@ class HdcMarketplaceProvider extends ChangeNotifier {
     _announce();
     try {
       final response = await api.get('/api/commerce/buyer-dashboard');
-      if (!_isCurrent(userId, version) || generation != _purchaseReadGeneration)
+      if (!_isCurrent(userId, version) || generation != _purchaseReadGeneration) {
         return;
+      }
       _purchaseRequests = List<ProductPurchaseRequest>.unmodifiable(
         _objectList(
           response['purchaseRequests'],
         ).map(ProductPurchaseRequest.fromJson),
       );
     } on Object catch (error) {
-      if (_isCurrent(userId, version) && generation == _purchaseReadGeneration)
+      if (_isCurrent(userId, version) && generation == _purchaseReadGeneration) {
         _purchaseError = error;
+      }
     } finally {
       if (_isCurrent(userId, version) &&
           generation == _purchaseReadGeneration) {

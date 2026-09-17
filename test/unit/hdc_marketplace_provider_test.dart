@@ -240,8 +240,9 @@ void main() {
           baseUri: Uri.parse('https://example.test'),
           sessionStore: store,
           client: MockClient((request) async {
-            if (request.url.path == '/api/commerce/catalog')
+            if (request.url.path == '/api/commerce/catalog') {
               return http.Response('{"listings":[]}', 200);
+            }
             if (request.method == 'PUT') {
               return http.Response(
                 jsonEncode({
