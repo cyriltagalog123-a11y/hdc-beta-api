@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: hdc-social-bridge
+    runtime: node
+    plan: free
+    region: singapore
+    branch: social-bridge-build-0.1
+    rootDir: social-bridge
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BASE_URL
+        fromService:
+          type: web
+          name: hdc-social-bridge
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: FACEBOOK_APP_ID
+        sync: false
+      - key: FACEBOOK_APP_SECRET
+        sync: false
+      - key: META_GRAPH_VERSION
+        sync: false
+      - key: ADMIN_USERNAME
+        value: hdc-owner
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: STATE_SECRET
+        generateValue: true
+      - key: TOKEN_ENCRYPTION_KEY
+        generateValue: true
+      - key: SOCIAL_BRIDGE_API_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL
+        value: "true"
