@@ -6,7 +6,8 @@ import {
   exchangeCode,
   exchangeForLongLivedUserToken,
   listManagedPages,
-  publishTextPost
+  publishTextPost,
+  listRecentPosts
 } from './meta.js';
 import { renderAdmin, renderCallbackSuccess } from './ui.js';
 import { handleMcpRequest } from './mcp.js';
@@ -38,12 +39,23 @@ function mcpAuth(req, res, next) {
   next();
 }
 
+function tempPublishAuth(req, res, next) {
+  const expected = process.env.TEMP_PUBLISH_KEY;
+  const provided = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!expected || !secureEqual(provided, expected)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+}
+
 function deploymentWarning() {
   if (!process.env.DATABASE_URL) {
     return 'DATABASE_URL is not configured. Connections are currently stored only in memory and will disappear on restart. This mode is for local testing only.';
   }
   return '';
 }
+
+const launchMessage = `Welcome to HelpDesk Connect.\n\nWe’re building a technology marketplace designed to make finding tech help, professionals, services, and device solutions easier and more connected.\n\nHDC is being developed around one simple goal:\n\nHelping people spend less time searching and more time solving.\n\nThe platform is still growing, and we’ll be sharing development updates, feature previews, opportunities for technicians and businesses, and ways for early users to take part.\n\nFollow HelpDesk Connect and watch HDC grow from the beginning.\n\nPeople. Solutions. Together.\n\n#HelpDeskConnect #HDC #TechSupport #Technology #TechCommunity #PhilippinesTech`;
 
 export async function createApp() {
   const app = express();
@@ -117,6 +129,38 @@ export async function createApp() {
     } catch (error) {
       await store.addAudit({ action: 'admin_publish_text', pageId: page.pageId, payload: { message }, success: false, result: { error: error.message, meta: error.meta || null } });
       res.redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+    }
+  });
+
+  app.post('/internal/publish-launch', tempPublishAuth, async (_req, res) => {
+    const page = await store.getPage('1245652801973956');
+    if (!page) return res.status(404).json({ error: 'HelpDesk Connect Page is not connected' });
+
+    try {
+      const recent = await listRecentPosts(page.pageId, page.accessToken, 25);
+      const existing = recent.find((post) => String(post.message || '').trim() === launchMessage.trim());
+      if (existing) {
+        return res.json({ success: true, alreadyPublished: true, id: existing.id, permalink_url: existing.permalink_url || null });
+      }
+
+      const result = await publishTextPost(page.pageId, page.accessToken, launchMessage);
+      await store.addAudit({
+        action: 'launch_post_publish',
+        pageId: page.pageId,
+        payload: { message: launchMessage },
+        success: true,
+        result
+      });
+      return res.json({ success: true, alreadyPublished: false, ...result });
+    } catch (error) {
+      await store.addAudit({
+        action: 'launch_post_publish',
+        pageId: page.pageId,
+        payload: { message: launchMessage },
+        success: false,
+        result: { error: error.message, meta: error.meta || null }
+      });
+      return res.status(500).json({ error: error.message });
     }
   });
 
