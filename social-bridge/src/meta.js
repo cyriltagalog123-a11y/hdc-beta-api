@@ -39,7 +39,9 @@ export function buildFacebookLoginUrl(state) {
   url.searchParams.set('redirect_uri', `${required('BASE_URL')}/auth/facebook/callback`);
   url.searchParams.set('state', state);
   url.searchParams.set('scope', scope.join(','));
+  url.searchParams.set('config_id', required('FACEBOOK_LOGIN_CONFIG_ID'));
   url.searchParams.set('response_type', 'code');
+  url.searchParams.set('override_default_response_type', 'true');
   return url.toString();
 }
 
