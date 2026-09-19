@@ -57,6 +57,27 @@ function deploymentWarning() {
 
 const launchMessage = `Welcome to HelpDesk Connect.\n\nWe’re building a technology marketplace designed to make finding tech help, professionals, services, and device solutions easier and more connected.\n\nHDC is being developed around one simple goal:\n\nHelping people spend less time searching and more time solving.\n\nThe platform is still growing, and we’ll be sharing development updates, feature previews, opportunities for technicians and businesses, and ways for early users to take part.\n\nFollow HelpDesk Connect and watch HDC grow from the beginning.\n\nPeople. Solutions. Together.\n\n#HelpDeskConnect #HDC #TechSupport #Technology #TechCommunity #PhilippinesTech`;
 
+async function ensureLaunchPost(store) {
+  const page = await store.getPage('1245652801973956');
+  if (!page) throw new Error('HelpDesk Connect Page is not connected');
+
+  const recent = await listRecentPosts(page.pageId, page.accessToken, 25);
+  const existing = recent.find((post) => String(post.message || '').trim() === launchMessage.trim());
+  if (existing) {
+    return { success: true, alreadyPublished: true, id: existing.id, permalink_url: existing.permalink_url || null };
+  }
+
+  const result = await publishTextPost(page.pageId, page.accessToken, launchMessage);
+  await store.addAudit({
+    action: 'launch_post_publish',
+    pageId: page.pageId,
+    payload: { message: launchMessage },
+    success: true,
+    result
+  });
+  return { success: true, alreadyPublished: false, ...result };
+}
+
 export async function createApp() {
   const app = express();
   app.disable('x-powered-by');
@@ -64,6 +85,22 @@ export async function createApp() {
   app.use(express.json({ limit: '256kb' }));
 
   const store = await createStore();
+
+  if (process.env.PUBLISH_LAUNCH_ON_BOOT === 'true') {
+    try {
+      const result = await ensureLaunchPost(store);
+      console.log(`HDC launch publish result: ${JSON.stringify(result)}`);
+    } catch (error) {
+      await store.addAudit({
+        action: 'launch_post_publish',
+        pageId: '1245652801973956',
+        payload: { message: launchMessage },
+        success: false,
+        result: { error: error.message, meta: error.meta || null }
+      });
+      console.error(`HDC launch publish failed: ${error.message}`);
+    }
+  }
 
   app.get('/health', (_req, res) => {
     res.json({ ok: true, service: 'hdc-social-bridge', version: '0.1.0' });
@@ -133,29 +170,12 @@ export async function createApp() {
   });
 
   app.post('/internal/publish-launch', tempPublishAuth, async (_req, res) => {
-    const page = await store.getPage('1245652801973956');
-    if (!page) return res.status(404).json({ error: 'HelpDesk Connect Page is not connected' });
-
     try {
-      const recent = await listRecentPosts(page.pageId, page.accessToken, 25);
-      const existing = recent.find((post) => String(post.message || '').trim() === launchMessage.trim());
-      if (existing) {
-        return res.json({ success: true, alreadyPublished: true, id: existing.id, permalink_url: existing.permalink_url || null });
-      }
-
-      const result = await publishTextPost(page.pageId, page.accessToken, launchMessage);
-      await store.addAudit({
-        action: 'launch_post_publish',
-        pageId: page.pageId,
-        payload: { message: launchMessage },
-        success: true,
-        result
-      });
-      return res.json({ success: true, alreadyPublished: false, ...result });
+      return res.json(await ensureLaunchPost(store));
     } catch (error) {
       await store.addAudit({
         action: 'launch_post_publish',
-        pageId: page.pageId,
+        pageId: '1245652801973956',
         payload: { message: launchMessage },
         success: false,
         result: { error: error.message, meta: error.meta || null }
