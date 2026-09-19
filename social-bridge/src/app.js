@@ -69,7 +69,9 @@ export async function createApp() {
     }));
   });
 
-  app.get('/auth/facebook', basicAdmin, (_req, res) => {
+  // Temporary setup route: left unauthenticated only for the initial Meta OAuth connection.
+  // After the Page connection succeeds, restore basicAdmin on this route.
+  app.get('/auth/facebook', (_req, res) => {
     res.redirect(buildFacebookLoginUrl(createOAuthState()));
   });
 
