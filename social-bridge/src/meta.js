@@ -1,9 +1,3 @@
-const scope = [
-  'pages_show_list',
-  'pages_read_engagement',
-  'pages_manage_posts'
-];
-
 function required(name) {
   const value = process.env[name];
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
@@ -38,7 +32,8 @@ export function buildFacebookLoginUrl(state) {
   url.searchParams.set('client_id', required('FACEBOOK_APP_ID'));
   url.searchParams.set('redirect_uri', `${required('BASE_URL')}/auth/facebook/callback`);
   url.searchParams.set('state', state);
-  url.searchParams.set('scope', scope.join(','));
+  // Facebook Login for Business gets permissions from the saved Meta configuration.
+  // Do not send Page permissions again through the legacy scope query parameter.
   url.searchParams.set('config_id', required('FACEBOOK_LOGIN_CONFIG_ID'));
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('override_default_response_type', 'true');
