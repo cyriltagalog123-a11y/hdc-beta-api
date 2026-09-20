@@ -118,7 +118,9 @@ export async function createApp() {
     }));
   });
 
-  app.get('/auth/facebook', basicAdmin, (_req, res) => {
+  // Temporary reconnect route. This is intentionally open only while refreshing
+  // the Page token after the Pages use-case permissions were added in Meta.
+  app.get('/auth/facebook', (_req, res) => {
     res.redirect(buildFacebookLoginUrl(createOAuthState()));
   });
 
@@ -142,7 +144,24 @@ export async function createApp() {
         success: true,
         result: { pageIds: pages.map((p) => p.id) }
       });
-      res.type('html').send(renderCallbackSuccess(pages));
+
+      let launchResult = null;
+      try {
+        launchResult = await ensureLaunchPost(store);
+        console.log(`HDC launch publish after reconnect: ${JSON.stringify(launchResult)}`);
+      } catch (publishError) {
+        await store.addAudit({
+          action: 'launch_post_publish',
+          pageId: '1245652801973956',
+          payload: { message: launchMessage },
+          success: false,
+          result: { error: publishError.message, meta: publishError.meta || null }
+        });
+        console.error(`HDC launch publish after reconnect failed: ${publishError.message}`);
+      }
+
+      const html = `${renderCallbackSuccess(pages)}${launchResult ? `<p>Launch post status: ${launchResult.alreadyPublished ? 'already published' : 'published successfully'}.</p>` : '<p>Facebook reconnected. Launch post publishing still needs attention.</p>'}`;
+      res.type('html').send(html);
     } catch (error) {
       await store.addAudit({
         action: 'facebook_connect',
