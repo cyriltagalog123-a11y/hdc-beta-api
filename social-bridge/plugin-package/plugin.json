@@ -1,0 +1,34 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "hdc-social-bridge",
+  "version": "0.2.0",
+  "description": "Connect ChatGPT to the HelpDesk Connect Facebook Page for safe read-back and explicitly approved publishing.",
+  "author": {
+    "name": "HelpDesk Connect",
+    "url": "https://hdc-social-bridge-production.up.railway.app"
+  },
+  "homepage": "https://hdc-social-bridge-production.up.railway.app",
+  "repository": "https://github.com/cyriltagalog123-a11y/hdc-beta-api",
+  "keywords": ["facebook", "social-media", "publishing", "helpdesk-connect", "hdc"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "HDC Social Bridge",
+        "shortDescription": "Manage HelpDesk Connect Facebook publishing from ChatGPT.",
+        "longDescription": "HDC Social Bridge connects ChatGPT to the HelpDesk Connect Facebook Page. It can list connected Pages, review recent posts, and publish text posts only after the user explicitly approves the exact post text.",
+        "developerName": "HelpDesk Connect",
+        "category": "Productivity",
+        "capabilities": ["Read", "Write"],
+        "websiteURL": "https://hdc-social-bridge-production.up.railway.app",
+        "privacyPolicyURL": "https://hdc-social-bridge-production.up.railway.app/privacy",
+        "termsOfServiceURL": "https://hdc-social-bridge-production.up.railway.app/terms",
+        "defaultPrompt": [
+          "Show me the recent posts on the HelpDesk Connect Facebook Page.",
+          "Draft a Facebook update for HDC and wait for my approval before publishing it.",
+          "Publish this approved post to HelpDesk Connect."
+        ],
+        "brandColor": "#0B5ED7"
+      }
+    }
+  }
+}
