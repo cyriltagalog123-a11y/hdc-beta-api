@@ -6,11 +6,21 @@ import {
   exchangeCode,
   exchangeForLongLivedUserToken,
   listManagedPages,
-  publishTextPost,
-  listRecentPosts
+  publishTextPost
 } from './meta.js';
 import { renderAdmin, renderCallbackSuccess } from './ui.js';
 import { handleMcpRequest } from './mcp.js';
+import {
+  authenticateBearer,
+  authorizeGet,
+  authorizePost,
+  mcpResource,
+  oauthMetadata,
+  protectedResourceMetadata,
+  publicBaseUrl,
+  registerClient,
+  tokenEndpoint
+} from './oauth.js';
 
 function basicAdmin(req, res, next) {
   const header = req.headers.authorization || '';
@@ -30,24 +40,6 @@ function basicAdmin(req, res, next) {
   }
 }
 
-function mcpAuth(req, res, next) {
-  const expected = process.env.SOCIAL_BRIDGE_API_KEY;
-  const provided = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  if (!expected || !secureEqual(provided, expected)) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  next();
-}
-
-function tempPublishAuth(req, res, next) {
-  const expected = process.env.TEMP_PUBLISH_KEY;
-  const provided = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  if (!expected || !secureEqual(provided, expected)) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  next();
-}
-
 function deploymentWarning() {
   if (!process.env.DATABASE_URL) {
     return 'DATABASE_URL is not configured. Connections are currently stored only in memory and will disappear on restart. This mode is for local testing only.';
@@ -55,27 +47,8 @@ function deploymentWarning() {
   return '';
 }
 
-const launchMessage = `Welcome to HelpDesk Connect.\n\nWe’re building a technology marketplace designed to make finding tech help, professionals, services, and device solutions easier and more connected.\n\nHDC is being developed around one simple goal:\n\nHelping people spend less time searching and more time solving.\n\nThe platform is still growing, and we’ll be sharing development updates, feature previews, opportunities for technicians and businesses, and ways for early users to take part.\n\nFollow HelpDesk Connect and watch HDC grow from the beginning.\n\nPeople. Solutions. Together.\n\n#HelpDeskConnect #HDC #TechSupport #Technology #TechCommunity #PhilippinesTech`;
-
-async function ensureLaunchPost(store) {
-  const page = await store.getPage('1245652801973956');
-  if (!page) throw new Error('HelpDesk Connect Page is not connected');
-
-  const recent = await listRecentPosts(page.pageId, page.accessToken, 25);
-  const existing = recent.find((post) => String(post.message || '').trim() === launchMessage.trim());
-  if (existing) {
-    return { success: true, alreadyPublished: true, id: existing.id, permalink_url: existing.permalink_url || null };
-  }
-
-  const result = await publishTextPost(page.pageId, page.accessToken, launchMessage);
-  await store.addAudit({
-    action: 'launch_post_publish',
-    pageId: page.pageId,
-    payload: { message: launchMessage },
-    success: true,
-    result
-  });
-  return { success: true, alreadyPublished: false, ...result };
+function page(title, body) {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>body{font-family:system-ui;max-width:820px;margin:48px auto;padding:0 20px;line-height:1.6;color:#102035}a{color:#1268c4}h1,h2{line-height:1.2}</style></head><body>${body}</body></html>`;
 }
 
 export async function createApp() {
@@ -85,28 +58,71 @@ export async function createApp() {
   app.use(express.json({ limit: '256kb' }));
 
   const store = await createStore();
-
-  if (process.env.PUBLISH_LAUNCH_ON_BOOT === 'true') {
-    try {
-      const result = await ensureLaunchPost(store);
-      console.log(`HDC launch publish result: ${JSON.stringify(result)}`);
-    } catch (error) {
-      await store.addAudit({
-        action: 'launch_post_publish',
-        pageId: '1245652801973956',
-        payload: { message: launchMessage },
-        success: false,
-        result: { error: error.message, meta: error.meta || null }
-      });
-      console.error(`HDC launch publish failed: ${error.message}`);
-    }
-  }
+  const base = publicBaseUrl();
 
   app.get('/health', (_req, res) => {
-    res.json({ ok: true, service: 'hdc-social-bridge', version: '0.1.0' });
+    res.json({ ok: true, service: 'hdc-social-bridge', version: '0.2.0', mcp: `${base}/mcp` });
   });
 
-  app.get('/', (_req, res) => res.redirect('/admin'));
+  app.get('/', (_req, res) => {
+    res.type('html').send(page('HDC Social Bridge', `
+      <h1>HDC Social Bridge</h1>
+      <p>Secure connector between ChatGPT and the HelpDesk Connect Facebook Page.</p>
+      <p><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/support">Support</a> · <a href="/docs/mcp">MCP documentation</a></p>
+    `));
+  });
+
+  app.get('/privacy', (_req, res) => {
+    res.type('html').send(page('Privacy Policy — HDC Social Bridge', `
+      <h1>Privacy Policy</h1>
+      <p>HDC Social Bridge stores only the data needed to connect and operate the HelpDesk Connect Facebook Page: encrypted Facebook Page access tokens, Page identifiers and names, granted Page tasks, OAuth connection records, and an audit history of Social Bridge actions.</p>
+      <p>Facebook passwords are never collected or stored. ChatGPT/OAuth access tokens are stored only as one-way hashes. Facebook Page tokens are encrypted at rest.</p>
+      <p>Tool responses exclude authentication secrets. Data is used only to provide Page connection, read-back, and explicitly approved publishing functions.</p>
+      <p>For access, correction, or deletion requests, use the <a href="/support">support page</a>.</p>
+    `));
+  });
+
+  app.get('/terms', (_req, res) => {
+    res.type('html').send(page('Terms — HDC Social Bridge', `
+      <h1>Terms of Use</h1>
+      <p>HDC Social Bridge is provided to manage authorized HelpDesk Connect social publishing workflows. Users must have authority over any connected Facebook Page and must comply with Meta and OpenAI platform rules.</p>
+      <p>Publishing requires explicit approval of the exact post text. The service must not be used to publish unlawful, deceptive, abusive, or unauthorized content.</p>
+      <p>Availability may depend on Meta, OpenAI, Railway, database, and network services outside HDC Social Bridge control.</p>
+    `));
+  });
+
+  app.get('/support', (_req, res) => {
+    res.type('html').send(page('Support — HDC Social Bridge', `
+      <h1>Support</h1>
+      <p>For HDC Social Bridge support, use the HelpDesk Connect owner/admin support channel associated with this deployment.</p>
+      <p>When reporting an issue, include the approximate time and action attempted. Never include Facebook access tokens, OAuth tokens, passwords, or application secrets.</p>
+    `));
+  });
+
+  app.get('/docs/mcp', (_req, res) => {
+    res.type('html').send(page('MCP — HDC Social Bridge', `
+      <h1>HDC Social Bridge MCP</h1>
+      <p>Production MCP endpoint: <code>${mcpResource()}</code></p>
+      <h2>Scopes</h2>
+      <p><code>social.read</code> lists connected Pages and recent posts. <code>social.publish</code> publishes an explicitly approved text post.</p>
+      <h2>Safety</h2>
+      <p>The publish tool requires both the <code>social.publish</code> OAuth scope and an explicit <code>confirm=true</code> argument after the user approves the exact text.</p>
+    `));
+  });
+
+  app.get('/.well-known/oauth-protected-resource', (_req, res) => res.json(protectedResourceMetadata()));
+  app.get('/.well-known/oauth-authorization-server', (_req, res) => res.json(oauthMetadata()));
+
+  app.get('/.well-known/openai-apps-challenge', (_req, res) => {
+    const token = process.env.OPENAI_APPS_CHALLENGE;
+    if (!token) return res.status(404).type('text').send('Not configured');
+    res.type('text/plain').send(token);
+  });
+
+  app.post('/oauth/register', (req, res) => registerClient(req, res, store));
+  app.get('/oauth/authorize', (req, res) => authorizeGet(req, res, store));
+  app.post('/oauth/authorize', (req, res) => authorizePost(req, res, store));
+  app.post('/oauth/token', (req, res) => tokenEndpoint(req, res, store));
 
   app.get('/admin', basicAdmin, async (req, res) => {
     const [pages, audit] = await Promise.all([store.listPages(), store.listAudit(25)]);
@@ -135,31 +151,14 @@ export async function createApp() {
       const shortToken = await exchangeCode(String(req.query.code));
       const userToken = await exchangeForLongLivedUserToken(shortToken);
       const pages = await listManagedPages(userToken);
-      for (const page of pages) await store.savePage(page);
+      for (const fbPage of pages) await store.savePage(fbPage);
       await store.addAudit({
         action: 'facebook_connect',
-        payload: { pageCount: pages.length, pageNames: pages.map((p) => p.name) },
+        payload: { pageCount: pages.length, pageNames: pages.map((item) => item.name) },
         success: true,
-        result: { pageIds: pages.map((p) => p.id) }
+        result: { pageIds: pages.map((item) => item.id) }
       });
-
-      let launchResult = null;
-      try {
-        launchResult = await ensureLaunchPost(store);
-        console.log(`HDC launch publish after reconnect: ${JSON.stringify(launchResult)}`);
-      } catch (publishError) {
-        await store.addAudit({
-          action: 'launch_post_publish',
-          pageId: '1245652801973956',
-          payload: { message: launchMessage },
-          success: false,
-          result: { error: publishError.message, meta: publishError.meta || null }
-        });
-        console.error(`HDC launch publish after reconnect failed: ${publishError.message}`);
-      }
-
-      const html = `${renderCallbackSuccess(pages)}${launchResult ? `<p>Launch post status: ${launchResult.alreadyPublished ? 'already published' : 'published successfully'}.</p>` : '<p>Facebook reconnected. Launch post publishing still needs attention.</p>'}`;
-      res.type('html').send(html);
+      res.type('html').send(renderCallbackSuccess(pages));
     } catch (error) {
       await store.addAudit({
         action: 'facebook_connect',
@@ -172,44 +171,33 @@ export async function createApp() {
   });
 
   app.post('/admin/publish', basicAdmin, async (req, res) => {
-    const page = await store.getPage(req.body.pageId);
+    const fbPage = await store.getPage(req.body.pageId);
     const message = String(req.body.message || '').trim();
-    if (!page || !message) return res.status(400).send('Page and message are required');
+    if (!fbPage || !message) return res.status(400).send('Page and message are required');
 
     try {
-      const result = await publishTextPost(page.pageId, page.accessToken, message);
-      await store.addAudit({ action: 'admin_publish_text', pageId: page.pageId, payload: { message }, success: true, result });
+      const result = await publishTextPost(fbPage.pageId, fbPage.accessToken, message);
+      await store.addAudit({ action: 'admin_publish_text', pageId: fbPage.pageId, payload: { message }, success: true, result });
       res.redirect('/admin');
     } catch (error) {
-      await store.addAudit({ action: 'admin_publish_text', pageId: page.pageId, payload: { message }, success: false, result: { error: error.message, meta: error.meta || null } });
+      await store.addAudit({ action: 'admin_publish_text', pageId: fbPage.pageId, payload: { message }, success: false, result: { error: error.message, meta: error.meta || null } });
       res.redirect(`/admin?error=${encodeURIComponent(error.message)}`);
     }
   });
 
-  app.post('/internal/publish-launch', tempPublishAuth, async (_req, res) => {
+  app.post('/mcp', async (req, res) => {
     try {
-      return res.json(await ensureLaunchPost(store));
+      const auth = await authenticateBearer(req, store);
+      await handleMcpRequest(req, res, store, auth);
     } catch (error) {
-      await store.addAudit({
-        action: 'launch_post_publish',
-        pageId: '1245652801973956',
-        payload: { message: launchMessage },
-        success: false,
-        result: { error: error.message, meta: error.meta || null }
-      });
-      return res.status(500).json({ error: error.message });
+      console.error(error);
+      if (!res.headersSent) res.status(500).json({ error: 'MCP request failed' });
     }
   });
 
-  app.post('/mcp', mcpAuth, async (req, res) => {
-    try {
-      await handleMcpRequest(req, res, store);
-    } catch (error) {
-      if (!res.headersSent) res.status(500).json({ error: error.message });
-    }
+  app.get('/mcp', (_req, res) => {
+    res.status(405).json({ error: 'Use MCP Streamable HTTP POST requests.' });
   });
-
-  app.get('/mcp', mcpAuth, (_req, res) => res.status(405).json({ error: 'Use MCP Streamable HTTP POST requests.' }));
 
   app.use((error, _req, res, _next) => {
     console.error(error);

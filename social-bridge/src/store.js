@@ -7,6 +7,10 @@ class MemoryStore {
   constructor() {
     this.pages = new Map();
     this.audit = [];
+    this.oauthClients = new Map();
+    this.oauthCodes = new Map();
+    this.oauthTokens = new Map();
+    this.oauthRefresh = new Map();
   }
 
   async init() {}
@@ -39,6 +43,45 @@ class MemoryStore {
   async listAudit(limit = 25) {
     return this.audit.slice(0, limit);
   }
+
+  async saveOAuthClient(client) {
+    this.oauthClients.set(client.clientId, { ...client });
+  }
+
+  async getOAuthClient(clientId) {
+    return this.oauthClients.get(String(clientId)) || null;
+  }
+
+  async saveOAuthCode(code) {
+    this.oauthCodes.set(code.codeHash, { ...code, consumed: false });
+  }
+
+  async consumeOAuthCode(codeHash) {
+    const record = this.oauthCodes.get(String(codeHash));
+    if (!record || record.consumed) return null;
+    record.consumed = true;
+    return { ...record };
+  }
+
+  async saveOAuthToken(token) {
+    this.oauthTokens.set(token.tokenHash, { ...token });
+    this.oauthRefresh.set(token.refreshHash, token.tokenHash);
+  }
+
+  async getOAuthTokenByAccessHash(accessHash) {
+    return this.oauthTokens.get(String(accessHash)) || null;
+  }
+
+  async getOAuthTokenByRefreshHash(refreshHash) {
+    const accessHash = this.oauthRefresh.get(String(refreshHash));
+    return accessHash ? this.oauthTokens.get(accessHash) || null : null;
+  }
+
+  async revokeOAuthToken(accessHash) {
+    const record = this.oauthTokens.get(String(accessHash));
+    if (record?.refreshHash) this.oauthRefresh.delete(record.refreshHash);
+    this.oauthTokens.delete(String(accessHash));
+  }
 }
 
 class PostgresStore {
@@ -67,6 +110,36 @@ class PostgresStore {
         result JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS social_bridge_oauth_clients (
+        client_id TEXT PRIMARY KEY,
+        client_name TEXT NOT NULL,
+        redirect_uris JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS social_bridge_oauth_codes (
+        code_hash TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        redirect_uri TEXT NOT NULL,
+        code_challenge TEXT NOT NULL,
+        scopes JSONB NOT NULL,
+        resource TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        consumed BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS social_bridge_oauth_tokens (
+        token_hash TEXT PRIMARY KEY,
+        refresh_hash TEXT UNIQUE NOT NULL,
+        client_id TEXT NOT NULL,
+        scopes JSONB NOT NULL,
+        resource TEXT NOT NULL,
+        access_expires_at TIMESTAMPTZ NOT NULL,
+        refresh_expires_at TIMESTAMPTZ NOT NULL,
+        revoked BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS social_bridge_oauth_refresh_idx
+        ON social_bridge_oauth_tokens (refresh_hash);
     `);
   }
 
@@ -126,6 +199,90 @@ class PostgresStore {
       LIMIT $1
     `, [Math.min(Math.max(Number(limit) || 25, 1), 100)]);
     return result.rows;
+  }
+
+  async saveOAuthClient(client) {
+    await this.pool.query(`
+      INSERT INTO social_bridge_oauth_clients (client_id, client_name, redirect_uris)
+      VALUES ($1, $2, $3::jsonb)
+      ON CONFLICT (client_id) DO UPDATE SET
+        client_name = EXCLUDED.client_name,
+        redirect_uris = EXCLUDED.redirect_uris
+    `, [client.clientId, client.clientName, JSON.stringify(client.redirectUris)]);
+  }
+
+  async getOAuthClient(clientId) {
+    const result = await this.pool.query(`
+      SELECT client_id AS "clientId", client_name AS "clientName", redirect_uris AS "redirectUris",
+             created_at AS "createdAt"
+      FROM social_bridge_oauth_clients
+      WHERE client_id = $1
+    `, [String(clientId)]);
+    return result.rows[0] || null;
+  }
+
+  async saveOAuthCode(code) {
+    await this.pool.query(`
+      INSERT INTO social_bridge_oauth_codes
+        (code_hash, client_id, redirect_uri, code_challenge, scopes, resource, expires_at, consumed)
+      VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, FALSE)
+    `, [code.codeHash, code.clientId, code.redirectUri, code.codeChallenge, JSON.stringify(code.scopes), code.resource, code.expiresAt]);
+  }
+
+  async consumeOAuthCode(codeHash) {
+    const result = await this.pool.query(`
+      UPDATE social_bridge_oauth_codes
+      SET consumed = TRUE
+      WHERE code_hash = $1 AND consumed = FALSE
+      RETURNING client_id AS "clientId", redirect_uri AS "redirectUri",
+                code_challenge AS "codeChallenge", scopes, resource,
+                expires_at AS "expiresAt"
+    `, [String(codeHash)]);
+    return result.rows[0] || null;
+  }
+
+  async saveOAuthToken(token) {
+    await this.pool.query(`
+      INSERT INTO social_bridge_oauth_tokens
+        (token_hash, refresh_hash, client_id, scopes, resource, access_expires_at, refresh_expires_at, revoked)
+      VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, FALSE)
+    `, [
+      token.tokenHash,
+      token.refreshHash,
+      token.clientId,
+      JSON.stringify(token.scopes),
+      token.resource,
+      token.accessExpiresAt,
+      token.refreshExpiresAt
+    ]);
+  }
+
+  async getOAuthTokenByAccessHash(accessHash) {
+    const result = await this.pool.query(`
+      SELECT token_hash AS "tokenHash", refresh_hash AS "refreshHash", client_id AS "clientId",
+             scopes, resource, access_expires_at AS "accessExpiresAt",
+             refresh_expires_at AS "refreshExpiresAt"
+      FROM social_bridge_oauth_tokens
+      WHERE token_hash = $1 AND revoked = FALSE
+    `, [String(accessHash)]);
+    return result.rows[0] || null;
+  }
+
+  async getOAuthTokenByRefreshHash(refreshHash) {
+    const result = await this.pool.query(`
+      SELECT token_hash AS "tokenHash", refresh_hash AS "refreshHash", client_id AS "clientId",
+             scopes, resource, access_expires_at AS "accessExpiresAt",
+             refresh_expires_at AS "refreshExpiresAt"
+      FROM social_bridge_oauth_tokens
+      WHERE refresh_hash = $1 AND revoked = FALSE
+    `, [String(refreshHash)]);
+    return result.rows[0] || null;
+  }
+
+  async revokeOAuthToken(accessHash) {
+    await this.pool.query(`
+      UPDATE social_bridge_oauth_tokens SET revoked = TRUE WHERE token_hash = $1
+    `, [String(accessHash)]);
   }
 }
 
