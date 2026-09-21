@@ -118,9 +118,7 @@ export async function createApp() {
     }));
   });
 
-  // Temporary reconnect route. This is intentionally open only while refreshing
-  // the Page token after the Pages use-case permissions were added in Meta.
-  app.get('/auth/facebook', (_req, res) => {
+  app.get('/auth/facebook', basicAdmin, (_req, res) => {
     res.redirect(buildFacebookLoginUrl(createOAuthState()));
   });
 
