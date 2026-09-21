@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "hdc-social-bridge": {
+      "type": "streamable-http",
+      "url": "https://hdc-social-bridge-production.up.railway.app/mcp"
+    }
+  }
+}
