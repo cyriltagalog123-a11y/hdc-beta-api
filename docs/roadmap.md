@@ -11,6 +11,8 @@ Build 28 is paused for the owner's [Build 27 stability audit](build27-stability-
 The [final audit](build27-final-audit-20260922.md) also records account-switching
 fixes, atomic authentication limits, current backup evidence and verification
 capabilities that remain unfinished.
+The owner-supplied [GCash and Maya support QR cards](build27-support-qr.md)
+are included in the review build for manual voluntary contributions.
 
 ## Delivered baseline
 

@@ -13,3 +13,6 @@ This release record freezes the final supporter-payment policy for the post-Buil
 - No payment destination is activated or published without Owner verification.
 - Public supporter recognition requires explicit consent.
 - Knowledge Base remains a prepared shell for Build 26.
+
+Build 27 follow-up: the owner supplied GCash and Maya QR cards for manual
+contributions. See [the current support destination update](build27-support-qr.md).
