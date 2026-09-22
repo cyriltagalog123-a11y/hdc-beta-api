@@ -7,6 +7,7 @@ import '../../core/ui/hdc_flow.dart';
 import '../../core/ui/hdc_spacing.dart';
 import '../news/news_screen.dart';
 import 'contact_owner_screen.dart';
+import 'support_payment_channels.dart';
 
 class SupportUsScreen extends StatelessWidget {
   const SupportUsScreen({super.key});
@@ -36,7 +37,7 @@ class SupportUsScreen extends StatelessWidget {
                   const HDCFlowHero(
                     eyebrow: 'SAICORE SUPPORT PROGRAM',
                     title: 'Support HDC without buying influence.',
-                    description: 'SaiCore accepts support in three forms: one-time contributions, recurring support, and corporate sponsorships. HDC will prioritize payment channels that are available in the Philippines without a required monthly subscription, while keeping fees and trust boundaries clear.',
+                    description: 'Support HDC with a voluntary PHP contribution through GCash or Maya, or discuss corporate sponsorship with the owner. Every contribution helps development while keeping trust and recognition independent.',
                     icon: Icons.volunteer_activism_outlined,
                     tags: [
                       HDCFlowTag(
@@ -56,7 +57,7 @@ class SupportUsScreen extends StatelessWidget {
                   const SizedBox(height: HDCSpacing.lg),
                   const _SupportProgramOverview(),
                   const SizedBox(height: HDCSpacing.lg),
-                  _PaymentChannelsCard(
+                  SupportPaymentChannelsCard(
                     onContactOwner: () => _openOwner(context),
                   ),
                   const SizedBox(height: HDCSpacing.lg),
@@ -92,7 +93,7 @@ class _SupportProgramOverview extends StatelessWidget {
       (
         Icons.autorenew_rounded,
         'Recurring support',
-        'Optional ongoing support through a channel that supports recurring payments without requiring SaiCore to buy a monthly platform plan.',
+        'You can choose to contribute again whenever you wish. Each transfer is manual; HDC does not set up an automatic subscription.',
         HDCColors.secondary,
       ),
       (
@@ -149,168 +150,6 @@ class _SupportProgramOverview extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-class _PaymentChannelsCard extends StatelessWidget {
-  final VoidCallback onContactOwner;
-
-  const _PaymentChannelsCard({required this.onContactOwner});
-
-  @override
-  Widget build(BuildContext context) {
-    const channels = [
-      (
-        'GCash / QR',
-        'Preferred local one-time route',
-        'Destination setup required',
-        Icons.qr_code_rounded,
-      ),
-      (
-        'Maya / QR Ph',
-        'Local wallet and interoperable QR option',
-        'Destination setup required',
-        Icons.account_balance_wallet_outlined,
-      ),
-      (
-        'Bank / transfer route',
-        'Bank-transfer details may be added later after owner verification',
-        'Not available at the moment',
-        Icons.account_balance_outlined,
-      ),
-      (
-        'Corporate arrangement',
-        'Invoice, sponsorship, or resource support discussion',
-        'Contact SaiCore first',
-        Icons.handshake_outlined,
-      ),
-    ];
-
-    return HDCCard(
-      color: HDCColors.primaryDeep,
-      borderColor: HDCColors.accent.withValues(alpha: 0.22),
-      elevated: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'PAYMENT CHANNEL STRATEGY',
-            style: TextStyle(
-              color: HDCColors.accent,
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Use several legitimate channels instead of locking SaiCore to one provider.',
-            style: TextStyle(
-              color: HDCColors.textLight,
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 9),
-          Text(
-            'The current policy is PHP-only and currently prioritizes verified local QR or wallet routes plus direct corporate arrangements. Available providers may still charge transaction or withdrawal fees, so HDC will disclose those instead of advertising any route as universally fee-free.',
-            style: TextStyle(
-              color: HDCColors.textLight.withValues(alpha: 0.74),
-              height: 1.55,
-            ),
-          ),
-          const SizedBox(height: 18),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 760 ? 2 : 1;
-              final width = columns == 1
-                  ? constraints.maxWidth
-                  : (constraints.maxWidth - 12) / 2;
-              return Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  for (final channel in channels)
-                    SizedBox(
-                      width: width,
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.06),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.10),
-                          ),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(channel.$4, color: HDCColors.accent),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    channel.$1,
-                                    style: const TextStyle(
-                                      color: HDCColors.textLight,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    channel.$2,
-                                    style: TextStyle(
-                                      color: HDCColors.textLight.withValues(
-                                        alpha: 0.70,
-                                      ),
-                                      height: 1.35,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 7),
-                                  Text(
-                                    channel.$3.toUpperCase(),
-                                    style: const TextStyle(
-                                      color: HDCColors.accent,
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 0.6,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 18),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              FilledButton.icon(
-                onPressed: onContactOwner,
-                icon: const Icon(Icons.mail_outline_rounded),
-                label: const Text('Discuss Sponsorship'),
-              ),
-              Text(
-                'Payment destinations remain open for owner-supplied verified QR or account details. Bank transfer is not available at the moment.',
-                style: TextStyle(
-                  color: HDCColors.textLight.withValues(alpha: 0.68),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 }

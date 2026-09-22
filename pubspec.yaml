@@ -63,6 +63,8 @@ flutter:
 
   assets:
     - assets/branding/hdc_mark.png
+    - assets/payments/hdc-support-gcash.jpg
+    - assets/payments/hdc-support-maya.jpg
     - legal/terms-of-service-beta-2026-09-06.txt
     - legal/privacy-notice-beta-2026-09-06.txt
 
