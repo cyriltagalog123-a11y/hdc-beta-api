@@ -1,8 +1,14 @@
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 
 const read = (path: string) =>
   readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+
+const supportPage = () => [
+  read('lib/features/support/support_us_screen.dart'),
+  read('lib/features/support/support_payment_channels.dart'),
+].join('\n');
 
 describe('SaiCore Support HDC and Contact Owner public pages', () => {
   it('keeps the owner contact channel explicit and copyable', () => {
@@ -16,32 +22,41 @@ describe('SaiCore Support HDC and Contact Owner public pages', () => {
   });
 
   it('keeps only the currently approved SaiCore PHP payment channels', () => {
-    const page = read('lib/features/support/support_us_screen.dart');
+    const page = supportPage();
 
     expect(page).toContain('SAICORE SUPPORT PROGRAM');
     expect(page).toContain('PHP only for now');
     expect(page).toContain('One-time support');
     expect(page).toContain('Recurring support');
     expect(page).toContain('Corporate sponsorship');
-    expect(page).toContain('GCash / QR');
-    expect(page).toContain('Maya / QR Ph');
+    expect(page).toContain("'GCash'");
+    expect(page).toContain("'Maya (PayMaya)'");
     expect(page).not.toContain('PayPal');
     expect(page).not.toContain('Ko-fi or similar');
-    expect(page).toContain('Bank / transfer route');
-    expect(page).toContain('Not available at the moment');
-    expect(page).toContain('Corporate arrangement');
+    expect(page).toContain('Bank transfer is not available at the moment.');
+    expect(page).toContain('Automatic recurring payments are not enabled.');
   });
 
-  it('keeps verified payment destinations open and discloses provider fees', () => {
-    const page = read('lib/features/support/support_us_screen.dart');
+  it('publishes the unchanged owner-supplied QR cards with manual confirmation and fee disclosure', () => {
+    const page = supportPage();
+    const manifest = read('pubspec.yaml');
+    const approvedAssets = [
+      ['assets/payments/hdc-support-gcash.jpg', 'bdfa88b16aea280c9e131765c06c0beddcd46faef7b6dfcbb7a3d3c81d514d9a'],
+      ['assets/payments/hdc-support-maya.jpg', '751dec0fde0bd3f8cd16722775e8a1bc6e00121577cb95eb292aa40fe82ce869'],
+    ];
 
-    expect(page).toContain('verified local QR or wallet routes');
-    expect(page).toContain('transaction or withdrawal fees');
-    expect(page).toContain('universally fee-free');
-    expect(page).toContain(
-      'Payment destinations remain open for owner-supplied verified QR or account details.',
-    );
-    expect(page).toContain('Bank transfer is not available at the moment.');
+    for (const [path, sha256] of approvedAssets) {
+      expect(page).toContain(path);
+      expect(manifest).toContain(`- ${path}`);
+      const bytes = readFileSync(new URL(`../${path}`, import.meta.url));
+      expect(createHash('sha256').update(bytes).digest('hex')).toBe(sha256);
+    }
+    expect(page).toContain('Transfer fees may apply.');
+    expect(page).toContain('HDC does not automatically confirm these transfers');
+    expect(page).toContain('Public recognition requires your consent.');
+    expect(page).toContain('personal ');
+    expect(page).toContain('receiving account shown on the card.');
+    expect(page).not.toContain('Destination setup required');
   });
 
   it('keeps useful non-financial support available', () => {
@@ -87,7 +102,7 @@ describe('SaiCore Support HDC and Contact Owner public pages', () => {
   });
 
   it('does not publish fabricated contribution destinations', () => {
-    const page = read('lib/features/support/support_us_screen.dart');
+    const page = supportPage();
 
     for (const unsupported of [
       'paypal.me/',
