@@ -146,6 +146,19 @@ function identityFingerprint(email: string): string {
     .digest('hex');
 }
 
+async function withAuthAttemptLock(
+  sql: DbClient,
+  scope: string,
+  identity: string,
+  attempt: (transaction: DbClient) => Promise<Response>,
+): Promise<Response> {
+  return await sql.begin(async (tx) => {
+    // Keep the quota check and its outcome atomic across function instances.
+    await tx`SELECT pg_advisory_xact_lock(hashtextextended(${`hdc-auth:${scope}:${identity}`}, 0))`;
+    return await attempt(tx as unknown as DbClient);
+  });
+}
+
 async function audit(
   sql: DbClient,
   userId: string | null,
@@ -396,73 +409,73 @@ async function queueManualRecoveryReview(
   fingerprint: string,
 ): Promise<void> {
   const configuredReviewEmail = normalizeEmail(securityReviewEmail());
-  await sql.begin(async (tx) => {
-    const requestRows = await tx`
-      INSERT INTO public.hdc_account_recovery_review_requests (
-        user_id,
-        identity_fingerprint,
-        delivery_status,
-        review_email_snapshot
-      ) VALUES (
-        ${user.id},
-        ${fingerprint},
-        ${configuredReviewEmail ? 'queued' : 'pending_configuration'},
-        ${configuredReviewEmail}
+  // Called inside the serialized recovery transaction.
+  const tx = sql;
+  const requestRows = await tx`
+    INSERT INTO public.hdc_account_recovery_review_requests (
+      user_id,
+      identity_fingerprint,
+      delivery_status,
+      review_email_snapshot
+    ) VALUES (
+      ${user.id},
+      ${fingerprint},
+      ${configuredReviewEmail ? 'queued' : 'pending_configuration'},
+      ${configuredReviewEmail}
+    )
+    ON CONFLICT (user_id) WHERE status = 'pending'
+    DO UPDATE SET
+      identity_fingerprint = EXCLUDED.identity_fingerprint,
+      review_email_snapshot = EXCLUDED.review_email_snapshot,
+      delivery_status = CASE
+        WHEN public.hdc_account_recovery_review_requests.delivery_status = 'sent'
+          THEN 'sent'
+        ELSE EXCLUDED.delivery_status
+      END,
+      updated_at = now()
+    RETURNING id, (xmax = 0) AS was_inserted
+  `;
+  const requestId = String(requestRows[0].id);
+  const wasInserted = requestRows[0].was_inserted === true;
+
+  if (wasInserted) {
+    await tx`
+      INSERT INTO public.hdc_notifications (
+        user_id, event_type, priority, title, message, metadata
       )
-      ON CONFLICT (user_id) WHERE status = 'pending'
-      DO UPDATE SET
-        identity_fingerprint = EXCLUDED.identity_fingerprint,
-        review_email_snapshot = EXCLUDED.review_email_snapshot,
-        delivery_status = CASE
-          WHEN public.hdc_account_recovery_review_requests.delivery_status = 'sent'
-            THEN 'sent'
-          ELSE EXCLUDED.delivery_status
-        END,
-        updated_at = now()
-      RETURNING id, (xmax = 0) AS was_inserted
+      SELECT
+        assignment.user_id,
+        'security.recovery_review_requested',
+        'critical',
+        'Manual account recovery review',
+        ${`A manual password recovery review was requested for ${user.publicMemberId}.`},
+        ${tx.json({
+          recoveryRequestId: requestId,
+          applicantUserId: user.id,
+          publicMemberId: user.publicMemberId,
+        })}
+      FROM public.hdc_internal_role_assignments assignment
+      WHERE assignment.is_active = true
+        AND assignment.role IN ('owner', 'super_admin')
     `;
-    const requestId = String(requestRows[0].id);
-    const wasInserted = requestRows[0].was_inserted === true;
+  }
 
-    if (wasInserted) {
-      await tx`
-        INSERT INTO public.hdc_notifications (
-          user_id, event_type, priority, title, message, metadata
-        )
-        SELECT
-          assignment.user_id,
-          'security.recovery_review_requested',
-          'critical',
-          'Manual account recovery review',
-          ${`A manual password recovery review was requested for ${user.publicMemberId}.`},
-          ${tx.json({
-            recoveryRequestId: requestId,
-            applicantUserId: user.id,
-            publicMemberId: user.publicMemberId,
-          })}
-        FROM public.hdc_internal_role_assignments assignment
-        WHERE assignment.is_active = true
-          AND assignment.role IN ('owner', 'super_admin')
-      `;
-    }
-
-    if (wasInserted && configuredReviewEmail) {
-      await tx`
-        INSERT INTO public.hdc_security_delivery_outbox (
-          purpose, recipient, subject, body_text, metadata
-        ) VALUES (
-          'manual_recovery_review',
-          ${configuredReviewEmail},
-          'HDC manual account recovery review',
-          ${`A manual recovery request for ${user.publicMemberId} is waiting in the private HDC dashboard.`},
-          ${tx.json({
-            recoveryRequestId: requestId,
-            publicMemberId: user.publicMemberId,
-          })}
-        )
-      `;
-    }
-  });
+  if (wasInserted && configuredReviewEmail) {
+    await tx`
+      INSERT INTO public.hdc_security_delivery_outbox (
+        purpose, recipient, subject, body_text, metadata
+      ) VALUES (
+        'manual_recovery_review',
+        ${configuredReviewEmail},
+        'HDC manual account recovery review',
+        ${`A manual recovery request for ${user.publicMemberId} is waiting in the private HDC dashboard.`},
+        ${tx.json({
+          recoveryRequestId: requestId,
+          publicMemberId: user.publicMemberId,
+        })}
+      )
+    `;
+  }
 }
 
 async function handleRecoveryVerify(
@@ -482,58 +495,59 @@ async function handleRecoveryVerify(
   }
 
   const fingerprint = identityFingerprint(email);
-  if (await recentRecoveryFailures(sql, fingerprint) >= RECOVERY_FAILURE_LIMIT) {
-    await audit(sql, null, 'auth.recovery.verify', 'blocked', {
-      reason: 'rate_limit',
-      identity_fingerprint: fingerprint,
-    });
-    return json({
-      error: 'too_many_attempts',
-      message: 'Recovery attempts are temporarily limited. Try again later.',
-    }, 429);
-  }
+  return await withAuthAttemptLock(sql, 'recovery', fingerprint, async (sql) => {
+    if (await recentRecoveryFailures(sql, fingerprint) >= RECOVERY_FAILURE_LIMIT) {
+      await audit(sql, null, 'auth.recovery.verify', 'blocked', {
+        reason: 'rate_limit',
+        identity_fingerprint: fingerprint,
+      });
+      return json({
+        error: 'too_many_attempts',
+        message: 'Recovery attempts are temporarily limited. Try again later.',
+      }, 429);
+    }
 
-  const userRows = await sql`
-    SELECT id
-    FROM public.hdc_users
-    WHERE email = ${email} AND status = 'active'
-    LIMIT 1
-  `;
-  const userId = userRows.length > 0 ? String(userRows[0].id) : null;
-  const answerRows = userId
-    ? await sql`
-        SELECT question_code, answer_hash, pepper_key_id
-        FROM public.hdc_account_recovery_answers
-        WHERE user_id = ${userId}
-          AND question_version = ${RECOVERY_QUESTION_VERSION}
-      `
-    : [];
-  const storedAnswers = new Map(
-    answerRows.map((row) => [String(row.question_code), {
-      answerHash: String(row.answer_hash),
-      pepperKeyId: String(row.pepper_key_id),
-    }]),
-  );
-  const currentPepper = currentRecoveryPepper();
-  const comparisons = await Promise.all(answers.map(async (item) => {
-    const storedAnswer = storedAnswers.get(item.questionCode);
-    const pepper = storedAnswer
-      ? recoveryPepperForKey(storedAnswer.pepperKeyId)
-      : null;
-    const valid = await bcrypt.compare(
-      recoveryAnswerDigest(
-        item.answer,
-        pepper?.secret ?? currentPepper.secret,
-      ),
-      storedAnswer?.answerHash ?? DUMMY_RECOVERY_HASH,
+    const userRows = await sql`
+      SELECT id
+      FROM public.hdc_users
+      WHERE email = ${email} AND status = 'active'
+      LIMIT 1
+    `;
+    const userId = userRows.length > 0 ? String(userRows[0].id) : null;
+    const answerRows = userId
+      ? await sql`
+          SELECT question_code, answer_hash, pepper_key_id
+          FROM public.hdc_account_recovery_answers
+          WHERE user_id = ${userId}
+            AND question_version = ${RECOVERY_QUESTION_VERSION}
+        `
+      : [];
+    const storedAnswers = new Map(
+      answerRows.map((row) => [String(row.question_code), {
+        answerHash: String(row.answer_hash),
+        pepperKeyId: String(row.pepper_key_id),
+      }]),
     );
-    return Boolean(storedAnswer && pepper) && valid;
-  }));
-  const correctCount = comparisons.filter(Boolean).length;
+    const currentPepper = currentRecoveryPepper();
+    const comparisons = await Promise.all(answers.map(async (item) => {
+      const storedAnswer = storedAnswers.get(item.questionCode);
+      const pepper = storedAnswer
+        ? recoveryPepperForKey(storedAnswer.pepperKeyId)
+        : null;
+      const valid = await bcrypt.compare(
+        recoveryAnswerDigest(
+          item.answer,
+          pepper?.secret ?? currentPepper.secret,
+        ),
+        storedAnswer?.answerHash ?? DUMMY_RECOVERY_HASH,
+      );
+      return Boolean(storedAnswer && pepper) && valid;
+    }));
+    const correctCount = comparisons.filter(Boolean).length;
 
-  if (userId && correctCount >= 2) {
-    const credential = newResetCredential();
-    await sql.begin(async (tx) => {
+    if (userId && correctCount >= 2) {
+      const credential = newResetCredential();
+      const tx = sql;
       await tx`
         UPDATE public.hdc_password_reset_tokens
         SET status = 'revoked', consumed_at = COALESCE(consumed_at, now())
@@ -552,27 +566,27 @@ async function handleRecoveryVerify(
         SET status = 'cancelled', delivery_status = 'not_required'
         WHERE user_id = ${userId} AND status = 'pending'
       `;
-    });
-    await audit(sql, userId, 'auth.recovery.verify', 'success', {
-      identity_fingerprint: fingerprint,
-      method: 'security_questions',
-    });
-    return json({
-      result: 'verified',
-      resetToken: credential.token,
-      expiresAt: credential.expiresAt.toISOString(),
-    });
-  }
+      await audit(sql, userId, 'auth.recovery.verify', 'success', {
+        identity_fingerprint: fingerprint,
+        method: 'security_questions',
+      });
+      return json({
+        result: 'verified',
+        resetToken: credential.token,
+        expiresAt: credential.expiresAt.toISOString(),
+      });
+    }
 
-  if (userId) {
-    const user = await getUserView(sql, userId);
-    if (user) await queueManualRecoveryReview(sql, user, fingerprint);
-  }
-  await audit(sql, userId, 'auth.recovery.verify', 'failed', {
-    identity_fingerprint: fingerprint,
-    result: 'manual_review',
+    if (userId) {
+      const user = await getUserView(sql, userId);
+      if (user) await queueManualRecoveryReview(sql, user, fingerprint);
+    }
+    await audit(sql, userId, 'auth.recovery.verify', 'failed', {
+      identity_fingerprint: fingerprint,
+      result: 'manual_review',
+    });
+    return json({ result: 'manual_review_submitted' }, 202);
   });
-  return json({ result: 'manual_review_submitted' }, 202);
 }
 
 async function handlePasswordReset(
@@ -698,62 +712,63 @@ async function handleUpdateRecoveryAnswers(
     }, 400);
   }
 
-  if (
-    await recentRecoveryAnswerUpdateFailures(sql, user.id) >=
-      LOGIN_FAILURE_LIMIT
-  ) {
-    await audit(sql, user.id, 'auth.recovery.answers_update', 'blocked', {
-      reason: 'rate_limit',
-    });
-    return json({
-      error: 'too_many_attempts',
-      message: 'Security updates are temporarily limited. Try again later.',
-    }, 429);
-  }
+  return await withAuthAttemptLock(sql, 'answers-update', user.id, async (sql) => {
+    if (
+      await recentRecoveryAnswerUpdateFailures(sql, user.id) >=
+        LOGIN_FAILURE_LIMIT
+    ) {
+      await audit(sql, user.id, 'auth.recovery.answers_update', 'blocked', {
+        reason: 'rate_limit',
+      });
+      return json({
+        error: 'too_many_attempts',
+        message: 'Security updates are temporarily limited. Try again later.',
+      }, 429);
+    }
 
-  const passwordRows = await sql`
-    SELECT password_hash
-    FROM public.hdc_users
-    WHERE id = ${user.id} AND status = 'active'
-    LIMIT 1
-  `;
-  const validPassword = passwordRows.length > 0 && await bcrypt.compare(
-    currentPassword,
-    String(passwordRows[0].password_hash),
-  );
-  if (!validPassword) {
-    await audit(sql, user.id, 'auth.recovery.answers_update', 'failed', {
-      reason: 'invalid_current_password',
-    });
-    return json({
-      error: 'invalid_current_password',
-      message: 'The current password is incorrect.',
-    }, 401);
-  }
+    const passwordRows = await sql`
+      SELECT password_hash
+      FROM public.hdc_users
+      WHERE id = ${user.id} AND status = 'active'
+      LIMIT 1
+    `;
+    const validPassword = passwordRows.length > 0 && await bcrypt.compare(
+      currentPassword,
+      String(passwordRows[0].password_hash),
+    );
+    if (!validPassword) {
+      await audit(sql, user.id, 'auth.recovery.answers_update', 'failed', {
+        reason: 'invalid_current_password',
+      });
+      return json({
+        error: 'invalid_current_password',
+        message: 'The current password is incorrect.',
+      }, 401);
+    }
 
-  const prohibitedAnswers = new Set([
-    normalizeRecoveryAnswer(user.email),
-    normalizeRecoveryAnswer(user.displayName),
-    normalizeRecoveryAnswer(currentPassword),
-  ].filter((value): value is string => value !== null));
-  if (recoveryAnswers.some((item) => prohibitedAnswers.has(item.answer))) {
-    return json({
-      error: 'weak_recovery_answers',
-      message: 'Recovery answers must not repeat your email, name, or password.',
-    }, 400);
-  }
+    const prohibitedAnswers = new Set([
+      normalizeRecoveryAnswer(user.email),
+      normalizeRecoveryAnswer(user.displayName),
+      normalizeRecoveryAnswer(currentPassword),
+    ].filter((value): value is string => value !== null));
+    if (recoveryAnswers.some((item) => prohibitedAnswers.has(item.answer))) {
+      return json({
+        error: 'weak_recovery_answers',
+        message: 'Recovery answers must not repeat your email, name, or password.',
+      }, 400);
+    }
 
-  const pepper = currentRecoveryPepper();
-  const recoveryHashes = await Promise.all(recoveryAnswers.map(async (item) => ({
-    questionCode: item.questionCode,
-    pepperKeyId: pepper.keyId,
-    answerHash: await bcrypt.hash(
-      recoveryAnswerDigest(item.answer, pepper.secret),
-      12,
-    ),
-  })));
+    const pepper = currentRecoveryPepper();
+    const recoveryHashes = await Promise.all(recoveryAnswers.map(async (item) => ({
+      questionCode: item.questionCode,
+      pepperKeyId: pepper.keyId,
+      answerHash: await bcrypt.hash(
+        recoveryAnswerDigest(item.answer, pepper.secret),
+        12,
+      ),
+    })));
 
-  await sql.begin(async (tx) => {
+    const tx = sql;
     for (const item of recoveryHashes) {
       await tx`
         INSERT INTO public.hdc_account_recovery_answers (
@@ -779,13 +794,13 @@ async function handleUpdateRecoveryAnswers(
       SET status = 'cancelled', delivery_status = 'not_required'
       WHERE user_id = ${user.id} AND status = 'pending'
     `;
-  });
 
-  await audit(sql, user.id, 'auth.recovery.answers_update', 'success', {
-    question_version: RECOVERY_QUESTION_VERSION,
-    reset_tokens_revoked: true,
+    await audit(sql, user.id, 'auth.recovery.answers_update', 'success', {
+      question_version: RECOVERY_QUESTION_VERSION,
+      reset_tokens_revoked: true,
+    });
+    return json({ success: true });
   });
-  return json({ success: true });
 }
 
 function recoveryReviewView(row: Record<string, unknown>): Record<string, unknown> {
@@ -969,44 +984,46 @@ async function handleLogin(req: Request, sql: DbClient): Promise<Response> {
   }
 
   const fingerprint = identityFingerprint(email);
-  if (await recentLoginFailures(sql, fingerprint) >= LOGIN_FAILURE_LIMIT) {
-    await audit(sql, null, 'auth.login', 'blocked', { reason: 'rate_limit', identity_fingerprint: fingerprint });
-    return json({ error: 'too_many_attempts', message: 'Try again later.' }, 429);
-  }
+  return await withAuthAttemptLock(sql, 'login', fingerprint, async (sql) => {
+    if (await recentLoginFailures(sql, fingerprint) >= LOGIN_FAILURE_LIMIT) {
+      await audit(sql, null, 'auth.login', 'blocked', { reason: 'rate_limit', identity_fingerprint: fingerprint });
+      return json({ error: 'too_many_attempts', message: 'Try again later.' }, 429);
+    }
 
-  const rows = await sql`
-    SELECT id, password_hash, status
-    FROM public.hdc_users
-    WHERE email = ${email}
-    LIMIT 1
-  `;
+    const rows = await sql`
+      SELECT id, password_hash, status
+      FROM public.hdc_users
+      WHERE email = ${email}
+      LIMIT 1
+    `;
 
-  const row = rows[0];
-  const valid = await bcrypt.compare(
-    password,
-    row ? String(row.password_hash) : DUMMY_RECOVERY_HASH,
-  );
-  if (!row || !valid || String(row.status) !== 'active') {
-    const userId = row ? String(row.id) : null;
-    await audit(sql, userId, 'auth.login', 'failed', { reason: 'invalid_credentials', identity_fingerprint: fingerprint });
-    return json({ error: 'invalid_credentials' }, 401);
-  }
+    const row = rows[0];
+    const valid = await bcrypt.compare(
+      password,
+      row ? String(row.password_hash) : DUMMY_RECOVERY_HASH,
+    );
+    if (!row || !valid || String(row.status) !== 'active') {
+      const userId = row ? String(row.id) : null;
+      await audit(sql, userId, 'auth.login', 'failed', { reason: 'invalid_credentials', identity_fingerprint: fingerprint });
+      return json({ error: 'invalid_credentials' }, 401);
+    }
 
-  const userId = String(row.id);
-  const jti = randomUUID();
-  const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-  const userAgent = (req.headers.get('user-agent') ?? '').slice(0, 500) || null;
+    const userId = String(row.id);
+    const jti = randomUUID();
+    const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
+    const userAgent = (req.headers.get('user-agent') ?? '').slice(0, 500) || null;
 
-  await sql`
-    INSERT INTO public.hdc_auth_sessions (user_id, token_jti, expires_at, last_seen_at, user_agent)
-    VALUES (${userId}, ${jti}, ${expiresAt}, now(), ${userAgent})
-  `;
+    await sql`
+      INSERT INTO public.hdc_auth_sessions (user_id, token_jti, expires_at, last_seen_at, user_agent)
+      VALUES (${userId}, ${jti}, ${expiresAt}, now(), ${userAgent})
+    `;
 
-  const token = await signSessionToken(userId, jti, expiresAt);
-  const user = await getUserView(sql, userId);
-  await audit(sql, userId, 'auth.login', 'success', { session_jti: jti });
+    const token = await signSessionToken(userId, jti, expiresAt);
+    const user = await getUserView(sql, userId);
+    await audit(sql, userId, 'auth.login', 'success', { session_jti: jti });
 
-  return json({ token, expiresAt: expiresAt.toISOString(), user });
+    return json({ token, expiresAt: expiresAt.toISOString(), user });
+  });
 }
 
 async function handleSession(req: Request, sql: DbClient): Promise<Response> {

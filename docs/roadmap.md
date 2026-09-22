@@ -1,6 +1,6 @@
 # HelpDesk Connect delivery roadmap
 
-Last updated: 2026-09-16
+Last updated: 2026-09-22
 
 ## Current Build 27 follow-up
 
@@ -8,6 +8,9 @@ Approved technicians automatically enter public search. Guests can open their
 profiles, technicians select optional public fields, and completed-service
 ratings and reviews remain authoritative. PR #34 is deployed; see [scope and release evidence](build27-public-technicians.md).
 Build 28 is paused for the owner's [Build 27 stability audit](build27-stability-audit.md).
+The [final audit](build27-final-audit-20260922.md) also records account-switching
+fixes, atomic authentication limits, current backup evidence and verification
+capabilities that remain unfinished.
 
 ## Delivered baseline
 

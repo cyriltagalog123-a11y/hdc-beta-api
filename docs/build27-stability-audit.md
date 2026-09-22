@@ -1,5 +1,7 @@
 # Build 27 stabilization review — 16 September 2026
 
+Continuation: [22 September full audit and additional corrections](build27-final-audit-20260922.md).
+
 Build 28 is paused at the owner's request while the released Build 27 is audited.
 The reviewed production commit is `f113872fc1be6f65e341f23be37658f8b2a32993`,
 Netlify deploy `6aa9d8461a063f8ee25b0791`, release `0.6.4-build.27`.
