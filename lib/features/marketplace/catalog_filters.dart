@@ -22,9 +22,13 @@ List<MarketplaceProduct> filterMarketplaceProducts(
     if (currency != null) {
       if (product.currency != currency) return false;
       if (minimumPriceMinor != null &&
-          product.unitPriceMinor < minimumPriceMinor) return false;
+          product.unitPriceMinor < minimumPriceMinor) {
+        return false;
+      }
       if (maximumPriceMinor != null &&
-          product.unitPriceMinor > maximumPriceMinor) return false;
+          product.unitPriceMinor > maximumPriceMinor) {
+        return false;
+      }
     }
     return search.isEmpty ||
         product.title.toLowerCase().contains(search) ||

@@ -382,9 +382,10 @@ class _CatalogTab extends StatelessWidget {
       lowStockOnly: lowStockOnly,
       sort: sort,
     );
-    final currencies = {
+    final chosenCurrency = currency;
+    final currencies = <String>{
       ...provider.products.map((item) => item.currency),
-      if (currency != null) currency,
+      if (chosenCurrency != null) chosenCurrency,
     }.toList()..sort();
 
     return RefreshIndicator(
