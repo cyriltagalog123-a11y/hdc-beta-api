@@ -413,24 +413,26 @@ class _Metric extends StatelessWidget {
         children: [
           Icon(icon, color: color),
           const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '$value',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$value',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: HDCColors.textSecondary,
-                  fontSize: 11,
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: HDCColors.textSecondary,
+                    fontSize: 11,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -589,7 +591,7 @@ class _SellerOrderCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                _OrderStatusChip(status: request.status),
+                Flexible(child: _OrderStatusChip(status: request.status)),
               ],
             ),
             const SizedBox(height: 12),

@@ -13,6 +13,8 @@ const result = spawnSync(
     'tests/postgres-workflows.integration.test.ts',
     'tests/build26-community.integration.test.ts',
     'tests/build27-knowledge-base.integration.test.ts',
+    'tests/build27-commerce-stability.integration.test.ts',
+    'tests/auth-rate-limits.integration.test.ts',
   ],
   {
     env: {

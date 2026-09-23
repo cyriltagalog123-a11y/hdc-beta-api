@@ -10,7 +10,9 @@ class HdcTransactionToolsProvider extends ChangeNotifier {
 
   final Map<String, HdcTransactionToolbox> _toolboxes = {};
   String? _boundUserId;
-  bool _isLoading = false;
+  final Map<String, int> _activeReads = {};
+  int _nextRead = 0;
+  String? _savingTransactionId;
   bool _isSaving = false;
   bool _disposed = false;
   Object? _lastError;
@@ -19,7 +21,7 @@ class HdcTransactionToolsProvider extends ChangeNotifier {
   HdcTransactionToolsProvider({this.client});
 
   bool get backendAvailable => client != null;
-  bool get isLoading => _isLoading;
+  bool get isLoading => _activeReads.isNotEmpty;
   bool get isSaving => _isSaving;
   Object? get lastError => _lastError;
 
@@ -31,6 +33,9 @@ class HdcTransactionToolsProvider extends ChangeNotifier {
     _boundUserId = userId;
     _bindingVersion += 1;
     _toolboxes.clear();
+    _activeReads.clear();
+    _isSaving = false;
+    _savingTransactionId = null;
     _lastError = null;
     scheduleMicrotask(_announce);
   }
@@ -39,20 +44,30 @@ class HdcTransactionToolsProvider extends ChangeNotifier {
     final api = _requireClient();
     final userId = _requireUser();
     final version = _bindingVersion;
-    _isLoading = true;
+    final read = ++_nextRead;
+    _activeReads[transactionId] = read;
     _lastError = null;
     _announce();
     try {
       final response = await api.get('${_path(transactionId)}/toolbox');
       final toolbox = _toolbox(response);
-      _cache(toolbox, transactionId, userId, version);
+      _validate(toolbox, transactionId, userId, version);
+      if (_activeReads[transactionId] == read &&
+          _savingTransactionId != transactionId) {
+        _toolboxes[transactionId] = toolbox;
+      }
       return toolbox;
     } on Object catch (error) {
-      if (_isCurrent(userId, version)) _lastError = error;
+      if (_isCurrent(userId, version) &&
+          _activeReads[transactionId] == read &&
+          _savingTransactionId != transactionId) {
+        _lastError = error;
+      }
       rethrow;
     } finally {
-      if (_isCurrent(userId, version)) {
-        _isLoading = false;
+      if (_isCurrent(userId, version) &&
+          _activeReads[transactionId] == read) {
+        _activeReads.remove(transactionId);
         _announce();
       }
     }
@@ -285,11 +300,16 @@ class HdcTransactionToolsProvider extends ChangeNotifier {
     final userId = _requireUser();
     final version = _bindingVersion;
     _isSaving = true;
+    _savingTransactionId = transactionId;
+    _activeReads.remove(transactionId);
     _lastError = null;
     _announce();
     try {
       final toolbox = _toolbox(await request());
-      _cache(toolbox, transactionId, userId, version);
+      _validate(toolbox, transactionId, userId, version);
+      _activeReads.remove(transactionId);
+      _toolboxes[transactionId] = toolbox;
+      _lastError = null;
       return toolbox;
     } on Object catch (error) {
       if (_isCurrent(userId, version)) _lastError = error;
@@ -297,6 +317,7 @@ class HdcTransactionToolsProvider extends ChangeNotifier {
     } finally {
       if (_isCurrent(userId, version)) {
         _isSaving = false;
+        _savingTransactionId = null;
         _announce();
       }
     }
@@ -315,7 +336,7 @@ class HdcTransactionToolsProvider extends ChangeNotifier {
     );
   }
 
-  void _cache(
+  void _validate(
     HdcTransactionToolbox toolbox,
     String transactionId,
     String userId,
@@ -330,8 +351,6 @@ class HdcTransactionToolsProvider extends ChangeNotifier {
         message: 'HDC returned data for a different service transaction.',
       );
     }
-    _toolboxes[transactionId] = toolbox;
-    _lastError = null;
   }
 
   HdcWorkflowApiClient _requireClient() {
@@ -344,7 +363,7 @@ class HdcTransactionToolsProvider extends ChangeNotifier {
 
   String _requireUser() {
     final userId = _boundUserId;
-    if (userId == null) {
+    if (_disposed || userId == null) {
       throw const HdcWorkflowException(
         code: 'authentication_required',
         message: 'Sign in to use service-workspace tools.',

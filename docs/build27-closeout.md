@@ -1,14 +1,16 @@
 # Build 27 closeout and Build 28 handoff
 
-Reviewed baseline: 2026-09-14
+Reviewed baseline: 2026-09-16; later checkpoint: 2026-09-23
 
-Follow-up: [public technician profiles](build27-public-technicians.md) is the
-additional Build 27 review change requested on 2026-09-15. The release evidence
-below describes PR #31; it does not claim this follow-up is already deployed.
+The table below records the original PR #34 closeout. The GCash and Maya
+support QR cards shipped separately in PR #41 at production revision
+`0856e0865922ba6462efb3c9f69c68a17215bc1b`. The remaining stability
+corrections are under PR #36 review. See the
+[current release checkpoint](build27-stabilization-checkpoint-20260923.md)
+for the updated baseline and gates before Build 28.
 
-Status: production release and automated acceptance evidence verified.
-This closeout records the deployed baseline and the selected preparation work
-before Build 28. It does not start shop implementation.
+The public-technician follow-up in PR #34 is deployed. Build 28 is paused while
+the owner-requested [stability review](build27-stability-audit.md) completes.
 
 ## Confirmed release identity
 
@@ -16,37 +18,37 @@ before Build 28. It does not start shop implementation.
 | --- | --- |
 | Production application | https://hdc-beta-api.netlify.app/ |
 | Release | `0.6.4-build.27` |
-| Production/main commit | `21e0e08c6a53a459ffb12af0083810297b85ffb2` |
-| Reviewed source tree | `40e9ae3ab3cf435a680978a5b7a4f503d0dc1d02` |
-| Merged review | [PR #31](https://github.com/cyriltagalog123-a11y/hdc-beta-api/pull/31) |
-| Netlify production deploy | `6aa80c036df475000850e905`, ready at the production commit |
-| Main CI | [HDC CI #301](https://github.com/cyriltagalog123-a11y/hdc-beta-api/actions/runs/34859292247), success |
-| Live public smoke check | [PR31 production smoke verification](https://github.com/cyriltagalog123-a11y/hdc-beta-api/actions/runs/34859735212), success |
-| Previous production commit | `028a6a2f0d650394d651d12d927e73fb496cd059` |
-| Rollback branch | `rollback/build27-before-operations-pr31` |
+| Production/main commit | `f113872fc1be6f65e341f23be37658f8b2a32993` |
+| Reviewed source tree | `8660fa7cc415ee3a7325309e268059a6dc3011a8` |
+| Merged review | [PR #34](https://github.com/cyriltagalog123-a11y/hdc-beta-api/pull/34) |
+| Netlify production deploy | `6aa9d8461a063f8ee25b0791`, ready at the production commit |
+| Main CI | [HDC CI #307](https://github.com/cyriltagalog123-a11y/hdc-beta-api/actions/runs/34999889042), success |
+| Live public smoke check | [PR34 production verification](https://github.com/cyriltagalog123-a11y/hdc-beta-api/actions/runs/35037232759), success |
+| Previous production commit | `21e0e08c6a53a459ffb12af0083810297b85ffb2` |
+| Rollback branch | `rollback/build27-before-public-technicians-pr34` |
 
-The smoke workflow is isolated on `codex/verify-pr31-production`. Its commit
-differs from the application commit because it contains the verification
-workflow. The test explicitly asserted the live application's revision was
-`21e0e08c6a53a459ffb12af0083810297b85ffb2`.
+The smoke workflow's own commit differs because it includes verification code;
+it explicitly asserted the live revision above. It checked public technician
+search/profile privacy and private-route denial. Current main CI passed 186
+server tests, 100 Flutter tests, 18 PostgreSQL integrations and a release web build.
 
 ## Recovery evidence
 
-A fresh production backup and complete isolated restore passed on
-2026-09-14 before the release merge.
+A scheduled production backup and complete isolated restore passed on
+2026-09-16 against the current PR #34 production baseline.
 
-- Run: [34327269606, attempt 4](https://github.com/cyriltagalog123-a11y/hdc-beta-api/actions/runs/34327269606).
-- Artifact: [10354136981](https://github.com/cyriltagalog123-a11y/hdc-beta-api/actions/runs/34327269606/artifacts/10354136981).
-- Name: `hdc-encrypted-backup-34327269606-4`.
-- Size: 373823 bytes.
-- Archive digest: `sha256:513fd09d5522d078fc9389d6a01694f661527f3960fb4e037d671d23df1c7e50`.
-- Artifact expiration: 2026-10-14T14:59:26Z.
+- Run: [35074309788, attempt 1](https://github.com/cyriltagalog123-a11y/hdc-beta-api/actions/runs/35074309788).
+- Artifact: [10437915491](https://github.com/cyriltagalog123-a11y/hdc-beta-api/actions/runs/35074309788/artifacts/10437915491).
+- Name: `hdc-encrypted-backup-35074309788-1`.
+- Size: 374067 bytes.
+- Archive digest: `sha256:a9cfeb76f3cdfe0ccfa37d8af08c055a0d37874839a9eeb469ffbf14ee82e0d2`.
+- Artifact expiration: 2026-10-16T08:32:56Z.
 - Restore output confirmed that schema and row inventory matched.
 
 The artifact is recovery evidence for this release, not a substitute for the
 fresh backup required before the next production release.
 
-## Acceptance evidence and boundaries
+## Earlier PR #31 acceptance evidence and boundaries
 
 | Area | Verified evidence |
 | --- | --- |

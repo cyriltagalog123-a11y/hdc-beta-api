@@ -17,44 +17,44 @@ const _listingId = 'f1dd4c8b-e6a5-46ff-ae29-739e2d64b78b';
 const _timestamp = '2026-08-24T10:00:00.000Z';
 
 Map<String, Object?> _product() => {
-      'id': _listingId,
-      'publicListingId': 'HDC-LST-ABCDEF123456',
-      'sellerPublicName': 'HDC Seller Shop',
-      'sellerRole': 'seller',
-      'categoryCode': 'laptops',
-      'title': 'Refurbished business laptop',
-      'description': 'A tested technology item with clear specifications.',
-      'condition': 'refurbished',
-      'currency': 'PHP',
-      'unitPriceMinor': 1850000,
-      'stockQuantity': 2,
-      'publishedAt': _timestamp,
-      'updatedAt': _timestamp,
-    };
+  'id': _listingId,
+  'publicListingId': 'HDC-LST-ABCDEF123456',
+  'sellerPublicName': 'HDC Seller Shop',
+  'sellerRole': 'seller',
+  'categoryCode': 'laptops',
+  'title': 'Refurbished business laptop',
+  'description': 'A tested technology item with clear specifications.',
+  'condition': 'refurbished',
+  'currency': 'PHP',
+  'unitPriceMinor': 1850000,
+  'stockQuantity': 2,
+  'publishedAt': _timestamp,
+  'updatedAt': _timestamp,
+};
 
 Map<String, Object?> _purchase() => {
-      'id': '4ffdf7ba-c7b6-43ee-82bb-8db78a1c0f04',
-      'publicPurchaseId': 'HDC-BUY-ABCDEF123456',
-      'listingId': _listingId,
-      'publicListingId': 'HDC-LST-ABCDEF123456',
-      'listingTitle': 'Refurbished business laptop',
-      'sellerPublicName': 'HDC Seller Shop',
-      'sellerRole': 'seller',
-      'buyerDisplayName': 'Buyer One',
-      'buyerPublicMemberId': 'HDC-MBR-112233445566',
-      'quantity': 1,
-      'currency': 'PHP',
-      'unitPriceMinor': 1850000,
-      'subtotalMinor': 1850000,
-      'buyerNote': 'Please confirm pickup options.',
-      'sellerNote': '',
-      'status': 'submitted',
-      'version': 1,
-      'submittedAt': _timestamp,
-      'decidedAt': null,
-      'cancelledAt': null,
-      'updatedAt': _timestamp,
-    };
+  'id': '4ffdf7ba-c7b6-43ee-82bb-8db78a1c0f04',
+  'publicPurchaseId': 'HDC-BUY-ABCDEF123456',
+  'listingId': _listingId,
+  'publicListingId': 'HDC-LST-ABCDEF123456',
+  'listingTitle': 'Refurbished business laptop',
+  'sellerPublicName': 'HDC Seller Shop',
+  'sellerRole': 'seller',
+  'buyerDisplayName': 'Buyer One',
+  'buyerPublicMemberId': 'HDC-MBR-112233445566',
+  'quantity': 1,
+  'currency': 'PHP',
+  'unitPriceMinor': 1850000,
+  'subtotalMinor': 1850000,
+  'buyerNote': 'Please confirm pickup options.',
+  'sellerNote': '',
+  'status': 'submitted',
+  'version': 1,
+  'submittedAt': _timestamp,
+  'decidedAt': null,
+  'cancelledAt': null,
+  'updatedAt': _timestamp,
+};
 
 AccountIdentity _identity(String id) {
   final timestamp = DateTime(2026, 8, 24);
@@ -70,130 +70,224 @@ AccountIdentity _identity(String id) {
 }
 
 void main() {
-  test('switching accounts releases a pending save without accepting its result',
-      () async {
-    final store = MemoryAuthSessionStore();
-    await store.write(StoredAuthSession(
-      token: 'test-buyer-token',
-      expiresAt: DateTime.now().add(const Duration(hours: 1)),
-    ));
-    final response = Completer<http.Response>();
-    final provider = HdcMarketplaceProvider(
-      client: HdcWorkflowApiClient(
-        baseUri: Uri.parse('https://example.test'),
-        sessionStore: store,
-        client: MockClient((request) async {
-          if (request.method == 'POST') return response.future;
-          if (request.url.path == '/api/commerce/catalog') {
-            return http.Response(jsonEncode({'listings': [_product()]}), 200);
-          }
-          return http.Response(jsonEncode({'purchaseRequests': []}), 200);
-        }),
-      ),
-    );
-    provider.bindIdentity(_identity(_userId));
-    await pumpEventQueue();
-    final saving = provider.requestPurchase(
-      product: provider.products.single,
-      quantity: 1,
-      buyerNote: '',
-    );
-    await pumpEventQueue();
-    expect(provider.isSaving, isTrue);
-    provider.bindIdentity(_identity(_secondUserId));
-    expect(provider.isSaving, isFalse);
-    response.complete(http.Response(jsonEncode({'purchaseRequest': _purchase()}), 201));
-    await saving;
-    expect(provider.purchaseRequests, isEmpty);
-    expect(provider.purchaseError, isNull);
-    provider.dispose();
-  });
+  test(
+    'switching accounts releases a pending save without accepting its result',
+    () async {
+      final store = MemoryAuthSessionStore();
+      await store.write(
+        StoredAuthSession(
+          token: 'test-buyer-token',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+      final response = Completer<http.Response>();
+      final provider = HdcMarketplaceProvider(
+        client: HdcWorkflowApiClient(
+          baseUri: Uri.parse('https://example.test'),
+          sessionStore: store,
+          client: MockClient((request) async {
+            if (request.method == 'POST') return response.future;
+            if (request.url.path == '/api/commerce/catalog') {
+              return http.Response(
+                jsonEncode({
+                  'listings': [_product()],
+                }),
+                200,
+              );
+            }
+            return http.Response(jsonEncode({'purchaseRequests': []}), 200);
+          }),
+        ),
+      );
+      provider.bindIdentity(_identity(_userId));
+      await pumpEventQueue();
+      final saving = provider.requestPurchase(
+        product: provider.products.single,
+        quantity: 1,
+        buyerNote: '',
+      );
+      await pumpEventQueue();
+      expect(provider.isSaving, isTrue);
+      provider.bindIdentity(_identity(_secondUserId));
+      expect(provider.isSaving, isFalse);
+      response.complete(
+        http.Response(jsonEncode({'purchaseRequest': _purchase()}), 201),
+      );
+      await expectLater(saving, throwsA(isA<HdcWorkflowException>()));
+      expect(provider.purchaseRequests, isEmpty);
+      expect(provider.purchaseError, isNull);
+      provider.dispose();
+    },
+  );
 
-  test('guest catalog is public and does not send an authorization header',
-      () async {
-    final provider = HdcMarketplaceProvider(
-      client: HdcWorkflowApiClient(
-        baseUri: Uri.parse('https://example.test'),
-        sessionStore: MemoryAuthSessionStore(),
-        client: MockClient((request) async {
-          expect(request.method, 'GET');
-          expect(request.url.path, '/api/commerce/catalog');
-          expect(request.headers.containsKey('authorization'), isFalse);
-          return http.Response(jsonEncode({'listings': [_product()]}), 200);
-        }),
-      ),
-    );
-
-    provider.bindIdentity(null);
-    await pumpEventQueue(times: 20);
-
-    expect(provider.availableProductCount, 1);
-    expect(provider.products.single.priceLabel, '₱18500.00');
-    expect(provider.authenticated, isFalse);
-    provider.dispose();
-  });
-
-  test('purchase requests are authenticated, idempotent, and account-bound',
-      () async {
-    final store = MemoryAuthSessionStore();
-    await store.write(
-      StoredAuthSession(
-        token: 'buyer-token',
-        expiresAt: DateTime.now().add(const Duration(hours: 1)),
-      ),
-    );
-    Map<String, dynamic>? submitted;
-    final provider = HdcMarketplaceProvider(
-      client: HdcWorkflowApiClient(
-        baseUri: Uri.parse('https://example.test'),
-        sessionStore: store,
-        client: MockClient((request) async {
-          if (request.url.path == '/api/commerce/catalog') {
+  test(
+    'guest catalog is public and does not send an authorization header',
+    () async {
+      final provider = HdcMarketplaceProvider(
+        client: HdcWorkflowApiClient(
+          baseUri: Uri.parse('https://example.test'),
+          sessionStore: MemoryAuthSessionStore(),
+          client: MockClient((request) async {
+            expect(request.method, 'GET');
+            expect(request.url.path, '/api/commerce/catalog');
             expect(request.headers.containsKey('authorization'), isFalse);
-            return http.Response(jsonEncode({'listings': [_product()]}), 200);
-          }
-          expect(request.headers['authorization'], 'Bearer buyer-token');
-          if (request.method == 'GET') {
-            expect(request.url.path, '/api/commerce/buyer-dashboard');
             return http.Response(
-              jsonEncode({'purchaseRequests': <Object?>[]}),
+              jsonEncode({
+                'listings': [_product()],
+              }),
               200,
             );
-          }
-          expect(request.method, 'POST');
-          expect(request.url.path, '/api/commerce/purchase-requests');
-          submitted = jsonDecode(request.body) as Map<String, dynamic>;
-          return http.Response(
-            jsonEncode({'purchaseRequest': _purchase()}),
-            201,
-          );
-        }),
-      ),
-    );
+          }),
+        ),
+      );
 
-    provider.bindIdentity(_identity(_userId));
-    await pumpEventQueue(times: 20);
-    await provider.requestPurchase(
-      product: provider.products.single,
-      quantity: 1,
-      buyerNote: 'Please confirm pickup options.',
-    );
+      provider.bindIdentity(null);
+      await pumpEventQueue(times: 20);
 
-    expect(submitted?['listingId'], _listingId);
-    expect(submitted?['quantity'], 1);
-    expect(
-      submitted?['clientRequestId'],
-      matches(RegExp(
-        r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-      )),
-    );
-    expect(
-      provider.purchaseRequests.single.status,
-      ProductPurchaseStatus.submitted,
-    );
+      expect(provider.availableProductCount, 1);
+      expect(provider.products.single.priceLabel, '₱18500.00');
+      expect(provider.authenticated, isFalse);
+      provider.dispose();
+    },
+  );
 
-    provider.bindIdentity(_identity(_secondUserId));
-    expect(provider.purchaseRequests, isEmpty);
-    provider.dispose();
-  });
+  test(
+    'purchase requests are authenticated, idempotent, and account-bound',
+    () async {
+      final store = MemoryAuthSessionStore();
+      await store.write(
+        StoredAuthSession(
+          token: 'buyer-token',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+      Map<String, dynamic>? submitted;
+      final provider = HdcMarketplaceProvider(
+        client: HdcWorkflowApiClient(
+          baseUri: Uri.parse('https://example.test'),
+          sessionStore: store,
+          client: MockClient((request) async {
+            if (request.url.path == '/api/commerce/catalog') {
+              expect(request.headers.containsKey('authorization'), isFalse);
+              return http.Response(
+                jsonEncode({
+                  'listings': [_product()],
+                }),
+                200,
+              );
+            }
+            expect(request.headers['authorization'], 'Bearer buyer-token');
+            if (request.method == 'GET') {
+              expect(request.url.path, '/api/commerce/buyer-dashboard');
+              return http.Response(
+                jsonEncode({'purchaseRequests': <Object?>[]}),
+                200,
+              );
+            }
+            expect(request.method, 'POST');
+            expect(request.url.path, '/api/commerce/purchase-requests');
+            submitted = jsonDecode(request.body) as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode({'purchaseRequest': _purchase()}),
+              201,
+            );
+          }),
+        ),
+      );
+
+      provider.bindIdentity(_identity(_userId));
+      await pumpEventQueue(times: 20);
+      await provider.requestPurchase(
+        product: provider.products.single,
+        quantity: 1,
+        buyerNote: 'Please confirm pickup options.',
+      );
+
+      expect(submitted?['listingId'], _listingId);
+      expect(submitted?['quantity'], 1);
+      expect(
+        submitted?['clientRequestId'],
+        matches(
+          RegExp(
+            r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          ),
+        ),
+      );
+      expect(
+        provider.purchaseRequests.single.status,
+        ProductPurchaseStatus.submitted,
+      );
+
+      provider.bindIdentity(_identity(_secondUserId));
+      expect(provider.purchaseRequests, isEmpty);
+      provider.dispose();
+    },
+  );
+  test(
+    'a pending buyer dashboard cannot resurrect a cancelled request',
+    () async {
+      final store = MemoryAuthSessionStore();
+      await store.write(
+        StoredAuthSession(
+          token: 'buyer-token',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+      final stale = Completer<http.Response>();
+      var reads = 0;
+      final provider = HdcMarketplaceProvider(
+        client: HdcWorkflowApiClient(
+          baseUri: Uri.parse('https://example.test'),
+          sessionStore: store,
+          client: MockClient((request) async {
+            if (request.url.path == '/api/commerce/catalog') {
+              return http.Response('{"listings":[]}', 200);
+            }
+            if (request.method == 'PUT') {
+              return http.Response(
+                jsonEncode({
+                  'purchaseRequest': {
+                    ..._purchase(),
+                    'status': 'cancelled',
+                    'version': 2,
+                    'cancelledAt': _timestamp,
+                  },
+                }),
+                200,
+              );
+            }
+            reads += 1;
+            return reads == 2
+                ? stale.future
+                : http.Response(
+                    jsonEncode({
+                      'purchaseRequests': [_purchase()],
+                    }),
+                    200,
+                  );
+          }),
+        ),
+      );
+      provider.bindIdentity(_identity(_userId));
+      await pumpEventQueue();
+      final refresh = provider.refreshPurchases();
+      await pumpEventQueue();
+      await provider.cancelPurchase(provider.purchaseRequests.single);
+      stale.complete(
+        http.Response(
+          jsonEncode({
+            'purchaseRequests': [_purchase()],
+          }),
+          200,
+        ),
+      );
+      await refresh;
+      expect(
+        provider.purchaseRequests.single.status,
+        ProductPurchaseStatus.cancelled,
+      );
+      expect(provider.isLoadingPurchases, isFalse);
+      provider.dispose();
+    },
+  );
 }

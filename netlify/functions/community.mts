@@ -51,7 +51,11 @@ async function ratingsView(sql: DbClient, userId: string): Promise<Response> {
       CASE WHEN purchase.buyer_user_id = ${userId}::uuid
         THEN purchase.seller_name_snapshot ELSE purchase.buyer_name_snapshot END AS counterparty_name,
       purchase.buyer_user_id = ${userId}::uuid AS is_buyer,
-      purchase.seller_user_id = ${userId}::uuid AS is_seller,
+      purchase.seller_user_id = ${userId}::uuid AND EXISTS (
+        SELECT 1 FROM public.hdc_user_roles role
+        WHERE role.user_id = purchase.seller_user_id AND role.role::text = purchase.seller_role
+          AND role.is_active = true AND role.status = 'active'
+      ) AS is_seller,
       rating.id AS rating_id, rating.public_rating_id, rating.score,
       rating.review, rating.status AS rating_status, rating.created_at AS rating_created_at
     FROM public.hdc_product_purchase_requests purchase
@@ -219,14 +223,16 @@ async function withdrawRating(sql: DbClient, userId: string, body: Record<string
 async function commerceProgress(sql: DbClient, userId: string, body: Record<string, unknown>, action: string) {
   const purchaseRequestId = cleanText(body.purchaseRequestId, 80);
   const version = Number(body.version);
-  if (!purchaseRequestId || !Number.isInteger(version) || version < 1) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(purchaseRequestId) ||
+      typeof body.version !== 'number' || !Number.isSafeInteger(version) || version < 1) {
     return json({ error: 'invalid_purchase_completion' }, 400);
   }
   const result = await sql.begin(async (tx) => {
     const current = await tx`
-      SELECT id, buyer_user_id, seller_user_id, status, version
+      SELECT id, buyer_user_id, seller_user_id, seller_role, status, version
       FROM public.hdc_product_purchase_requests
       WHERE id = ${purchaseRequestId}::uuid
+        AND ${userId}::uuid IN (buyer_user_id, seller_user_id)
       FOR UPDATE
     `;
     if (current.length === 0) return { error: 'purchase_request_not_found', status: 404 } as const;
@@ -236,6 +242,12 @@ async function commerceProgress(sql: DbClient, userId: string, body: Record<stri
       if (String(row.seller_user_id) !== userId || row.status !== 'accepted') {
         return { error: 'purchase_fulfillment_not_allowed', status: 409 } as const;
       }
+      const role = await tx`
+        SELECT 1 FROM public.hdc_user_roles
+        WHERE user_id = ${userId}::uuid AND role::text = ${String(row.seller_role)}
+          AND is_active = true AND status = 'active'
+      `;
+      if (role.length === 0) return { error: 'selling_role_required', status: 403 } as const;
       const updated = await tx`
         UPDATE public.hdc_product_purchase_requests
         SET status = 'fulfilled', fulfilled_at = now()

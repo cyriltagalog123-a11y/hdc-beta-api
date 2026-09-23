@@ -1,13 +1,21 @@
 # HelpDesk Connect delivery roadmap
 
-Last updated: 2026-09-15
+Last updated: 2026-09-23
 
 ## Current Build 27 follow-up
 
 Approved technicians automatically enter public search. Guests can open their
 profiles, technicians select optional public fields, and completed-service
-ratings and reviews remain authoritative. See [scope and review gates](build27-public-technicians.md).
-Build 28 shop implementation remains pending this Build 27 review.
+ratings and reviews remain authoritative. PR #34 is deployed; see [scope and release evidence](build27-public-technicians.md).
+Build 28 is paused for the owner's [Build 27 stability audit](build27-stability-audit.md).
+The [final audit](build27-final-audit-20260922.md) also records account-switching
+fixes, atomic authentication limits, current backup evidence and verification
+capabilities that remain unfinished.
+The owner-supplied [GCash and Maya support QR cards](build27-support-qr.md)
+were released separately in [PR #41](https://github.com/cyriltagalog123-a11y/hdc-beta-api/pull/41)
+for manual voluntary contributions. The remaining stabilization fixes are
+tracked in [PR #36](https://github.com/cyriltagalog123-a11y/hdc-beta-api/pull/36)
+and the [23 September release checkpoint](build27-stabilization-checkpoint-20260923.md).
 
 ## Delivered baseline
 

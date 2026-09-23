@@ -21,18 +21,14 @@ const _categories = <String, String>{
 class ProductListingEditScreen extends StatefulWidget {
   final ProductListing? listing;
 
-  const ProductListingEditScreen({
-    this.listing,
-    super.key,
-  });
+  const ProductListingEditScreen({this.listing, super.key});
 
   @override
   State<ProductListingEditScreen> createState() =>
       _ProductListingEditScreenState();
 }
 
-class _ProductListingEditScreenState
-    extends State<ProductListingEditScreen> {
+class _ProductListingEditScreenState extends State<ProductListingEditScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
@@ -42,6 +38,7 @@ class _ProductListingEditScreenState
   String _categoryCode = 'other_technology';
   ProductItemCondition _condition = ProductItemCondition.used;
   bool _submitting = false;
+  int? _editingContextVersion;
 
   ProductListing? get _listing => widget.listing;
   bool get _editing => _listing != null;
@@ -70,8 +67,10 @@ class _ProductListingEditScreenState
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final provider = context.read<HdcSalesCenterProvider>();
+    _editingContextVersion ??= provider.accountContextVersion;
     if (_sellerRole != null) return;
-    final profiles = context.read<HdcSalesCenterProvider>().sellingProfiles;
+    final profiles = provider.sellingProfiles;
     if (profiles.isNotEmpty) _sellerRole = profiles.first.role;
   }
 
@@ -85,6 +84,8 @@ class _ProductListingEditScreenState
   }
 
   Future<void> _submit(ProductListingStatus status) async {
+    final provider = context.read<HdcSalesCenterProvider>();
+    if (!_canEdit(provider)) return;
     if (_submitting || !_formKey.currentState!.validate()) return;
     final sellerRole = _sellerRole;
     final unitPriceMinor = _priceMinor(_priceController.text);
@@ -104,7 +105,7 @@ class _ProductListingEditScreenState
       'title': _titleController.text.trim(),
       'description': _descriptionController.text.trim(),
       'condition': _condition.code,
-      'currency': 'PHP',
+      'currency': _listing?.currency ?? 'PHP',
       'unitPriceMinor': unitPriceMinor,
       'stockQuantity': stockQuantity,
       'status': status.code,
@@ -113,7 +114,6 @@ class _ProductListingEditScreenState
 
     setState(() => _submitting = true);
     try {
-      final provider = context.read<HdcSalesCenterProvider>();
       if (_listing == null) {
         await provider.createListing(body);
       } else {
@@ -129,14 +129,35 @@ class _ProductListingEditScreenState
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
+
+  bool _canEdit(HdcSalesCenterProvider provider) =>
+      provider.currentUserId != null &&
+      provider.accountContextVersion == _editingContextVersion &&
+      provider.canSell &&
+      (_listing == null || _listing!.sellerUserId == provider.currentUserId) &&
+      provider.sellingProfiles.any((profile) => profile.role == _sellerRole);
 
   @override
   Widget build(BuildContext context) {
-    final profiles = context.watch<HdcSalesCenterProvider>().sellingProfiles;
+    final provider = context.watch<HdcSalesCenterProvider>();
+    if (!_canEdit(provider)) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Item Listing')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: Text(
+              'This listing editor is no longer available to this account. Reopen it from Items & Sales.',
+            ),
+          ),
+        ),
+      );
+    }
+    final profiles = provider.sellingProfiles;
     final editableStatus = _listing?.status ?? ProductListingStatus.draft;
 
     return Scaffold(
@@ -159,6 +180,7 @@ class _ProductListingEditScreenState
                     const SizedBox(height: 18),
                     DropdownButtonFormField<HDCPlatformRole>(
                       initialValue: _sellerRole,
+                      isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: 'Selling workspace',
                         border: OutlineInputBorder(),
@@ -183,6 +205,7 @@ class _ProductListingEditScreenState
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       initialValue: _categoryCode,
+                      isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: 'Technology category',
                         border: OutlineInputBorder(),
@@ -198,8 +221,8 @@ class _ProductListingEditScreenState
                       onChanged: _submitting
                           ? null
                           : (value) => setState(
-                                () => _categoryCode = value ?? _categoryCode,
-                              ),
+                              () => _categoryCode = value ?? _categoryCode,
+                            ),
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -251,8 +274,8 @@ class _ProductListingEditScreenState
                       onChanged: _submitting
                           ? null
                           : (value) => setState(
-                                () => _condition = value ?? _condition,
-                              ),
+                              () => _condition = value ?? _condition,
+                            ),
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -265,12 +288,14 @@ class _ProductListingEditScreenState
                             keyboardType: const TextInputType.numberWithOptions(
                               decimal: true,
                             ),
-                            decoration: const InputDecoration(
-                              labelText: 'Price (PHP)',
-                              prefixText: '₱ ',
+                            decoration: InputDecoration(
+                              labelText:
+                                  'Price (${_listing?.currency ?? 'PHP'})',
+                              prefixText: '${_listing?.currency ?? 'PHP'} ',
                               border: OutlineInputBorder(),
                             ),
-                            validator: (value) => _priceMinor(value ?? '') == null
+                            validator: (value) =>
+                                _priceMinor(value ?? '') == null
                                 ? 'Enter a valid price.'
                                 : null,
                           ),
@@ -287,7 +312,9 @@ class _ProductListingEditScreenState
                             ),
                             validator: (value) {
                               final stock = int.tryParse(value?.trim() ?? '');
-                              if (stock == null || stock < 0 || stock > 1000000) {
+                              if (stock == null ||
+                                  stock < 0 ||
+                                  stock > 1000000) {
                                 return 'Enter a valid stock count.';
                               }
                               return null;
