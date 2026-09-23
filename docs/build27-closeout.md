@@ -1,6 +1,13 @@
 # Build 27 closeout and Build 28 handoff
 
-Reviewed baseline: 2026-09-16
+Reviewed baseline: 2026-09-16; later checkpoint: 2026-09-23
+
+The table below records the original PR #34 closeout. The GCash and Maya
+support QR cards shipped separately in PR #41 at production revision
+`0856e0865922ba6462efb3c9f69c68a17215bc1b`. The remaining stability
+corrections are under PR #36 review. See the
+[current release checkpoint](build27-stabilization-checkpoint-20260923.md)
+for the updated baseline and gates before Build 28.
 
 The public-technician follow-up in PR #34 is deployed. Build 28 is paused while
 the owner-requested [stability review](build27-stability-audit.md) completes.

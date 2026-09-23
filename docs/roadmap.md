@@ -1,6 +1,6 @@
 # HelpDesk Connect delivery roadmap
 
-Last updated: 2026-09-22
+Last updated: 2026-09-23
 
 ## Current Build 27 follow-up
 
@@ -12,7 +12,10 @@ The [final audit](build27-final-audit-20260922.md) also records account-switchin
 fixes, atomic authentication limits, current backup evidence and verification
 capabilities that remain unfinished.
 The owner-supplied [GCash and Maya support QR cards](build27-support-qr.md)
-are included in the review build for manual voluntary contributions.
+were released separately in [PR #41](https://github.com/cyriltagalog123-a11y/hdc-beta-api/pull/41)
+for manual voluntary contributions. The remaining stabilization fixes are
+tracked in [PR #36](https://github.com/cyriltagalog123-a11y/hdc-beta-api/pull/36)
+and the [23 September release checkpoint](build27-stabilization-checkpoint-20260923.md).
 
 ## Delivered baseline
 
