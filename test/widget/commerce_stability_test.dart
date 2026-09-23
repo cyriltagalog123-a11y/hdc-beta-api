@@ -83,6 +83,7 @@ AccountIdentity _identity({bool canSell = true, String id = _userId}) =>
 
 Future<HdcWorkflowApiClient> _client({
   void Function(Map<String, dynamic>)? onSave,
+  List<Map<String, dynamic>> catalog = const [],
 }) async {
   final store = MemoryAuthSessionStore();
   await store.write(
@@ -136,7 +137,7 @@ Future<HdcWorkflowApiClient> _client({
           200,
         );
       }
-      return http.Response('{"listings":[]}', 200);
+      return http.Response(jsonEncode({'listings': catalog}), 200);
     }),
   );
 }
@@ -261,6 +262,43 @@ void main() {
       await tester.tap(find.text('My Purchases'));
       await tester.pumpAndSettle();
       expect(find.text(ProductPurchaseStatus.fulfilled.label), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('catalog filters and details retain navigation at $width', (
+      tester,
+    ) async {
+      _size(tester, width);
+      final marketplace = HdcMarketplaceProvider(client: await _client(
+        catalog: [{..._listing(), 'sellerPublicName': _publicName}],
+      ));
+      final auth = _SignedInAuth();
+      addTearDown(marketplace.dispose);
+      addTearDown(auth.dispose);
+      marketplace.bindIdentity(_identity());
+      await tester.pumpWidget(MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: marketplace),
+          ChangeNotifierProvider<HDCAuthProvider>.value(value: auth),
+        ],
+        child: MaterialApp(
+          theme: HDCTheme.lightTheme,
+          home: const MarketplaceCatalogScreen(),
+        ),
+      ));
+      await tester.runAsync(() => pumpEventQueue(times: 20));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('View Details'), 320,
+          scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.text('View Details'));
+      await tester.pumpAndSettle();
+      expect(find.text('Product details'), findsOneWidget);
+      expect(find.textContaining('Description and seller-stated'), findsOneWidget);
+      expect(find.textContaining(_publicName), findsWidgets);
+      expect(tester.takeException(), isNull);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.text('Technology Marketplace'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }

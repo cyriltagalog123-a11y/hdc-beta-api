@@ -90,6 +90,31 @@ describe.skipIf(process.env.HDC_POSTGRES_INTEGRATION !== '1').sequential('Build 
     } finally { await sql`UPDATE public.hdc_users SET status = 'active' WHERE id = ${seller.id}::uuid`; }
   });
 
+  it('links only an opted-in active seller profile and exposes its public fields', async () => {
+    const item = await listing();
+    const profileId = String(item.sellerProfileId);
+    const profilePath = `/api/commerce/sellers/${profileId}`;
+    const before = await call('/api/commerce/catalog');
+    expect((before.body.listings as Row[]).find((row) => row.id === item.id)?.sellerPublicProfileId).toBeNull();
+    expect((await call(profilePath)).status).toBe(404);
+    await sql`UPDATE public.hdc_platform_role_profiles SET is_public = true
+      WHERE id = ${profileId}::uuid`;
+    try {
+      const after = await call('/api/commerce/catalog');
+      expect((after.body.listings as Row[]).find((row) => row.id === item.id)?.sellerPublicProfileId).toBe(profileId);
+      const publicProfile = await call(profilePath);
+      expect(publicProfile.status).toBe(200);
+      expect(publicProfile.body.profile).toMatchObject({ id: profileId, role: 'seller' });
+      for (const field of ['userId', 'contactEmail', 'contactPhone', 'details']) {
+        expect(publicProfile.body.profile).not.toHaveProperty(field);
+      }
+    } finally {
+      await sql`UPDATE public.hdc_platform_role_profiles SET is_public = false
+        WHERE id = ${profileId}::uuid`;
+    }
+    expect((await call(profilePath)).status).toBe(404);
+  });
+
   it('serializes repeated requests and rejects an idempotency key with changed terms', async () => {
     const item = await listing();
     const key = randomUUID();
@@ -139,6 +164,24 @@ describe.skipIf(process.env.HDC_POSTGRES_INTEGRATION !== '1').sequential('Build 
     expect(accepted.body.purchaseRequest).toMatchObject({ currency: 'USD', unitPriceMinor: 19999, subtotalMinor: 39998 });
     await expect(sql`UPDATE public.hdc_product_purchase_requests SET unit_price_minor = 1
       WHERE id = ${String(order.id)}::uuid`).rejects.toThrow(/immutable/);
+  });
+
+  it('shows the same scoped purchase timeline to participants only', async () => {
+    const item = await listing();
+    const submitted = (await purchase(item)).body.purchaseRequest as Row;
+    const accepted = await call(`/api/commerce/purchase-requests/${submitted.id}/status`, seller,
+      { action: 'accept', version: submitted.version, note: 'Meet at the agreed public pickup point.' }, 'PUT');
+    expect(accepted.status).toBe(200);
+    const buyerHistory = await call('/api/commerce/buyer-dashboard', buyer);
+    const sellerHistory = await call('/api/commerce/seller-dashboard', seller);
+    const unrelatedHistory = await call('/api/commerce/buyer-dashboard', other);
+    const buyerOrder = (buyerHistory.body.purchaseRequests as Row[]).find((row) => row.id === submitted.id)!;
+    const sellerOrder = (sellerHistory.body.purchaseRequests as Row[]).find((row) => row.id === submitted.id)!;
+    expect(buyerOrder.events).toEqual(sellerOrder.events);
+    expect((buyerOrder.events as Row[]).map((event) => event.type)).toEqual(['submitted', 'accepted']);
+    expect((buyerOrder.events as Row[])[1].note).toBe('Meet at the agreed public pickup point.');
+    expect(JSON.stringify(buyerOrder.events)).not.toContain(seller.id);
+    expect((unrelatedHistory.body.purchaseRequests as Row[]).some((row) => row.id === submitted.id)).toBe(false);
   });
 
   it('checks completion participants before version and denies revoked seller fulfillment', async () => {

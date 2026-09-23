@@ -64,7 +64,7 @@ describe('HDC News, recognition, and Build 27 preparation', () => {
 
   it('activates the reviewed Knowledge Base in Build 27', () => {
     const kb = read('lib/features/knowledge_base/knowledge_base_screen.dart');
-    expect(kb).toContain('BUILD 27 • LIVE KNOWLEDGE');
+    expect(kb).toContain("eyebrow: 'LIVE KNOWLEDGE'");
     expect(kb).toContain('Search the HDC Knowledge Base');
     expect(kb).toContain('HDC only returns reviewed, published knowledge here.');
     expect(kb).toContain('this release does not allow Nexus to invent');

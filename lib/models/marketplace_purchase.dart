@@ -27,6 +27,7 @@ class MarketplaceProduct {
   final String id;
   final String publicListingId;
   final String sellerPublicName;
+  final String? sellerPublicProfileId;
   final HDCPlatformRole sellerRole;
   final String categoryCode;
   final String title;
@@ -42,6 +43,7 @@ class MarketplaceProduct {
     required this.id,
     required this.publicListingId,
     required this.sellerPublicName,
+    this.sellerPublicProfileId,
     required this.sellerRole,
     required this.categoryCode,
     required this.title,
@@ -65,6 +67,9 @@ class MarketplaceProduct {
       id: _requiredString(json, 'id'),
       publicListingId: _requiredString(json, 'publicListingId'),
       sellerPublicName: _requiredString(json, 'sellerPublicName'),
+      sellerPublicProfileId: json['sellerPublicProfileId'] is String
+          ? json['sellerPublicProfileId'] as String
+          : null,
       sellerRole: sellerRole!,
       categoryCode: _requiredString(json, 'categoryCode'),
       title: _requiredString(json, 'title'),
@@ -105,6 +110,7 @@ class ProductPurchaseRequest {
   final DateTime? decidedAt;
   final DateTime? cancelledAt;
   final DateTime updatedAt;
+  final List<ProductPurchaseEvent> events;
 
   const ProductPurchaseRequest({
     required this.id,
@@ -126,6 +132,7 @@ class ProductPurchaseRequest {
     required this.version,
     required this.submittedAt,
     required this.updatedAt,
+    this.events = const [],
     this.decidedAt,
     this.cancelledAt,
   });
@@ -159,6 +166,11 @@ class ProductPurchaseRequest {
       decidedAt: _optionalDate(json['decidedAt']),
       cancelledAt: _optionalDate(json['cancelledAt']),
       updatedAt: DateTime.parse(_requiredString(json, 'updatedAt')),
+      events: (json['events'] as List<dynamic>? ?? const [])
+          .map((event) => ProductPurchaseEvent.fromJson(
+                Map<String, dynamic>.from(event as Map),
+              ))
+          .toList(growable: false),
     );
   }
 
@@ -167,6 +179,33 @@ class ProductPurchaseRequest {
   String get subtotalLabel => _money(currency, subtotalMinor);
 
   bool get canCancel => status == ProductPurchaseStatus.submitted;
+}
+
+class ProductPurchaseEvent {
+  final ProductPurchaseStatus type;
+  final ProductPurchaseStatus? fromStatus;
+  final ProductPurchaseStatus toStatus;
+  final DateTime occurredAt;
+  final String note;
+
+  const ProductPurchaseEvent({
+    required this.type,
+    required this.fromStatus,
+    required this.toStatus,
+    required this.occurredAt,
+    required this.note,
+  });
+
+  factory ProductPurchaseEvent.fromJson(Map<String, dynamic> json) =>
+      ProductPurchaseEvent(
+        type: _purchaseStatus(json['type']),
+        fromStatus: json['fromStatus'] == null
+            ? null
+            : _purchaseStatus(json['fromStatus']),
+        toStatus: _purchaseStatus(json['toStatus']),
+        occurredAt: DateTime.parse(_requiredString(json, 'occurredAt')),
+        note: '${json['note'] ?? ''}',
+      );
 }
 
 ProductPurchaseStatus _purchaseStatus(Object? value) {

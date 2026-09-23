@@ -7,6 +7,7 @@ import '../../models/product_listing.dart';
 import '../../providers/hdc_sales_center_provider.dart';
 import '../roles/role_center_screen.dart';
 import 'product_listing_edit_screen.dart';
+import 'purchase_timeline.dart';
 
 class SalesCenterScreen extends StatefulWidget {
   const SalesCenterScreen({super.key});
@@ -674,6 +675,7 @@ class _SellerOrderCard extends StatelessWidget {
                   ],
                 ),
             ],
+            PurchaseTimeline(request: request),
           ],
         ),
       ),

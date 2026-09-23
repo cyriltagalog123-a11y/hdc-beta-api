@@ -35,7 +35,7 @@
       if (finished) return;
       const source = event.target;
       if (source instanceof HTMLScriptElement) {
-        revealRecovery('Build 27 could not finish loading.');
+        revealRecovery('Build 28 could not finish loading.');
       }
     },
     true,
@@ -43,7 +43,7 @@
 
   window.addEventListener('unhandledrejection', () => {
     if (!document.querySelector('flutter-view')) {
-      revealRecovery('Build 27 could not finish loading.');
+      revealRecovery('Build 28 could not finish loading.');
     }
   });
 
@@ -53,7 +53,7 @@
 
   recover.addEventListener('click', async () => {
     recover.disabled = true;
-    message.textContent = 'Refreshing the latest Build 27 files…';
+    message.textContent = 'Refreshing the latest Build 28 files…';
 
     try {
       if ('serviceWorker' in navigator) {

@@ -1,6 +1,6 @@
 # Build 28 — Shop Technology preparation
 
-Status: prepared for the next build. This document does not enable new shop behavior in Build 27.
+Status: implementation underway. See [the first review increment](build28-implementation-20260923.md).
 
 ## Existing foundation
 
@@ -40,6 +40,14 @@ second inventory store is not needed.
   the current same-origin security policy stays authoritative.
 - Confirm whether a cart or saved items is needed after the basic purchase flow
   is verified. Neither is part of this preparation change.
+
+Initial Build 28 decisions: stock remains allocated only at seller acceptance;
+submitted requests are not reservations. The current accepted allocation is not
+automatically released. No cart or saved-items feature is added before the basic
+purchase journey is complete. Product photos stay disabled until storage,
+quota, server validation and consent boundaries are configured. Pickup/delivery
+methods, location, fees and timing still need an immutable agreement design;
+free-form notes must not be described as an agreed delivery contract.
 
 Payments continue to use the existing recorded payment workflow. Payment
 processing, custody of funds, refunds through a gateway, shipping integrations

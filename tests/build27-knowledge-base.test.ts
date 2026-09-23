@@ -9,7 +9,7 @@ describe('Build 27 Knowledge Base release contract', () => {
     const article = await read('lib/features/knowledge_base/knowledge_article_screen.dart');
     const client = await read('lib/core/api/hdc_workflow_api_client.dart');
 
-    expect(screen).toContain('BUILD 27 • LIVE KNOWLEDGE');
+    expect(screen).toContain("eyebrow: 'LIVE KNOWLEDGE'");
     expect(screen).toContain('Search the HDC Knowledge Base');
     expect(screen).toContain('Manage Knowledge');
     expect(article).toContain('Safety boundary');

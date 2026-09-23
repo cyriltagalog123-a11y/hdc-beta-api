@@ -2,20 +2,23 @@
 
 Last updated: 2026-09-23
 
-## Current Build 27 follow-up
+## Build 27 closeout and Build 28 start
 
 Approved technicians automatically enter public search. Guests can open their
 profiles, technicians select optional public fields, and completed-service
 ratings and reviews remain authoritative. PR #34 is deployed; see [scope and release evidence](build27-public-technicians.md).
-Build 28 is paused for the owner's [Build 27 stability audit](build27-stability-audit.md).
+The [Build 27 stability release](https://github.com/cyriltagalog123-a11y/hdc-beta-api/pull/36)
+is live. Build 28 is underway in the existing Shop Technology foundation.
 The [final audit](build27-final-audit-20260922.md) also records account-switching
 fixes, atomic authentication limits, current backup evidence and verification
 capabilities that remain unfinished.
 The owner-supplied [GCash and Maya support QR cards](build27-support-qr.md)
 were released separately in [PR #41](https://github.com/cyriltagalog123-a11y/hdc-beta-api/pull/41)
-for manual voluntary contributions. The remaining stabilization fixes are
-tracked in [PR #36](https://github.com/cyriltagalog123-a11y/hdc-beta-api/pull/36)
-and the [23 September release checkpoint](build27-stabilization-checkpoint-20260923.md).
+for manual voluntary contributions. The remaining stabilization fixes shipped
+in [PR #36](https://github.com/cyriltagalog123-a11y/hdc-beta-api/pull/36).
+The [23 September checkpoint](build27-stabilization-checkpoint-20260923.md)
+records the pre-release gates. Build 28's first shop increment is recorded in
+[the implementation review](build28-implementation-20260923.md).
 
 ## Delivered baseline
 
@@ -222,4 +225,7 @@ seller inventory workspace and buyer purchase history. Preserve server stock,
 role, participant and payment authority. Delivery order, open decisions and
 acceptance gates are recorded in `docs/build28-shop-technology.md`.
 
-This is a planned next build; the Build 27 follow-up does not change shop code.
+The first Build 28 increment improves discovery, public seller-profile access,
+product details and purchase timelines. Structured fulfillment agreements and
+product-photo storage remain separate review gates before the complete shop
+journey can be claimed.

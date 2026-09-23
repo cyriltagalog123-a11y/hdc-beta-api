@@ -243,6 +243,9 @@ export function publicProductListingView(
     id: String(row.id),
     publicListingId: String(row.public_listing_id),
     sellerPublicName: String(row.seller_public_name),
+    sellerPublicProfileId: row.seller_profile_public === true
+      ? String(row.seller_profile_public_id)
+      : null,
     sellerRole: String(row.seller_role),
     categoryCode: String(row.category_code),
     title: String(row.title),
@@ -259,6 +262,7 @@ export function publicProductListingView(
 export function productPurchaseRequestView(
   row: Record<string, unknown>,
 ): Record<string, unknown> {
+  const timeline = Array.isArray(row.timeline) ? row.timeline : [];
   return {
     id: String(row.id),
     publicPurchaseId: String(row.public_purchase_id),
@@ -285,6 +289,16 @@ export function productPurchaseRequestView(
       ? new Date(String(row.cancelled_at)).toISOString()
       : null,
     updatedAt: new Date(String(row.updated_at)).toISOString(),
+    events: timeline.map((event) => {
+      const item = event as Record<string, unknown>;
+      return {
+        type: String(item.type),
+        fromStatus: item.fromStatus === null ? null : String(item.fromStatus),
+        toStatus: String(item.toStatus),
+        occurredAt: new Date(String(item.occurredAt)).toISOString(),
+        note: String(item.note ?? ''),
+      };
+    }),
   };
 }
 

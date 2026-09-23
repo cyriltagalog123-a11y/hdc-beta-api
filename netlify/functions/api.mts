@@ -2359,7 +2359,9 @@ async function handleProductCatalog(
 ): Promise<Response> {
   if (req.method !== 'GET') return methodNotAllowed();
   const rows = await sql`
-    SELECT listing.*, profile.public_name AS seller_public_name
+    SELECT listing.*, profile.public_name AS seller_public_name,
+           profile.is_public AS seller_profile_public,
+           profile.id AS seller_profile_public_id
     FROM public.hdc_product_listings listing
     JOIN public.hdc_platform_role_profiles profile
       ON profile.id = listing.seller_profile_id
@@ -2384,6 +2386,42 @@ async function handleProductCatalog(
   });
 }
 
+async function handlePublicSellerProfile(
+  req: Request,
+  sql: DbClient,
+  profileId: string,
+): Promise<Response> {
+  if (req.method !== 'GET') return methodNotAllowed();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(profileId)) {
+    return json({ error: 'seller_profile_not_found' }, 404);
+  }
+  const rows = await sql`
+    SELECT profile.id, profile.role, profile.public_name,
+           profile.headline, profile.description, profile.location
+    FROM public.hdc_platform_role_profiles profile
+    JOIN public.hdc_users seller
+      ON seller.id = profile.user_id AND seller.status = 'active'
+    JOIN public.hdc_user_roles assignment
+      ON assignment.user_id = profile.user_id
+     AND assignment.role::text = profile.role
+     AND assignment.is_active = true AND assignment.status = 'active'
+    WHERE profile.id = ${profileId}::uuid
+      AND profile.role IN ('seller', 'supplier', 'store')
+      AND profile.is_public = true
+    LIMIT 1
+  `;
+  if (rows.length === 0) return json({ error: 'seller_profile_not_found' }, 404);
+  const row = rowObject(rows[0]);
+  return json({ profile: {
+    id: String(row.id),
+    role: String(row.role),
+    publicName: String(row.public_name),
+    headline: String(row.headline ?? ''),
+    description: String(row.description ?? ''),
+    location: String(row.location ?? ''),
+  } });
+}
+
 async function handleBuyerDashboard(
   req: Request,
   sql: DbClient,
@@ -2391,10 +2429,20 @@ async function handleBuyerDashboard(
 ): Promise<Response> {
   if (req.method !== 'GET') return methodNotAllowed();
   const rows = await sql`
-    SELECT *
-    FROM public.hdc_product_purchase_requests
-    WHERE buyer_user_id = ${user.id}
-    ORDER BY submitted_at DESC
+    SELECT purchase.*, COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'type', event.event_type,
+        'fromStatus', event.from_status,
+        'toStatus', event.to_status,
+        'occurredAt', event.occurred_at,
+        'note', COALESCE(event.snapshot->>'note', '')
+      ) ORDER BY event.occurred_at, event.id)
+      FROM public.hdc_product_purchase_request_events event
+      WHERE event.purchase_request_id = purchase.id
+    ), '[]'::jsonb) AS timeline
+    FROM public.hdc_product_purchase_requests purchase
+    WHERE purchase.buyer_user_id = ${user.id}
+    ORDER BY purchase.submitted_at DESC
     LIMIT 500
   `;
   return json({
@@ -2861,17 +2909,27 @@ async function handleSellerDashboard(
     WHERE seller_user_id = ${user.id}
   `;
   const purchaseRequests = await sql`
-    SELECT *
-    FROM public.hdc_product_purchase_requests
-    WHERE seller_user_id = ${user.id}
+    SELECT purchase.*, COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'type', event.event_type,
+        'fromStatus', event.from_status,
+        'toStatus', event.to_status,
+        'occurredAt', event.occurred_at,
+        'note', COALESCE(event.snapshot->>'note', '')
+      ) ORDER BY event.occurred_at, event.id)
+      FROM public.hdc_product_purchase_request_events event
+      WHERE event.purchase_request_id = purchase.id
+    ), '[]'::jsonb) AS timeline
+    FROM public.hdc_product_purchase_requests purchase
+    WHERE purchase.seller_user_id = ${user.id}
     ORDER BY
-      CASE status
+      CASE purchase.status
         WHEN 'submitted' THEN 1
         WHEN 'accepted' THEN 2
         WHEN 'declined' THEN 3
         ELSE 4
       END,
-      submitted_at DESC
+      purchase.submitted_at DESC
     LIMIT 500
   `;
   const purchaseSummaryRows = await sql`
@@ -6624,7 +6682,7 @@ async function handleHdcApiRequestCore(
     return json({
       service: 'hdc-beta-api',
       status: 'ok',
-      build: '0.6.4-build27',
+      build: '0.6.4-build28',
     });
   }
   if (path === '/api/health/ready') return await handleReadiness(req);
@@ -6724,6 +6782,10 @@ async function handleHdcApiRequestCore(
 
     if (path === '/api/commerce/catalog') {
       return await handleProductCatalog(req, sql);
+    }
+    const publicSellerMatch = /^\/api\/commerce\/sellers\/([^/]+)$/.exec(path);
+    if (publicSellerMatch) {
+      return await handlePublicSellerProfile(req, sql, publicSellerMatch[1]);
     }
 
     if (path === '/api/discovery/technicians') {
@@ -7333,6 +7395,7 @@ export const config: Config = {
     '/api/discovery/technicians/:id',
     '/api/discovery/opportunities',
     '/api/commerce/catalog',
+    '/api/commerce/sellers/:id',
     '/api/commerce/buyer-dashboard',
     '/api/commerce/seller-dashboard',
     '/api/commerce/listings',

@@ -394,7 +394,7 @@ class _KnowledgeArticleScreenState extends State<KnowledgeArticleScreen> {
               ],
               const SizedBox(height: HDCSpacing.lg),
               const Text(
-                'Nexus may retrieve this guide only from the published HDC Knowledge Base. Build 27 does not authorize Nexus to invent troubleshooting steps that are not supported by published knowledge.',
+                'Nexus may retrieve this guide only from the published HDC Knowledge Base. This release does not authorize Nexus to invent troubleshooting steps that are not supported by published knowledge.',
                 style: TextStyle(
                   color: HDCColors.textMuted,
                   fontSize: 12,
