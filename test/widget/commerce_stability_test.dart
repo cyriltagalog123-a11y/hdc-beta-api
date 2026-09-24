@@ -293,6 +293,8 @@ void main() {
             of: find.byType(ListView).first,
             matching: find.byType(Scrollable),
           ).first);
+      await tester.ensureVisible(find.text('View Details'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('View Details'));
       await tester.pumpAndSettle();
       expect(find.text('Product details'), findsOneWidget);

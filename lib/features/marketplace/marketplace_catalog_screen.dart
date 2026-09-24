@@ -464,6 +464,7 @@ class _CatalogTab extends StatelessWidget {
                 child: DropdownButtonFormField<String>(
                   key: ValueKey('condition-${condition ?? 'all'}'),
                   initialValue: condition ?? 'all',
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Condition', border: OutlineInputBorder(),
                   ),
@@ -481,6 +482,7 @@ class _CatalogTab extends StatelessWidget {
                 child: DropdownButtonFormField<String>(
                   key: ValueKey('currency-${currency ?? 'all'}'),
                   initialValue: currency ?? 'all',
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Currency', border: OutlineInputBorder(),
                   ),
@@ -524,6 +526,7 @@ class _CatalogTab extends StatelessWidget {
                 child: DropdownButtonFormField<CatalogSort>(
                   key: ValueKey('sort-${sort.name}'),
                   initialValue: sort,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Sort', border: OutlineInputBorder(),
                   ),
