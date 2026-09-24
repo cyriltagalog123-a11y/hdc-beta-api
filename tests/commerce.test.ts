@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   commerceNextCursor,
   parseCommerceCursor,
+  parseProductCatalogQuery,
   canTransitionProductListing,
   parseProductListingWrite,
   parseProductPurchaseDecisionWrite,
+  parseProductCancellationWrite,
   parseProductPurchaseRequestWrite,
   productListingView,
   productPurchaseRequestView,
@@ -24,6 +26,17 @@ const validWrite = {
 };
 
 describe('marketplace listing contract', () => {
+  it('bounds catalog filters and only price sorts within a currency', () => {
+    expect(parseProductCatalogQuery(new URLSearchParams(
+      'q=%20Laptop%20&currency=PHP&sort=priceLow&minPriceMinor=100&lowStock=true',
+    ))).toMatchObject({ query: 'Laptop', currency: 'PHP',
+      sort: 'priceLow', minPriceMinor: 100, lowStockOnly: true });
+    expect(parseProductCatalogQuery(new URLSearchParams('sort=priceLow'))).toBeNull();
+    expect(parseProductCatalogQuery(new URLSearchParams(
+      'currency=PHP&minPriceMinor=200&maxPriceMinor=100',
+    ))).toBeNull();
+    expect(parseProductCatalogQuery(new URLSearchParams('q=x'.repeat(81)))).toBeNull();
+  });
   it('normalizes a valid technology listing without floating-point money', () => {
     expect(parseProductListingWrite(validWrite)).toMatchObject({
       sellerRole: 'seller',
@@ -106,6 +119,17 @@ describe('marketplace listing contract', () => {
 });
 
 describe('marketplace purchase-request contract', () => {
+  it('requires versioned cancellation actions and a meaningful request reason', () => {
+    expect(parseProductCancellationWrite({ action: 'request', version: 3,
+      note: '  Please cancel   this accepted order. ' })).toEqual({
+      action: 'request', version: 3, note: 'Please cancel this accepted order.',
+    });
+    expect(parseProductCancellationWrite({ action: 'request', version: 3,
+      note: 'short' })).toBeNull();
+    expect(parseProductCancellationWrite({ action: 'approve', version: 0 })).toBeNull();
+    expect(parseProductCancellationWrite({ action: 'approve', version: 3 }))
+      .toMatchObject({ note: '' });
+  });
   it('accepts only bounded quantities with UUID idempotency', () => {
     expect(parseProductPurchaseRequestWrite({
       listingId: 'f1dd4c8b-e6a5-46ff-ae29-739e2d64b78b',

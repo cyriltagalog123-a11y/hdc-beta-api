@@ -229,7 +229,8 @@ async function commerceProgress(sql: DbClient, userId: string, body: Record<stri
   }
   const result = await sql.begin(async (tx) => {
     const current = await tx`
-      SELECT id, buyer_user_id, seller_user_id, seller_role, status, version
+      SELECT id, buyer_user_id, seller_user_id, seller_role, status, version,
+        cancellation_requested_by
       FROM public.hdc_product_purchase_requests
       WHERE id = ${purchaseRequestId}::uuid
         AND ${userId}::uuid IN (buyer_user_id, seller_user_id)
@@ -239,7 +240,8 @@ async function commerceProgress(sql: DbClient, userId: string, body: Record<stri
     const row = current[0];
     if (Number(row.version) !== version) return { error: 'purchase_request_conflict', status: 409 } as const;
     if (action === 'commerce_fulfill') {
-      if (String(row.seller_user_id) !== userId || row.status !== 'accepted') {
+      if (String(row.seller_user_id) !== userId || row.status !== 'accepted' ||
+          row.cancellation_requested_by !== null) {
         return { error: 'purchase_fulfillment_not_allowed', status: 409 } as const;
       }
       const role = await tx`

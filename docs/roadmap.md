@@ -230,3 +230,12 @@ purchase timelines, recorded fulfillment proposals and paged histories.
 Product-photo storage remains a separate review gate before a complete shop
 journey can be claimed. Preview database identity and the held Netlify release
 remain pre-stabilization gates.
+
+## Build 29 — order recovery and complete catalog search
+
+Build 29 is a stacked review branch on Build 28. Its accepted-order cancellation
+flow requires the other participant's approval, restores allocated inventory in
+one transaction and records a participant-scoped history. Published catalog
+search, filters and single-currency price sort run before pagination. See
+`docs/build29-order-recovery.md` for review and release gates. Both merges and
+the Netlify release remain held until the owner resumes them after usage refresh.

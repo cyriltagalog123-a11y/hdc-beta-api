@@ -26,6 +26,7 @@
     "0022_build26_feedback_reputation.sql": "19cc3f2ef8aef66821163aac1c7bf548e03e17b761764357262a12810bd8731b",
     "0023_build27_knowledge_base.sql": "bb51d85779751cbe1758bb020ba14da58eeca25bd8fe8c64010df3f5a83387d6",
     "0024_build27_knowledge_slug_stability.sql": "55186ef6cb607052aec0d3ef480a264ca678044c89c11415c400b877df3d32ab",
-    "0025_build28_purchase_fulfillment_proposal.sql": "849aa761191a95e2db32a03ba63fd3f01eba7c7833f1cb38589aa4ad688ffaaa"
+    "0025_build28_purchase_fulfillment_proposal.sql": "849aa761191a95e2db32a03ba63fd3f01eba7c7833f1cb38589aa4ad688ffaaa",
+    "0026_build29_order_recovery.sql": "5fbadb8ef620001144fbf63e8899fd6bd9f851e9a71eba41b4f3130032f3b389"
   }
 }

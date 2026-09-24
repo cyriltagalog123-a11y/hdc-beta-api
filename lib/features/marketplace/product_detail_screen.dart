@@ -2,32 +2,68 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/ui/hdc_colors.dart';
+import '../../core/api/hdc_workflow_api_client.dart';
 import '../../models/account_identity.dart';
 import '../../models/marketplace_purchase.dart';
 import '../../models/product_listing.dart';
 import '../../providers/hdc_marketplace_provider.dart';
 import 'seller_public_profile_screen.dart';
 
-class ProductDetailScreen extends StatelessWidget {
+class ProductDetailScreen extends StatefulWidget {
   final String productId;
+  final MarketplaceProduct initialProduct;
   final Future<void> Function(MarketplaceProduct) onPurchase;
 
   const ProductDetailScreen({
     required this.productId,
+    required this.initialProduct,
     required this.onPurchase,
     super.key,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final provider = context.watch<HdcMarketplaceProvider>();
-    MarketplaceProduct? product;
-    for (final item in provider.products) {
-      if (item.id == productId) {
-        product = item;
-        break;
+  State<ProductDetailScreen> createState() => _ProductDetailScreenState();
+}
+
+class _ProductDetailScreenState extends State<ProductDetailScreen> {
+  late MarketplaceProduct? _product = widget.initialProduct;
+  bool _isRefreshing = false;
+
+  Future<void> _refresh() async {
+    final client = context.read<HdcMarketplaceProvider>().client;
+    if (client == null || _isRefreshing) return;
+    setState(() => _isRefreshing = true);
+    try {
+      final response = await client.getPublic(
+        '/api/commerce/catalog/${widget.productId}',
+      );
+      final listing = MarketplaceProduct.fromJson(
+        Map<String, dynamic>.from(response['listing'] as Map),
+      );
+      if (mounted) setState(() => _product = listing);
+    } on HdcWorkflowException catch (error) {
+      if (!mounted) return;
+      if (error.statusCode == 404) {
+        setState(() => _product = null);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error')),
+        );
       }
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isRefreshing = false);
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final product = _product;
 
     return Scaffold(
       backgroundColor: HDCColors.background,
@@ -36,7 +72,7 @@ class ProductDetailScreen extends StatelessWidget {
         actions: [
           IconButton(
             tooltip: 'Refresh listing',
-            onPressed: provider.isLoadingCatalog ? null : provider.refreshCatalog,
+            onPressed: _isRefreshing ? null : _refresh,
             icon: const Icon(Icons.refresh_outlined),
           ),
         ],
@@ -94,7 +130,7 @@ class ProductDetailScreen extends StatelessWidget {
                               onPressed: () => Navigator.of(context).push(
                                 MaterialPageRoute<void>(
                                   builder: (_) => SellerPublicProfileScreen(
-                                    profileId: product!.sellerPublicProfileId!,
+                                    profileId: product.sellerPublicProfileId!,
                                   ),
                                 ),
                               ),
@@ -109,7 +145,7 @@ class ProductDetailScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 20),
                           FilledButton.icon(
-                            onPressed: () => onPurchase(product!),
+                            onPressed: () => widget.onPurchase(product),
                             icon: const Icon(Icons.shopping_cart_checkout_outlined),
                             label: const Text('Request to Buy'),
                           ),

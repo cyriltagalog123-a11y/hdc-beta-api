@@ -9,6 +9,7 @@ import '../roles/role_center_screen.dart';
 import 'product_listing_edit_screen.dart';
 import 'purchase_timeline.dart';
 import 'purchase_fulfillment.dart';
+import 'purchase_cancellation_panel.dart';
 
 class SalesCenterScreen extends StatefulWidget {
   const SalesCenterScreen({super.key});
@@ -203,6 +204,25 @@ class _SalesCenterScreenState extends State<SalesCenterScreen> {
     }
   }
 
+  Future<void> _actOnCancellation(
+    ProductPurchaseRequest request, String action, String note,
+  ) async {
+    try {
+      await context.read<HdcSalesCenterProvider>().actOnCancellation(
+        request, action: action, note: note,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(action == 'request' ? 'Cancellation request sent.'
+            : action == 'approve' ? 'Order cancelled and stock restored.'
+            : 'Cancellation declined; the order remains accepted.'),
+      ));
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<HdcSalesCenterProvider>();
@@ -331,6 +351,7 @@ class _SalesCenterScreenState extends State<SalesCenterScreen> {
                               ),
                               isSaving: provider.isSaving || provider.isLoading,
                               onDecision: _decidePurchaseRequest,
+                              onCancellation: _actOnCancellation,
                             ),
                           ],
                         ),
@@ -503,6 +524,7 @@ class _SellerOrderList extends StatelessWidget {
   final bool Function(ProductPurchaseRequest) canAccept;
   final bool isSaving;
   final void Function(ProductPurchaseRequest, String) onDecision;
+  final Future<void> Function(ProductPurchaseRequest, String, String) onCancellation;
 
   const _SellerOrderList({
     required this.requests,
@@ -510,6 +532,7 @@ class _SellerOrderList extends StatelessWidget {
     required this.canAccept,
     required this.isSaving,
     required this.onDecision,
+    required this.onCancellation,
   });
 
   @override
@@ -545,6 +568,8 @@ class _SellerOrderList extends StatelessWidget {
             isSaving: isSaving,
             onAccept: () => onDecision(request, 'accept'),
             onDecline: () => onDecision(request, 'decline'),
+            onCancellation: (action, note) =>
+                onCancellation(request, action, note),
           );
         },
       ),
@@ -559,6 +584,7 @@ class _SellerOrderCard extends StatelessWidget {
   final bool isSaving;
   final VoidCallback onAccept;
   final VoidCallback onDecline;
+  final Future<void> Function(String, String) onCancellation;
 
   const _SellerOrderCard({
     required this.request,
@@ -567,6 +593,7 @@ class _SellerOrderCard extends StatelessWidget {
     required this.isSaving,
     required this.onAccept,
     required this.onDecline,
+    required this.onCancellation,
   });
 
   @override
@@ -654,6 +681,9 @@ class _SellerOrderCard extends StatelessWidget {
                 ),
               ),
             ],
+            const SizedBox(height: 10),
+            PurchaseCancellationPanel(request: request, isBuyer: false,
+              isSaving: isSaving, onAction: onCancellation),
             if (pending) ...[
               const SizedBox(height: 14),
               if (canManage)

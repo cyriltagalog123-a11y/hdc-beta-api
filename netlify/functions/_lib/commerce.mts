@@ -64,7 +64,9 @@ export type ProductPurchaseRequestWrite = Readonly<{
 }>;
 
 export const COMMERCE_PAGE_SIZE = 100;
-export type CommerceCursor = Readonly<{ at: string; id: string }>;
+export type CommerceCursor = Readonly<{
+  at: string; id: string; price?: number; filter?: string;
+}>;
 
 export function parseCommerceCursor(value: string | null): CommerceCursor | null {
   if (value === null) return null;
@@ -77,8 +79,16 @@ export function parseCommerceCursor(value: string | null): CommerceCursor | null
         !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}(?:\d{3})?Z$/.test(cursor.at) ||
         !Number.isFinite(Date.parse(cursor.at)) ||
         new Date(cursor.at).toISOString().slice(0, 23) !== cursor.at.slice(0, 23) ||
-        typeof cursor.id !== 'string' || !uuidPattern.test(cursor.id)) throw new Error();
-    return { at: cursor.at, id: cursor.id.toLowerCase() };
+        typeof cursor.id !== 'string' || !uuidPattern.test(cursor.id) ||
+        (cursor.price !== undefined &&
+          (wholeNumber(cursor.price, 1, 999999999999) === null)) ||
+        (cursor.filter !== undefined &&
+          (typeof cursor.filter !== 'string' || !/^[a-f0-9]{32}$/.test(cursor.filter)))) {
+      throw new Error();
+    }
+    return { at: cursor.at, id: cursor.id.toLowerCase(),
+      ...(cursor.price === undefined ? {} : { price: cursor.price as number }),
+      ...(cursor.filter === undefined ? {} : { filter: cursor.filter as string }) };
   } catch {
     throw new Error('invalid_cursor');
   }
@@ -87,13 +97,60 @@ export function parseCommerceCursor(value: string | null): CommerceCursor | null
 export function commerceNextCursor(
   rows: readonly Record<string, unknown>[],
   column: 'published_at' | 'created_at' | 'submitted_at',
+  catalogFilter?: string,
 ): string | null {
   if (rows.length <= COMMERCE_PAGE_SIZE) return null;
   const last = rows[COMMERCE_PAGE_SIZE - 1];
   return Buffer.from(JSON.stringify({
     at: String(last.cursor_at ?? new Date(String(last[column])).toISOString()),
     id: String(last.id),
+    ...(catalogFilter === undefined ? {} : {
+      price: Number(last.unit_price_minor), filter: catalogFilter,
+    }),
   })).toString('base64url');
+}
+
+export type ProductCatalogQuery = Readonly<{
+  query: string;
+  category: string | null;
+  condition: string | null;
+  currency: string | null;
+  minPriceMinor: number | null;
+  maxPriceMinor: number | null;
+  lowStockOnly: boolean;
+  sort: 'newest' | 'priceLow' | 'priceHigh';
+}>;
+
+export function parseProductCatalogQuery(params: URLSearchParams): ProductCatalogQuery | null {
+  const query = (params.get('q') ?? '').trim().replace(/\s+/g, ' ');
+  const category = params.get('category');
+  const condition = params.get('condition');
+  const currency = params.get('currency');
+  const sort = params.get('sort') ?? 'newest';
+  const lowStock = params.get('lowStock') ?? 'false';
+  const price = (key: string): number | null | undefined => {
+    const value = params.get(key);
+    if (value === null) return null;
+    if (!/^(?:0|[1-9]\d{0,11})$/.test(value)) return undefined;
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) && parsed <= 999999999999 ? parsed : undefined;
+  };
+  const minPriceMinor = price('minPriceMinor');
+  const maxPriceMinor = price('maxPriceMinor');
+  if (query.length > 80 || /[\x00-\x1f\x7f]/.test(query) ||
+      (category !== null && !categorySet.has(category)) ||
+      (condition !== null && !conditionSet.has(condition)) ||
+      (currency !== null && !currencyPattern.test(currency)) ||
+      (lowStock !== 'true' && lowStock !== 'false') ||
+      (sort !== 'newest' && sort !== 'priceLow' && sort !== 'priceHigh') ||
+      minPriceMinor === undefined || maxPriceMinor === undefined ||
+      ((sort !== 'newest' || minPriceMinor !== null || maxPriceMinor !== null) &&
+        currency === null) ||
+      (minPriceMinor !== null && maxPriceMinor !== null && minPriceMinor > maxPriceMinor)) {
+    return null;
+  }
+  return { query, category, condition, currency, minPriceMinor,
+    maxPriceMinor, lowStockOnly: lowStock === 'true', sort };
 }
 
 export type ProductPurchaseDecisionWrite = Readonly<{
@@ -101,6 +158,24 @@ export type ProductPurchaseDecisionWrite = Readonly<{
   version: number;
   note: string;
 }>;
+
+export type ProductCancellationWrite = Readonly<{
+  action: 'request' | 'approve' | 'decline';
+  version: number;
+  note: string;
+}>;
+
+export function parseProductCancellationWrite(
+  input: Record<string, unknown>,
+): ProductCancellationWrite | null {
+  const action = input.action;
+  const version = wholeNumber(input.version, 1, Number.MAX_SAFE_INTEGER);
+  const note = optionalText(input.note, action === 'request' ? 500 : 1000);
+  if ((action !== 'request' && action !== 'approve' && action !== 'decline') ||
+      version === null || note === null ||
+      (action === 'request' && note.length < 10)) return null;
+  return Object.freeze({ action, version, note });
+}
 
 export type ProductListingWrite = Readonly<{
   sellerRole: SellingRoleCode;
@@ -332,6 +407,17 @@ export function productPurchaseRequestView(
         },
     buyerNote: String(row.buyer_note ?? ''),
     sellerNote: String(row.seller_note ?? ''),
+    cancellationRequestedBy: row.cancellation_requested_by
+      ? String(row.cancellation_requested_by) === String(row.buyer_user_id)
+        ? 'buyer' : 'seller'
+      : null,
+    cancellationReason: row.cancellation_reason === null ||
+      row.cancellation_reason === undefined ? null : String(row.cancellation_reason),
+    cancellationRequestedAt: row.cancellation_requested_at
+      ? new Date(String(row.cancellation_requested_at)).toISOString() : null,
+    cancellationResponseNote: String(row.cancellation_response_note ?? ''),
+    stockReleasedAt: row.stock_released_at
+      ? new Date(String(row.stock_released_at)).toISOString() : null,
     status: String(row.status),
     version: Number(row.version),
     submittedAt: new Date(String(row.submitted_at)).toISOString(),
