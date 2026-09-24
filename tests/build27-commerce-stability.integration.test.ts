@@ -1,8 +1,9 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import postgres from 'postgres';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { handleHdcApiRequest } from '../netlify/functions/api.mjs';
 import community from '../netlify/functions/community.mjs';
+import { parseProductCatalogQuery } from '../netlify/functions/_lib/commerce.mjs';
 
 type Account = { id: string; token: string };
 type Row = Record<string, unknown>;
@@ -66,6 +67,11 @@ async function decision(order: Row, action: string, actor = seller) {
   return call(`/api/commerce/purchase-requests/${order.id}/status`, actor,
     { action, version: order.version, note: '' }, 'PUT');
 }
+async function cancellation(order: Row, action: string, actor = buyer,
+  note = action === 'request' ? 'I need to cancel this order.' : '') {
+  return call(`/api/commerce/purchase-requests/${order.id}/cancellation`, actor,
+    { action, version: order.version, note }, 'PUT');
+}
 
 describe.skipIf(process.env.HDC_POSTGRES_INTEGRATION !== '1').sequential('Build 27 commerce stability', () => {
   beforeAll(async () => {
@@ -84,10 +90,14 @@ describe.skipIf(process.env.HDC_POSTGRES_INTEGRATION !== '1').sequential('Build 
     expect(visible).not.toHaveProperty('sellerUserId');
     expect(visible).not.toHaveProperty('sellerProfileId');
     expect(visible).not.toHaveProperty('email');
+    const detail = await call(`/api/commerce/catalog/${item.id}`);
+    expect(detail.status).toBe(200);
+    expect((detail.body.listing as Row).id).toBe(item.id);
     await sql`UPDATE public.hdc_users SET status = 'disabled' WHERE id = ${seller.id}::uuid`;
     try {
       const hidden = await call('/api/commerce/catalog');
       expect((hidden.body.listings as Row[]).some((row) => row.id === item.id)).toBe(false);
+      expect((await call(`/api/commerce/catalog/${item.id}`)).status).toBe(404);
       expect((await purchase(item)).status).toBe(409);
     } finally { await sql`UPDATE public.hdc_users SET status = 'active' WHERE id = ${seller.id}::uuid`; }
   });
@@ -127,6 +137,10 @@ describe.skipIf(process.env.HDC_POSTGRES_INTEGRATION !== '1').sequential('Build 
     `;
     const cursor = Buffer.from(JSON.stringify({
       at: String(latest[0].cursor_at), id: String(newer.id),
+      price: Number(newer.unitPriceMinor),
+      filter: createHash('sha256').update(JSON.stringify(
+        parseProductCatalogQuery(new URLSearchParams()),
+      )).digest('hex').slice(0, 32),
     })).toString('base64url');
     const page = await call(`/api/commerce/catalog?cursor=${cursor}`);
     expect(page.status).toBe(200);
@@ -242,5 +256,103 @@ describe.skipIf(process.env.HDC_POSTGRES_INTEGRATION !== '1').sequential('Build 
     const counts = await sql`SELECT count(*)::int AS count FROM public.hdc_product_purchase_request_events
       WHERE purchase_request_id = ${String(accepted.id)}::uuid AND event_type = 'completed'`;
     expect(counts[0].count).toBe(1);
+  });
+
+  it('requires both participants and restores accepted stock exactly once', async () => {
+    const item = await listing(1);
+    const submitted = (await purchase(item)).body.purchaseRequest as Row;
+    const accepted = (await decision(submitted, 'accept')).body.purchaseRequest as Row;
+    expect((await cancellation(accepted, 'approve', other)).status).toBe(404);
+    const requested = await cancellation(accepted, 'request', buyer);
+    expect(requested.status).toBe(200);
+    const pending = requested.body.purchaseRequest as Row;
+    expect(pending).toMatchObject({ status: 'accepted', cancellationRequestedBy: 'buyer' });
+    expect((await cancellation(pending, 'approve', buyer)).status).toBe(409);
+    expect((await call('/api/community', seller, { action: 'commerce_fulfill',
+      purchaseRequestId: accepted.id, version: pending.version })).status).toBe(409);
+    const [first, second] = await Promise.all([
+      cancellation(pending, 'approve', seller),
+      cancellation(pending, 'approve', seller),
+    ]);
+    expect([first.status, second.status].sort()).toEqual([200, 409]);
+    const completed = (first.status === 200 ? first : second).body.purchaseRequest as Row;
+    expect(completed).toMatchObject({ status: 'cancelled', cancellationRequestedBy: 'buyer' });
+    expect(completed.stockReleasedAt).toBeTruthy();
+    expect((await cancellation(completed, 'approve', seller)).status).toBe(409);
+    const stock = await sql`SELECT stock_quantity, status, sold_at
+      FROM public.hdc_product_listings WHERE id = ${String(item.id)}::uuid`;
+    expect(stock[0]).toMatchObject({ stock_quantity: 1, status: 'paused', sold_at: null });
+    const buyerHistory = await call('/api/commerce/buyer-dashboard', buyer);
+    const sellerHistory = await call('/api/commerce/seller-dashboard', seller);
+    const buyerOrder = (buyerHistory.body.purchaseRequests as Row[]).find((row) => row.id === accepted.id)!;
+    const sellerOrder = (sellerHistory.body.purchaseRequests as Row[]).find((row) => row.id === accepted.id)!;
+    expect(buyerOrder.events).toEqual(sellerOrder.events);
+    expect((buyerOrder.events as Row[]).map((event) => event.type)).toEqual([
+      'submitted', 'accepted', 'cancellation_requested', 'cancelled',
+    ]);
+    expect((await call('/api/commerce/buyer-dashboard', other)).body.purchaseRequests)
+      .not.toContainEqual(expect.objectContaining({ id: accepted.id }));
+    await expect(sql`UPDATE public.hdc_product_purchase_requests
+      SET stock_released_at = NULL WHERE id = ${String(accepted.id)}::uuid`)
+      .rejects.toThrow(/cannot be released twice/);
+  });
+
+  it('allows a seller request and buyer decline without releasing stock', async () => {
+    const item = await listing(2);
+    const submitted = (await purchase(item)).body.purchaseRequest as Row;
+    const accepted = (await decision(submitted, 'accept')).body.purchaseRequest as Row;
+    const requested = (await cancellation(accepted, 'request', seller)).body.purchaseRequest as Row;
+    expect(requested.cancellationRequestedBy).toBe('seller');
+    const declined = await cancellation(requested, 'decline', buyer, 'I still want this item.');
+    expect(declined.status).toBe(200);
+    expect(declined.body.purchaseRequest).toMatchObject({ status: 'accepted',
+      cancellationRequestedBy: null, stockReleasedAt: null });
+    const stock = await sql`SELECT stock_quantity FROM public.hdc_product_listings
+      WHERE id = ${String(item.id)}::uuid`;
+    expect(stock[0].stock_quantity).toBe(1);
+    const fulfilled = await call('/api/community', seller, { action: 'commerce_fulfill',
+      purchaseRequestId: accepted.id, version: (declined.body.purchaseRequest as Row).version });
+    expect(fulfilled.status).toBe(200);
+    expect((await cancellation(fulfilled.body.purchase as Row, 'request', buyer)).status).toBe(409);
+  });
+
+  it('searches the complete catalog and pages price sorts without mixing filters', async () => {
+    const item = await call('/api/commerce/listings', seller, {
+      ...listingBody, currency: 'ZAR', title: 'Build 29 catalog needle',
+      unitPriceMinor: 5000,
+    });
+    expect(item.status).toBe(201);
+    const target = item.body.listing as Row;
+    await sql`UPDATE public.hdc_product_listings SET published_at = now() - interval '2 days'
+      WHERE id = ${String(target.id)}::uuid`;
+    await sql`
+      INSERT INTO public.hdc_product_listings (
+        seller_profile_id, seller_user_id, seller_role, category_code, title,
+        description, item_condition, currency, unit_price_minor, stock_quantity,
+        status, published_at
+      )
+      SELECT ${String(target.sellerProfileId)}::uuid, ${seller.id}::uuid,
+        'seller', 'laptops', 'Build 29 catalog filler ' || series.number,
+        'A listed item for isolated catalog pagination testing.', 'new', 'ZAR',
+        5000 + series.number, 2, 'active', now()
+      FROM generate_series(1, 105) AS series(number)
+    `;
+    const unfiltered = await call('/api/commerce/catalog');
+    expect((unfiltered.body.listings as Row[]).some((row) => row.id === target.id)).toBe(false);
+    const found = await call('/api/commerce/catalog?q=Build%2029%20catalog%20needle');
+    expect((found.body.listings as Row[]).map((row) => row.id)).toEqual([target.id]);
+    expect((await call(`/api/commerce/catalog/${target.id}`)).status).toBe(200);
+    expect(found.body.availableCurrencies).toContain('ZAR');
+    const first = await call('/api/commerce/catalog?currency=ZAR&sort=priceLow');
+    expect(first.status).toBe(200);
+    expect((first.body.listings as Row[]).length).toBe(100);
+    expect((first.body.listings as Row[])[0].id).toBe(target.id);
+    const cursor = String(first.body.nextCursor);
+    const next = await call(`/api/commerce/catalog?currency=ZAR&sort=priceLow&cursor=${cursor}`);
+    expect(next.status).toBe(200);
+    expect((next.body.listings as Row[]).length).toBe(6);
+    expect(next.body.nextCursor).toBeNull();
+    expect((await call(`/api/commerce/catalog?currency=ZAR&sort=priceHigh&cursor=${cursor}`)).status).toBe(400);
+    expect((await call('/api/commerce/catalog?sort=priceLow')).status).toBe(400);
   });
 });

@@ -22,7 +22,7 @@ class PurchaseTimeline extends StatelessWidget {
           dense: true,
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.history_outlined, size: 20),
-          title: Text(event.toStatus.label),
+          title: Text(event.typeLabel),
           subtitle: Text(
             event.note.isEmpty ? time : '$time\n${event.note}',
           ),

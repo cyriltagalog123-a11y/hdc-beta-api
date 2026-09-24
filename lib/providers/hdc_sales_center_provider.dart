@@ -297,6 +297,55 @@ class HdcSalesCenterProvider extends ChangeNotifier {
     }
   }
 
+  Future<ProductPurchaseRequest> actOnCancellation(
+    ProductPurchaseRequest request, {
+    required String action,
+    required String note,
+  }) async {
+    if (action != 'request' && action != 'approve' && action != 'decline') {
+      throw ArgumentError.value(action, 'action', 'Invalid cancellation action.');
+    }
+    final api = client;
+    final userId = _boundUserId;
+    if (_disposed || api == null || userId == null) {
+      throw const HdcWorkflowException(
+        code: 'commerce_backend_unavailable',
+        message: 'HDC marketplace services require the HDC API.',
+      );
+    }
+    if (_isSaving) {
+      throw const HdcWorkflowException(
+        code: 'commerce_request_in_progress',
+        message: 'Another marketplace change is still being saved.',
+      );
+    }
+    final version = _bindingVersion;
+    _isSaving = true;
+    _lastError = null;
+    _announce();
+    try {
+      final response = await api.put(
+        '/api/commerce/purchase-requests/${request.id}/cancellation',
+        body: {'action': action, 'version': request.version, 'note': note},
+      );
+      final updated = ProductPurchaseRequest.fromJson(
+        _requiredObject(response, 'purchaseRequest'),
+      );
+      _requireCurrent(userId, version);
+      _upsertPurchaseRequest(updated);
+      unawaited(refresh(force: true));
+      return updated;
+    } on Object catch (error) {
+      if (_isCurrent(userId, version)) _lastError = error;
+      rethrow;
+    } finally {
+      if (_isCurrent(userId, version)) {
+        _isSaving = false;
+        _announce();
+      }
+    }
+  }
+
   Future<ProductListing> _writeListing(
     String path,
     Map<String, Object?> body, {

@@ -23,6 +23,8 @@ class HdcMarketplaceProvider extends ChangeNotifier {
   int _purchaseReadGeneration = 0;
   int _catalogReadGeneration = 0;
   String? _nextCatalogCursor;
+  Map<String, String> _catalogFilters = const {};
+  List<String> _availableCurrencies = const [];
   String? _nextPurchaseCursor;
   bool _disposed = false;
 
@@ -40,6 +42,7 @@ class HdcMarketplaceProvider extends ChangeNotifier {
   Object? get purchaseError => _purchaseError;
   int get availableProductCount => _products.length;
   bool get hasMoreProducts => _nextCatalogCursor != null;
+  List<String> get availableCurrencies => _availableCurrencies;
   bool get hasMorePurchases => _nextPurchaseCursor != null;
   int get pendingPurchaseCount => _purchaseRequests
       .where((item) => item.status == ProductPurchaseStatus.submitted)
@@ -70,12 +73,20 @@ class HdcMarketplaceProvider extends ChangeNotifier {
 
   Future<void> refreshCatalog() => _readCatalog(loadMore: false);
 
+  Future<void> setCatalogFilters(Map<String, String> filters) {
+    if (mapEquals(_catalogFilters, filters)) return refreshCatalog();
+    _catalogFilters = Map<String, String>.unmodifiable(filters);
+    _nextCatalogCursor = null;
+    _products = const [];
+    return refreshCatalog();
+  }
+
   Future<void> loadMoreCatalog() => _readCatalog(loadMore: true);
 
   Future<void> _readCatalog({required bool loadMore}) async {
     final api = client;
     final cursor = _nextCatalogCursor;
-    if (_disposed || api == null || _isLoadingCatalog ||
+    if (_disposed || api == null || (loadMore && _isLoadingCatalog) ||
         (loadMore && cursor == null)) {
       return;
     }
@@ -84,21 +95,28 @@ class HdcMarketplaceProvider extends ChangeNotifier {
     _catalogError = null;
     _announce();
     try {
-      final response = await api.getPublic(loadMore
-          ? '/api/commerce/catalog?cursor=${Uri.encodeQueryComponent(cursor!)}'
-          : '/api/commerce/catalog');
+      final response = await api.getPublic(Uri(path: '/api/commerce/catalog',
+        queryParameters: {
+          ..._catalogFilters,
+          if (loadMore) 'cursor': cursor!,
+        }).toString());
       final products = _objectList(
         response['listings'],
       ).map(MarketplaceProduct.fromJson).toList(growable: false);
       if (_disposed || generation != _catalogReadGeneration) return;
       _nextCatalogCursor = _cursor(response['nextCursor']);
+      final currencies = response['availableCurrencies'];
+      if (currencies is List) {
+        _availableCurrencies = List<String>.unmodifiable(
+            currencies.whereType<String>());
+      }
       _products = List<MarketplaceProduct>.unmodifiable(loadMore
           ? _mergeProducts(_products, products)
           : products);
     } on Object catch (error) {
-      if (!_disposed) _catalogError = error;
+      if (!_disposed && generation == _catalogReadGeneration) _catalogError = error;
     } finally {
-      if (!_disposed) {
+      if (!_disposed && generation == _catalogReadGeneration) {
         _isLoadingCatalog = false;
         _announce();
       }
@@ -177,6 +195,21 @@ class HdcMarketplaceProvider extends ChangeNotifier {
     return _writePurchase(
       '/api/commerce/purchase-requests/${request.id}/status',
       {'action': 'cancel', 'version': request.version, 'note': ''},
+      create: false,
+    );
+  }
+
+  Future<ProductPurchaseRequest> actOnCancellation(
+    ProductPurchaseRequest request, {
+    required String action,
+    required String note,
+  }) {
+    if (action != 'request' && action != 'approve' && action != 'decline') {
+      throw ArgumentError.value(action, 'action', 'Invalid cancellation action.');
+    }
+    return _writePurchase(
+      '/api/commerce/purchase-requests/${request.id}/cancellation',
+      {'action': action, 'version': request.version, 'note': note},
       create: false,
     );
   }

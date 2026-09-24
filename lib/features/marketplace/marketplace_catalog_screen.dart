@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -12,6 +14,7 @@ import '../authentication/registered_user_gate.dart';
 import 'catalog_filters.dart';
 import 'product_detail_screen.dart';
 import 'purchase_fulfillment.dart';
+import 'purchase_cancellation_panel.dart';
 import 'purchase_timeline.dart';
 
 const _catalogCategories = <String, String>{
@@ -45,6 +48,34 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
   String _maximumPrice = '';
   bool _lowStockOnly = false;
   CatalogSort _sort = CatalogSort.newest;
+  Timer? _filterTimer;
+
+  void _queueCatalogFilters() {
+    _filterTimer?.cancel();
+    _filterTimer = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      final filters = <String, String>{};
+      if (_query.trim().isNotEmpty) filters['q'] = _query.trim();
+      if (_category != null) filters['category'] = _category!;
+      if (_condition != null) filters['condition'] = _condition!;
+      if (_currency != null) filters['currency'] = _currency!;
+      final minimum = catalogPriceMinor(_minimumPrice);
+      final maximum = catalogPriceMinor(_maximumPrice);
+      if ((_minimumPrice.trim().isNotEmpty && minimum == null) ||
+          (_maximumPrice.trim().isNotEmpty && maximum == null) ||
+          (minimum != null && maximum != null && minimum > maximum)) return;
+      if (minimum != null) filters['minPriceMinor'] = '$minimum';
+      if (maximum != null) filters['maxPriceMinor'] = '$maximum';
+      if (_lowStockOnly) filters['lowStock'] = 'true';
+      if (_sort != CatalogSort.newest) filters['sort'] = _sort.name;
+      unawaited(context.read<HdcMarketplaceProvider>().setCatalogFilters(filters));
+    });
+  }
+
+  void _changeCatalogFilter(VoidCallback change) {
+    setState(change);
+    _queueCatalogFilters();
+  }
 
   @override
   void initState() {
@@ -53,13 +84,14 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final provider = context.read<HdcMarketplaceProvider>();
-      provider.refreshCatalog();
+      provider.setCatalogFilters(const {});
       if (provider.authenticated) provider.refreshPurchases();
     });
   }
 
   @override
   void dispose() {
+    _filterTimer?.cancel();
     _tabController.dispose();
     super.dispose();
   }
@@ -68,6 +100,7 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
     await Navigator.of(context).push<void>(MaterialPageRoute(
       builder: (_) => ProductDetailScreen(
         productId: product.id,
+        initialProduct: product,
         onPurchase: _requestPurchase,
       ),
     ));
@@ -318,6 +351,25 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
     }
   }
 
+  Future<void> _actOnCancellation(
+    ProductPurchaseRequest request, String action, String note,
+  ) async {
+    try {
+      final provider = context.read<HdcMarketplaceProvider>();
+      await provider.actOnCancellation(request, action: action, note: note);
+      await provider.refreshPurchases();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(action == 'request' ? 'Cancellation request sent.'
+            : action == 'approve' ? 'Order cancelled and stock restored.'
+            : 'Cancellation declined; the order remains accepted.'),
+      ));
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<HdcMarketplaceProvider>();
@@ -367,19 +419,19 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
               maximumPrice: _maximumPrice,
               lowStockOnly: _lowStockOnly,
               sort: _sort,
-              onQueryChanged: (value) => setState(() => _query = value),
-              onCategoryChanged: (value) => setState(() => _category = value),
-              onConditionChanged: (value) => setState(() => _condition = value),
-              onCurrencyChanged: (value) => setState(() {
+              onQueryChanged: (value) => _changeCatalogFilter(() => _query = value),
+              onCategoryChanged: (value) => _changeCatalogFilter(() => _category = value),
+              onConditionChanged: (value) => _changeCatalogFilter(() => _condition = value),
+              onCurrencyChanged: (value) => _changeCatalogFilter(() {
                 _currency = value;
                 _minimumPrice = '';
                 _maximumPrice = '';
                 _sort = CatalogSort.newest;
               }),
-              onMinimumPriceChanged: (value) => setState(() => _minimumPrice = value),
-              onMaximumPriceChanged: (value) => setState(() => _maximumPrice = value),
-              onLowStockChanged: (value) => setState(() => _lowStockOnly = value),
-              onSortChanged: (value) => setState(() => _sort = value),
+              onMinimumPriceChanged: (value) => _changeCatalogFilter(() => _minimumPrice = value),
+              onMaximumPriceChanged: (value) => _changeCatalogFilter(() => _maximumPrice = value),
+              onLowStockChanged: (value) => _changeCatalogFilter(() => _lowStockOnly = value),
+              onSortChanged: (value) => _changeCatalogFilter(() => _sort = value),
               onDetails: _openProduct,
               onPurchase: _requestPurchase,
             ),
@@ -387,6 +439,7 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
               provider: provider,
               registered: auth.authenticated && !auth.guestMode,
               onCancel: _cancelPurchase,
+              onCancellation: _actOnCancellation,
             ),
           ],
         ),
@@ -440,20 +493,10 @@ class _CatalogTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final products = filterMarketplaceProducts(
-      provider.products,
-      query: query,
-      category: category,
-      condition: condition,
-      currency: currency,
-      minimumPriceMinor: catalogPriceMinor(minimumPrice),
-      maximumPriceMinor: catalogPriceMinor(maximumPrice),
-      lowStockOnly: lowStockOnly,
-      sort: sort,
-    );
+    final products = provider.products;
     final chosenCurrency = currency;
     final currencies = <String>{
-      ...provider.products.map((item) => item.currency),
+      ...provider.availableCurrencies,
       ?chosenCurrency,
     }.toList()..sort();
 
@@ -479,6 +522,7 @@ class _CatalogTab extends StatelessWidget {
               final wide = constraints.maxWidth >= 720;
               final search = TextField(
                 onChanged: onQueryChanged,
+                maxLength: 80,
                 decoration: const InputDecoration(
                   labelText: 'Search products or sellers',
                   prefixIcon: Icon(Icons.search),
@@ -572,6 +616,9 @@ class _CatalogTab extends StatelessWidget {
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(
                       labelText: 'Minimum price ($currency)',
+                      errorText: minimumPrice.trim().isNotEmpty &&
+                              catalogPriceMinor(minimumPrice) == null
+                          ? 'Enter an amount with up to two decimals.' : null,
                       border: const OutlineInputBorder(),
                     ),
                     onChanged: onMinimumPriceChanged,
@@ -584,6 +631,14 @@ class _CatalogTab extends StatelessWidget {
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(
                       labelText: 'Maximum price ($currency)',
+                      errorText: maximumPrice.trim().isNotEmpty &&
+                              catalogPriceMinor(maximumPrice) == null
+                          ? 'Enter an amount with up to two decimals.'
+                          : catalogPriceMinor(minimumPrice) != null &&
+                                  catalogPriceMinor(maximumPrice) != null &&
+                                  catalogPriceMinor(minimumPrice)! >
+                                      catalogPriceMinor(maximumPrice)!
+                              ? 'Maximum must be at least the minimum.' : null,
                       border: const OutlineInputBorder(),
                     ),
                     onChanged: onMaximumPriceChanged,
@@ -640,9 +695,7 @@ class _CatalogTab extends StatelessWidget {
             _EmptyCard(
               icon: Icons.search_off_outlined,
               title: 'No products found',
-              message: provider.hasMoreProducts
-                  ? 'No matches in the loaded listings. Load more to continue searching.'
-                  : 'Try another search or category. New seller listings will appear here when published.',
+              message: 'Try another search or category. New seller listings will appear here when published.',
             )
           else
             LayoutBuilder(
@@ -683,10 +736,6 @@ class _CatalogTab extends StatelessWidget {
           ],
           if (provider.hasMoreProducts) ...[
             const SizedBox(height: 16),
-            Text('Filters and price sorting apply to loaded listings. '
-                'Load more to include older listings.',
-                style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 8),
             Center(child: OutlinedButton.icon(
               onPressed: provider.isLoadingCatalog ? null : provider.loadMoreCatalog,
               icon: provider.isLoadingCatalog
@@ -823,11 +872,13 @@ class _PurchasesTab extends StatelessWidget {
   final HdcMarketplaceProvider provider;
   final bool registered;
   final ValueChanged<ProductPurchaseRequest> onCancel;
+  final Future<void> Function(ProductPurchaseRequest, String, String) onCancellation;
 
   const _PurchasesTab({
     required this.provider,
     required this.registered,
     required this.onCancel,
+    required this.onCancellation,
   });
 
   @override
@@ -889,6 +940,8 @@ class _PurchasesTab extends StatelessWidget {
             request: request,
             isSaving: provider.isSaving,
             onCancel: () => onCancel(request),
+            onCancellation: (action, note) =>
+                onCancellation(request, action, note),
           );
         },
       ),
@@ -900,11 +953,13 @@ class _PurchaseCard extends StatelessWidget {
   final ProductPurchaseRequest request;
   final bool isSaving;
   final VoidCallback onCancel;
+  final Future<void> Function(String, String) onCancellation;
 
   const _PurchaseCard({
     required this.request,
     required this.isSaving,
     required this.onCancel,
+    required this.onCancellation,
   });
 
   @override
@@ -928,7 +983,7 @@ class _PurchaseCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                Flexible(child: _StatusPill(label: request.status.label, color: color)),
+                Flexible(child: _StatusPill(label: request.statusLabel, color: color)),
               ],
             ),
             const SizedBox(height: 9),
@@ -980,6 +1035,9 @@ class _PurchaseCard extends StatelessWidget {
                 label: const Text('Cancel Request'),
               ),
             ],
+            const SizedBox(height: 10),
+            PurchaseCancellationPanel(request: request, isBuyer: true,
+              isSaving: isSaving, onAction: onCancellation),
             PurchaseTimeline(request: request),
           ],
         ),

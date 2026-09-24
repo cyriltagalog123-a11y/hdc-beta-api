@@ -1,7 +1,7 @@
 import { handleTechnicianDirectory } from './_lib/public-technicians.mjs';
 import type { Config, Context } from '@netlify/functions';
 import bcrypt from 'bcryptjs';
-import { createHmac, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import type { DbClient, DbJsonValue } from './_lib/db.mjs';
 import { checkDbReadiness, closeDb, openDb } from './_lib/db.mjs';
 import { corsPreflightResponse, withCors } from './_lib/cors.mjs';
@@ -37,8 +37,10 @@ import {
   isProductListingStatus,
   parseProductListingWrite,
   parseProductPurchaseDecisionWrite,
+  parseProductCancellationWrite,
   parseProductPurchaseRequestWrite,
   parseCommerceCursor,
+  parseProductCatalogQuery,
   productListingView,
   productPurchaseRequestView,
   publicProductListingView,
@@ -2361,9 +2363,29 @@ async function handleProductCatalog(
   sql: DbClient,
 ): Promise<Response> {
   if (req.method !== 'GET') return methodNotAllowed();
+  const params = new URL(req.url).searchParams;
+  const filter = parseProductCatalogQuery(params);
+  if (!filter) return json({ error: 'invalid_catalog_filter' }, 400);
+  const filterKey = createHash('sha256')
+    .update(JSON.stringify(filter)).digest('hex').slice(0, 32);
   let cursor;
-  try { cursor = parseCommerceCursor(new URL(req.url).searchParams.get('cursor')); }
+  try { cursor = parseCommerceCursor(params.get('cursor')); }
   catch { return json({ error: 'invalid_cursor' }, 400); }
+  if (cursor && (cursor.filter !== filterKey || cursor.price === undefined)) {
+    return json({ error: 'invalid_cursor' }, 400);
+  }
+  const currencies = await sql`
+    SELECT DISTINCT listing.currency
+    FROM public.hdc_product_listings listing
+    JOIN public.hdc_user_roles assignment
+      ON assignment.user_id = listing.seller_user_id
+     AND assignment.role::text = listing.seller_role
+     AND assignment.is_active = true AND assignment.status = 'active'
+    JOIN public.hdc_users seller
+      ON seller.id = listing.seller_user_id AND seller.status = 'active'
+    WHERE listing.status = 'active' AND listing.stock_quantity > 0
+    ORDER BY listing.currency
+  `;
   const rows = await sql`
     SELECT listing.*,
            to_char(listing.published_at AT TIME ZONE 'UTC',
@@ -2385,10 +2407,36 @@ async function handleProductCatalog(
     WHERE listing.status = 'active'
       AND listing.stock_quantity > 0
       AND listing.published_at IS NOT NULL
+      AND (${filter.query} = '' OR position(lower(${filter.query}) in
+        lower(concat_ws(' ', listing.title, listing.description,
+          profile.public_name, listing.public_listing_id))) > 0)
+      AND (${filter.category}::text IS NULL OR listing.category_code = ${filter.category})
+      AND (${filter.condition}::text IS NULL OR listing.item_condition = ${filter.condition})
+      AND (${filter.currency}::text IS NULL OR listing.currency = ${filter.currency})
+      AND (${filter.minPriceMinor}::bigint IS NULL OR
+        listing.unit_price_minor >= ${filter.minPriceMinor})
+      AND (${filter.maxPriceMinor}::bigint IS NULL OR
+        listing.unit_price_minor <= ${filter.maxPriceMinor})
+      AND (${!filter.lowStockOnly} OR listing.stock_quantity BETWEEN 1 AND 3)
       AND (${cursor?.at ?? null}::timestamptz IS NULL OR
-        (listing.published_at, listing.id) <
-        (${cursor?.at ?? null}::timestamptz, ${cursor?.id ?? null}::uuid))
-    ORDER BY listing.published_at DESC, listing.id DESC
+        CASE
+          WHEN ${filter.sort} = 'priceLow' THEN
+            listing.unit_price_minor > ${cursor?.price ?? null}::bigint OR
+            (listing.unit_price_minor = ${cursor?.price ?? null}::bigint AND
+             (listing.published_at, listing.id) <
+             (${cursor?.at ?? null}::timestamptz, ${cursor?.id ?? null}::uuid))
+          WHEN ${filter.sort} = 'priceHigh' THEN
+            listing.unit_price_minor < ${cursor?.price ?? null}::bigint OR
+            (listing.unit_price_minor = ${cursor?.price ?? null}::bigint AND
+             (listing.published_at, listing.id) <
+             (${cursor?.at ?? null}::timestamptz, ${cursor?.id ?? null}::uuid))
+          ELSE (listing.published_at, listing.id) <
+            (${cursor?.at ?? null}::timestamptz, ${cursor?.id ?? null}::uuid)
+        END)
+    ORDER BY
+      CASE WHEN ${filter.sort} = 'priceLow' THEN listing.unit_price_minor END ASC,
+      CASE WHEN ${filter.sort} = 'priceHigh' THEN listing.unit_price_minor END DESC,
+      listing.published_at DESC, listing.id DESC
     LIMIT ${COMMERCE_PAGE_SIZE + 1}
   `;
   const page = rows.slice(0, COMMERCE_PAGE_SIZE);
@@ -2396,8 +2444,39 @@ async function handleProductCatalog(
     listings: page.map((row) => publicProductListingView(rowObject(row))),
     returned: page.length,
     limit: COMMERCE_PAGE_SIZE,
-    nextCursor: commerceNextCursor(rows.map(rowObject), 'published_at'),
+    availableCurrencies: currencies.map((row) => String(row.currency)),
+    nextCursor: commerceNextCursor(rows.map(rowObject), 'published_at', filterKey),
   });
+}
+
+async function handlePublicProductDetail(
+  req: Request, sql: DbClient, listingId: string,
+): Promise<Response> {
+  if (req.method !== 'GET') return methodNotAllowed();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(listingId)) {
+    return json({ error: 'product_listing_not_found' }, 404);
+  }
+  const rows = await sql`
+    SELECT listing.*, profile.public_name AS seller_public_name,
+           profile.is_public AS seller_profile_public,
+           profile.id AS seller_profile_public_id
+    FROM public.hdc_product_listings listing
+    JOIN public.hdc_platform_role_profiles profile
+      ON profile.id = listing.seller_profile_id
+     AND profile.user_id = listing.seller_user_id
+     AND profile.role = listing.seller_role
+    JOIN public.hdc_user_roles assignment
+      ON assignment.user_id = listing.seller_user_id
+     AND assignment.role::text = listing.seller_role
+     AND assignment.is_active = true AND assignment.status = 'active'
+    JOIN public.hdc_users seller
+      ON seller.id = listing.seller_user_id AND seller.status = 'active'
+    WHERE listing.id = ${listingId}::uuid
+      AND listing.status = 'active' AND listing.stock_quantity > 0
+    LIMIT 1
+  `;
+  if (rows.length === 0) return json({ error: 'product_listing_not_found' }, 404);
+  return json({ listing: publicProductListingView(rowObject(rows[0])) });
 }
 
 async function handlePublicSellerProfile(
@@ -2886,6 +2965,159 @@ async function handleProductPurchaseRequestAction(
   await audit(sql, user.id, 'commerce.purchase_request.status', 'success', {
     purchase_request_id: purchaseRequestId,
     status: String(updated.status),
+  });
+  return json({ purchaseRequest: productPurchaseRequestView(updated) });
+}
+
+async function handlePurchaseCancellationAction(
+  req: Request,
+  sql: DbClient,
+  user: UserView,
+  purchaseRequestId: string,
+): Promise<Response> {
+  if (req.method !== 'PUT') return methodNotAllowed();
+  const body = await readJson(req);
+  if (!body) return json({ error: 'invalid_json' }, 400);
+  const write = parseProductCancellationWrite(body);
+  if (!write) return json({ error: 'invalid_purchase_cancellation' }, 400);
+
+  const updated = await sql.begin(async (tx) => {
+    // Restoration uses the listing -> purchase lock order also used by
+    // acceptance and listing closure. The first read grants no authority.
+    const lookupRows = await tx`
+      SELECT listing_id FROM public.hdc_product_purchase_requests
+      WHERE id = ${purchaseRequestId}::uuid
+        AND ${user.id}::uuid IN (buyer_user_id, seller_user_id)
+    `;
+    if (lookupRows.length === 0) {
+      throw new WorkflowHttpError('purchase_request_not_found', 404,
+        'The purchase request was not found.');
+    }
+    let listing: Record<string, unknown> | null = null;
+    if (write.action === 'approve') {
+      const listingRows = await tx`
+        SELECT * FROM public.hdc_product_listings
+        WHERE id = ${String(lookupRows[0].listing_id)}::uuid FOR UPDATE
+      `;
+      if (listingRows.length === 0) {
+        throw new WorkflowHttpError('product_listing_unavailable', 409,
+          'The related listing is unavailable.');
+      }
+      listing = rowObject(listingRows[0]);
+    }
+    const rows = await tx`
+      SELECT * FROM public.hdc_product_purchase_requests
+      WHERE id = ${purchaseRequestId}::uuid FOR UPDATE
+    `;
+    if (rows.length === 0) {
+      throw new WorkflowHttpError('purchase_request_not_found', 404,
+        'The purchase request was not found.');
+    }
+    const current = rowObject(rows[0]);
+    const isBuyer = String(current.buyer_user_id) === user.id;
+    const isSeller = String(current.seller_user_id) === user.id;
+    if (!isBuyer && !isSeller) {
+      throw new WorkflowHttpError('purchase_request_not_found', 404,
+        'The purchase request was not found.');
+    }
+    if (Number(current.version) !== write.version ||
+        String(current.status) !== 'accepted') {
+      throw new WorkflowHttpError('purchase_request_conflict', 409,
+        'The purchase changed. Refresh before deciding its cancellation.');
+    }
+    const requestedBy = current.cancellation_requested_by;
+    if (write.action === 'request') {
+      if (requestedBy !== null) {
+        throw new WorkflowHttpError('cancellation_already_requested', 409,
+          'A cancellation request is already pending.');
+      }
+      const result = await tx`
+        UPDATE public.hdc_product_purchase_requests
+        SET cancellation_requested_by = ${user.id}::uuid,
+            cancellation_reason = ${write.note},
+            cancellation_requested_at = now()
+        WHERE id = ${purchaseRequestId}::uuid RETURNING *
+      `;
+      await tx`
+        INSERT INTO public.hdc_product_purchase_request_events (
+          purchase_request_id, actor_user_id, event_type,
+          from_status, to_status, snapshot
+        ) VALUES (${purchaseRequestId}::uuid, ${user.id}::uuid,
+          'cancellation_requested', 'accepted', 'accepted',
+          ${tx.json({ note: write.note })})
+      `;
+      return rowObject(result[0]);
+    }
+    if (requestedBy === null || String(requestedBy) === user.id) {
+      throw new WorkflowHttpError('cancellation_response_not_allowed', 409,
+        'Only the other participant may decide a pending cancellation.');
+    }
+    if (write.action === 'decline') {
+      const result = await tx`
+        UPDATE public.hdc_product_purchase_requests
+        SET cancellation_requested_by = NULL, cancellation_reason = NULL,
+            cancellation_requested_at = NULL, cancellation_responded_at = NULL,
+            cancellation_response_note = ''
+        WHERE id = ${purchaseRequestId}::uuid RETURNING *
+      `;
+      await tx`
+        INSERT INTO public.hdc_product_purchase_request_events (
+          purchase_request_id, actor_user_id, event_type,
+          from_status, to_status, snapshot
+        ) VALUES (${purchaseRequestId}::uuid, ${user.id}::uuid,
+          'cancellation_declined', 'accepted', 'accepted',
+          ${tx.json({ note: write.note })})
+      `;
+      return rowObject(result[0]);
+    }
+
+    if (!listing || String(listing.id) !== String(current.listing_id) ||
+        Number(listing.stock_quantity) + Number(current.quantity) > 1000000) {
+      throw new WorkflowHttpError('stock_recovery_conflict', 409,
+        'Stock cannot be restored to this listing. Refresh and contact support.');
+    }
+    const previousStatus = String(listing.status);
+    const nextStatus = previousStatus === 'sold' ? 'paused' : previousStatus;
+    const restored = await tx`
+      UPDATE public.hdc_product_listings
+      SET stock_quantity = stock_quantity + ${Number(current.quantity)},
+          status = ${nextStatus},
+          sold_at = CASE WHEN ${previousStatus} = 'sold' THEN NULL ELSE sold_at END
+      WHERE id = ${String(current.listing_id)}::uuid RETURNING *
+    `;
+    const result = await tx`
+      UPDATE public.hdc_product_purchase_requests
+      SET status = 'cancelled', cancelled_at = now(),
+          cancellation_responded_at = now(),
+          cancellation_response_note = ${write.note},
+          stock_released_at = now()
+      WHERE id = ${purchaseRequestId}::uuid RETURNING *
+    `;
+    await tx`
+      INSERT INTO public.hdc_product_listing_events (
+        listing_id, actor_user_id, event_type, from_status, to_status, snapshot
+      ) VALUES (${String(current.listing_id)}::uuid, ${user.id}::uuid,
+        ${previousStatus === nextStatus ? 'updated' : 'status_changed'},
+        ${previousStatus}, ${nextStatus},
+        ${tx.json({ reason: 'approved_purchase_cancellation',
+          publicPurchaseId: String(current.public_purchase_id),
+          quantity: Number(current.quantity),
+          remainingStock: Number(restored[0].stock_quantity) })})
+    `;
+    await tx`
+      INSERT INTO public.hdc_product_purchase_request_events (
+        purchase_request_id, actor_user_id, event_type,
+        from_status, to_status, snapshot
+      ) VALUES (${purchaseRequestId}::uuid, ${user.id}::uuid,
+        'cancelled', 'accepted', 'cancelled',
+        ${tx.json({ note: write.note, reason: 'mutual_cancellation',
+          stockRestored: true })})
+    `;
+    return rowObject(result[0]);
+  });
+  await audit(sql, user.id, 'commerce.purchase_cancellation', 'success', {
+    purchase_request_id: purchaseRequestId,
+    action: write.action,
   });
   return json({ purchaseRequest: productPurchaseRequestView(updated) });
 }
@@ -6627,6 +6859,7 @@ async function handleReadiness(req: Request): Promise<Response> {
           EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0023') AND
           EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0024') AND
           EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0025') AND
+          EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0026') AND
           to_regclass('public.hdc_knowledge_articles') IS NOT NULL AND
           to_regclass('public.hdc_knowledge_article_versions') IS NOT NULL AND
           to_regclass('public.hdc_knowledge_feedback') IS NOT NULL
@@ -6720,7 +6953,7 @@ async function handleHdcApiRequestCore(
     return json({
       service: 'hdc-beta-api',
       status: 'ok',
-      build: '0.6.4-build28',
+      build: '0.6.4-build29',
     });
   }
   if (path === '/api/health/ready') return await handleReadiness(req);
@@ -6821,6 +7054,10 @@ async function handleHdcApiRequestCore(
     if (path === '/api/commerce/catalog') {
       return await handleProductCatalog(req, sql);
     }
+    const publicProductMatch = /^\/api\/commerce\/catalog\/([^/]+)$/.exec(path);
+    if (publicProductMatch) {
+      return await handlePublicProductDetail(req, sql, publicProductMatch[1]);
+    }
     const publicSellerMatch = /^\/api\/commerce\/sellers\/([^/]+)$/.exec(path);
     if (publicSellerMatch) {
       return await handlePublicSellerProfile(req, sql, publicSellerMatch[1]);
@@ -6915,6 +7152,12 @@ async function handleHdcApiRequestCore(
 
       const purchaseRequestMatch =
         /^\/api\/commerce\/purchase-requests\/([^/]+)\/status$/.exec(path);
+      const cancellationMatch =
+        /^\/api\/commerce\/purchase-requests\/([^/]+)\/cancellation$/.exec(path);
+      if (cancellationMatch) {
+        return await handlePurchaseCancellationAction(
+          req, sql, session.user, requirePathId(cancellationMatch[1]));
+      }
       if (purchaseRequestMatch) {
         return await handleProductPurchaseRequestAction(
           req,
@@ -7433,6 +7676,7 @@ export const config: Config = {
     '/api/discovery/technicians/:id',
     '/api/discovery/opportunities',
     '/api/commerce/catalog',
+    '/api/commerce/catalog/:id',
     '/api/commerce/sellers/:id',
     '/api/commerce/buyer-dashboard',
     '/api/commerce/seller-dashboard',
@@ -7440,6 +7684,7 @@ export const config: Config = {
     '/api/commerce/listings/:id',
     '/api/commerce/purchase-requests',
     '/api/commerce/purchase-requests/:id/status',
+    '/api/commerce/purchase-requests/:id/cancellation',
     '/api/workflow/bootstrap',
     '/api/service-requests',
     '/api/service-requests/:id',

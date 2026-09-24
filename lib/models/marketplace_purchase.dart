@@ -137,6 +137,11 @@ class ProductPurchaseRequest {
   final PurchaseFulfillmentProposal? fulfillment;
   final String buyerNote;
   final String sellerNote;
+  final String? cancellationRequestedBy;
+  final String? cancellationReason;
+  final DateTime? cancellationRequestedAt;
+  final String cancellationResponseNote;
+  final DateTime? stockReleasedAt;
   final ProductPurchaseStatus status;
   final int version;
   final DateTime submittedAt;
@@ -162,6 +167,11 @@ class ProductPurchaseRequest {
     this.fulfillment,
     required this.buyerNote,
     required this.sellerNote,
+    this.cancellationRequestedBy,
+    this.cancellationReason,
+    this.cancellationRequestedAt,
+    this.cancellationResponseNote = '',
+    this.stockReleasedAt,
     required this.status,
     required this.version,
     required this.submittedAt,
@@ -199,6 +209,13 @@ class ProductPurchaseRequest {
           : null,
       buyerNote: '${json['buyerNote'] ?? ''}',
       sellerNote: '${json['sellerNote'] ?? ''}',
+      cancellationRequestedBy: json['cancellationRequestedBy'] is String
+          ? json['cancellationRequestedBy'] as String : null,
+      cancellationReason: json['cancellationReason'] is String
+          ? json['cancellationReason'] as String : null,
+      cancellationRequestedAt: _optionalDate(json['cancellationRequestedAt']),
+      cancellationResponseNote: '${json['cancellationResponseNote'] ?? ''}',
+      stockReleasedAt: _optionalDate(json['stockReleasedAt']),
       status: _purchaseStatus(json['status']),
       version: _integer(json, 'version'),
       submittedAt: DateTime.parse(_requiredString(json, 'submittedAt')),
@@ -224,10 +241,18 @@ class ProductPurchaseRequest {
       _money(currency, fulfillment?.totalMinor ?? subtotalMinor);
 
   bool get canCancel => status == ProductPurchaseStatus.submitted;
+  bool get canRequestCancellation =>
+      status == ProductPurchaseStatus.accepted && cancellationRequestedBy == null;
+  bool get buyerCanRespondCancellation =>
+      status == ProductPurchaseStatus.accepted && cancellationRequestedBy == 'seller';
+  bool get sellerCanRespondCancellation =>
+      status == ProductPurchaseStatus.accepted && cancellationRequestedBy == 'buyer';
+  String get statusLabel => stockReleasedAt != null
+      ? 'Cancelled by agreement' : status.label;
 }
 
 class ProductPurchaseEvent {
-  final ProductPurchaseStatus type;
+  final String type;
   final ProductPurchaseStatus? fromStatus;
   final ProductPurchaseStatus toStatus;
   final DateTime occurredAt;
@@ -243,7 +268,7 @@ class ProductPurchaseEvent {
 
   factory ProductPurchaseEvent.fromJson(Map<String, dynamic> json) =>
       ProductPurchaseEvent(
-        type: _purchaseStatus(json['type']),
+        type: _requiredString(json, 'type'),
         fromStatus: json['fromStatus'] == null
             ? null
             : _purchaseStatus(json['fromStatus']),
@@ -251,6 +276,12 @@ class ProductPurchaseEvent {
         occurredAt: DateTime.parse(_requiredString(json, 'occurredAt')),
         note: '${json['note'] ?? ''}',
       );
+
+  String get typeLabel => switch (type) {
+        'cancellation_requested' => 'Cancellation requested',
+        'cancellation_declined' => 'Cancellation declined',
+        _ => toStatus.label,
+      };
 }
 
 ProductPurchaseStatus _purchaseStatus(Object? value) {
