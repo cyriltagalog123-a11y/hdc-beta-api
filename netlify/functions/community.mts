@@ -327,7 +327,7 @@ async function setBadgeVisibility(sql: DbClient, userId: string, body: Record<st
 
 async function handle(req: Request): Promise<Response> {
   if (!['GET', 'POST'].includes(req.method)) return methodNotAllowed();
-  const sql = openDb();
+  const sql = openDb(req.url);
   try {
     const authorization = await authorizeMemberRequest(req, sql);
     if (authorization instanceof Response) return authorization;

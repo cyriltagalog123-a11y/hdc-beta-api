@@ -9,6 +9,10 @@ import '../../models/product_listing.dart';
 import '../../providers/hdc_auth_provider.dart';
 import '../../providers/hdc_marketplace_provider.dart';
 import '../authentication/registered_user_gate.dart';
+import 'catalog_filters.dart';
+import 'product_detail_screen.dart';
+import 'purchase_fulfillment.dart';
+import 'purchase_timeline.dart';
 
 const _catalogCategories = <String, String>{
   'computers': 'Desktop computers',
@@ -35,6 +39,12 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
   late final TabController _tabController;
   String _query = '';
   String? _category;
+  String? _condition;
+  String? _currency;
+  String _minimumPrice = '';
+  String _maximumPrice = '';
+  bool _lowStockOnly = false;
+  CatalogSort _sort = CatalogSort.newest;
 
   @override
   void initState() {
@@ -54,6 +64,16 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
     super.dispose();
   }
 
+  Future<void> _openProduct(MarketplaceProduct product) async {
+    await Navigator.of(context).push<void>(MaterialPageRoute(
+      builder: (_) => ProductDetailScreen(
+        productId: product.id,
+        onPurchase: _requestPurchase,
+      ),
+    ));
+    if (mounted) context.read<HdcMarketplaceProvider>().refreshCatalog();
+  }
+
   Future<void> _requestPurchase(MarketplaceProduct product) async {
     if (!await requireRegisteredUser(
       context,
@@ -68,9 +88,13 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
     final formKey = GlobalKey<FormState>();
     final quantityController = TextEditingController(text: '1');
     final noteController = TextEditingController();
+    final locationController = TextEditingController();
+    final timingController = TextEditingController();
+    final feeController = TextEditingController(text: '0');
+    var fulfillmentMethod = 'pickup';
     final submission = await showDialog<_PurchaseSubmission>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => StatefulBuilder(builder: (context, updateDialog) => AlertDialog(
         title: const Text('Send Purchase Request'),
         content: SizedBox(
           width: 520,
@@ -109,6 +133,59 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
                     },
                   ),
                   const SizedBox(height: 14),
+                  DropdownButtonFormField<String>(
+                    initialValue: fulfillmentMethod,
+                    decoration: const InputDecoration(
+                      labelText: 'Proposed fulfillment',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'pickup', child: Text('Pickup')),
+                      DropdownMenuItem(value: 'delivery', child: Text('Delivery')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) updateDialog(() => fulfillmentMethod = value);
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: locationController,
+                    maxLength: 240,
+                    decoration: InputDecoration(
+                      labelText: fulfillmentMethod == 'pickup'
+                          ? 'Proposed pickup place' : 'Proposed delivery place',
+                      hintText: 'A place both parties can identify',
+                      border: const OutlineInputBorder(),
+                    ),
+                    validator: (value) => (value?.trim().length ?? 0) < 5
+                        ? 'Enter at least 5 characters.' : null,
+                  ),
+                  TextFormField(
+                    controller: timingController,
+                    maxLength: 240,
+                    decoration: const InputDecoration(
+                      labelText: 'Proposed time or window',
+                      hintText: 'Example: Saturday afternoon; confirm exact time',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) => (value?.trim().length ?? 0) < 5
+                        ? 'Enter at least 5 characters.' : null,
+                  ),
+                  TextFormField(
+                    controller: feeController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: 'Proposed fulfillment fee (${product.currency})',
+                      helperText: 'Enter 0 if no fee is proposed. This is not a payment.',
+                      border: const OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      final minor = catalogPriceMinor(value ?? '');
+                      return minor == null || minor > 999999999
+                          ? 'Enter a fee from 0 to 9,999,999.99.' : null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
                   TextFormField(
                     controller: noteController,
                     minLines: 3,
@@ -116,7 +193,7 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
                     maxLength: 1000,
                     decoration: const InputDecoration(
                       labelText: 'Message to seller (optional)',
-                      hintText: 'Ask about pickup, delivery, or item details.',
+                      hintText: 'Ask about item details or explain your proposal.',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -133,7 +210,7 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
                         SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'This sends a purchase request only. HDC will not charge you, create a receipt, or claim delivery is complete. Stock is allocated only if the seller accepts.',
+                            'The seller can accept these exact proposed terms or decline so you can submit a new request. HDC will not charge you or verify delivery. Stock is allocated only if the seller accepts.',
                             style: TextStyle(height: 1.35),
                           ),
                         ),
@@ -157,6 +234,10 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
                 _PurchaseSubmission(
                   quantity: int.parse(quantityController.text.trim()),
                   note: noteController.text.trim(),
+                  method: fulfillmentMethod,
+                  location: locationController.text.trim(),
+                  timing: timingController.text.trim(),
+                  feeMinor: catalogPriceMinor(feeController.text)!,
                 ),
               );
             },
@@ -164,18 +245,27 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
             label: const Text('Send Request'),
           ),
         ],
-      ),
+      )),
     );
     quantityController.dispose();
     noteController.dispose();
+    locationController.dispose();
+    timingController.dispose();
+    feeController.dispose();
     if (submission == null || !mounted) return;
 
     try {
-      await context.read<HdcMarketplaceProvider>().requestPurchase(
+      final marketplace = context.read<HdcMarketplaceProvider>();
+      await marketplace.requestPurchase(
             product: product,
             quantity: submission.quantity,
             buyerNote: submission.note,
+            fulfillmentMethod: submission.method,
+            fulfillmentLocation: submission.location,
+            fulfillmentTiming: submission.timing,
+            fulfillmentFeeMinor: submission.feeMinor,
           );
+      await marketplace.refreshPurchases();
       if (!mounted) return;
       _tabController.animateTo(1);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -213,7 +303,9 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
     );
     if (confirmed != true || !mounted) return;
     try {
-      await context.read<HdcMarketplaceProvider>().cancelPurchase(request);
+      final marketplace = context.read<HdcMarketplaceProvider>();
+      await marketplace.cancelPurchase(request);
+      await marketplace.refreshPurchases();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Purchase request cancelled.')),
@@ -269,8 +361,26 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
               provider: provider,
               query: _query,
               category: _category,
+              condition: _condition,
+              currency: _currency,
+              minimumPrice: _minimumPrice,
+              maximumPrice: _maximumPrice,
+              lowStockOnly: _lowStockOnly,
+              sort: _sort,
               onQueryChanged: (value) => setState(() => _query = value),
               onCategoryChanged: (value) => setState(() => _category = value),
+              onConditionChanged: (value) => setState(() => _condition = value),
+              onCurrencyChanged: (value) => setState(() {
+                _currency = value;
+                _minimumPrice = '';
+                _maximumPrice = '';
+                _sort = CatalogSort.newest;
+              }),
+              onMinimumPriceChanged: (value) => setState(() => _minimumPrice = value),
+              onMaximumPriceChanged: (value) => setState(() => _maximumPrice = value),
+              onLowStockChanged: (value) => setState(() => _lowStockOnly = value),
+              onSortChanged: (value) => setState(() => _sort = value),
+              onDetails: _openProduct,
               onPurchase: _requestPurchase,
             ),
             _PurchasesTab(
@@ -289,30 +399,63 @@ class _CatalogTab extends StatelessWidget {
   final HdcMarketplaceProvider provider;
   final String query;
   final String? category;
+  final String? condition;
+  final String? currency;
+  final String minimumPrice;
+  final String maximumPrice;
+  final bool lowStockOnly;
+  final CatalogSort sort;
   final ValueChanged<String> onQueryChanged;
   final ValueChanged<String?> onCategoryChanged;
+  final ValueChanged<String?> onConditionChanged;
+  final ValueChanged<String?> onCurrencyChanged;
+  final ValueChanged<String> onMinimumPriceChanged;
+  final ValueChanged<String> onMaximumPriceChanged;
+  final ValueChanged<bool> onLowStockChanged;
+  final ValueChanged<CatalogSort> onSortChanged;
+  final ValueChanged<MarketplaceProduct> onDetails;
   final ValueChanged<MarketplaceProduct> onPurchase;
 
   const _CatalogTab({
     required this.provider,
     required this.query,
     required this.category,
+    required this.condition,
+    required this.currency,
+    required this.minimumPrice,
+    required this.maximumPrice,
+    required this.lowStockOnly,
+    required this.sort,
     required this.onQueryChanged,
     required this.onCategoryChanged,
+    required this.onConditionChanged,
+    required this.onCurrencyChanged,
+    required this.onMinimumPriceChanged,
+    required this.onMaximumPriceChanged,
+    required this.onLowStockChanged,
+    required this.onSortChanged,
+    required this.onDetails,
     required this.onPurchase,
   });
 
   @override
   Widget build(BuildContext context) {
-    final normalizedQuery = query.trim().toLowerCase();
-    final products = provider.products.where((product) {
-      if (category != null && product.categoryCode != category) return false;
-      if (normalizedQuery.isEmpty) return true;
-      return product.title.toLowerCase().contains(normalizedQuery) ||
-          product.description.toLowerCase().contains(normalizedQuery) ||
-          product.sellerPublicName.toLowerCase().contains(normalizedQuery) ||
-          product.publicListingId.toLowerCase().contains(normalizedQuery);
-    }).toList(growable: false);
+    final products = filterMarketplaceProducts(
+      provider.products,
+      query: query,
+      category: category,
+      condition: condition,
+      currency: currency,
+      minimumPriceMinor: catalogPriceMinor(minimumPrice),
+      maximumPriceMinor: catalogPriceMinor(maximumPrice),
+      lowStockOnly: lowStockOnly,
+      sort: sort,
+    );
+    final chosenCurrency = currency;
+    final currencies = <String>{
+      ...provider.products.map((item) => item.currency),
+      ?chosenCurrency,
+    }.toList()..sort();
 
     return RefreshIndicator(
       onRefresh: provider.refreshCatalog,
@@ -379,11 +522,114 @@ class _CatalogTab extends StatelessWidget {
               );
             },
           ),
+          const SizedBox(height: 12),
+          LayoutBuilder(builder: (context, constraints) {
+            final width = constraints.maxWidth >= 720
+                ? (constraints.maxWidth - 12) / 2
+                : constraints.maxWidth;
+            return Wrap(spacing: 12, runSpacing: 12, children: [
+              SizedBox(
+                width: width,
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey('condition-${condition ?? 'all'}'),
+                  initialValue: condition ?? 'all',
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Condition', border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem(value: 'all', child: Text('Any condition')),
+                    ...ProductItemCondition.values.map((item) =>
+                        DropdownMenuItem(value: item.code, child: Text(item.label))),
+                  ],
+                  onChanged: (value) =>
+                      onConditionChanged(value == 'all' ? null : value),
+                ),
+              ),
+              SizedBox(
+                width: width,
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey('currency-${currency ?? 'all'}'),
+                  initialValue: currency ?? 'all',
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Currency', border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem(value: 'all', child: Text('All currencies')),
+                    ...currencies.map((item) =>
+                        DropdownMenuItem(value: item, child: Text(item))),
+                  ],
+                  onChanged: (value) =>
+                      onCurrencyChanged(value == 'all' ? null : value),
+                ),
+              ),
+              if (currency != null) ...[
+                SizedBox(
+                  width: width,
+                  child: TextField(
+                    key: ValueKey('minimum-$currency'),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: 'Minimum price ($currency)',
+                      border: const OutlineInputBorder(),
+                    ),
+                    onChanged: onMinimumPriceChanged,
+                  ),
+                ),
+                SizedBox(
+                  width: width,
+                  child: TextField(
+                    key: ValueKey('maximum-$currency'),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: 'Maximum price ($currency)',
+                      border: const OutlineInputBorder(),
+                    ),
+                    onChanged: onMaximumPriceChanged,
+                  ),
+                ),
+              ],
+              SizedBox(
+                width: width,
+                child: DropdownButtonFormField<CatalogSort>(
+                  key: ValueKey('sort-${sort.name}'),
+                  initialValue: sort,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Sort', border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                      value: CatalogSort.newest, child: Text('Newest first')),
+                    if (currency != null) ...const [
+                      DropdownMenuItem(
+                        value: CatalogSort.priceLow, child: Text('Price: low to high')),
+                      DropdownMenuItem(
+                        value: CatalogSort.priceHigh, child: Text('Price: high to low')),
+                    ],
+                  ],
+                  onChanged: (value) {
+                    if (value != null) onSortChanged(value);
+                  },
+                ),
+              ),
+              SizedBox(
+                width: width,
+                child: FilterChip(
+                  label: const Text('Low stock (1–3 available)'),
+                  selected: lowStockOnly,
+                  onSelected: onLowStockChanged,
+                ),
+              ),
+            ]);
+          }),
           const SizedBox(height: 18),
-          if (provider.catalogError != null)
+          if (provider.catalogError != null && provider.products.isEmpty)
             _ErrorCard(
               message: '${provider.catalogError}',
-              onRetry: provider.refreshCatalog,
+              onRetry: provider.hasMoreProducts
+                  ? provider.loadMoreCatalog : provider.refreshCatalog,
             )
           else if (provider.isLoadingCatalog && provider.products.isEmpty)
             const Padding(
@@ -391,10 +637,12 @@ class _CatalogTab extends StatelessWidget {
               child: Center(child: CircularProgressIndicator()),
             )
           else if (products.isEmpty)
-            const _EmptyCard(
+            _EmptyCard(
               icon: Icons.search_off_outlined,
               title: 'No products found',
-              message: 'Try another search or category. New seller listings will appear here when published.',
+              message: provider.hasMoreProducts
+                  ? 'No matches in the loaded listings. Load more to continue searching.'
+                  : 'Try another search or category. New seller listings will appear here when published.',
             )
           else
             LayoutBuilder(
@@ -416,6 +664,7 @@ class _CatalogTab extends StatelessWidget {
                           width: width,
                           child: _ProductCard(
                             product: product,
+                            onDetails: () => onDetails(product),
                             onPurchase: () => onPurchase(product),
                           ),
                         ),
@@ -424,6 +673,29 @@ class _CatalogTab extends StatelessWidget {
                 );
               },
             ),
+          if (provider.catalogError != null && provider.products.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _ErrorCard(
+              message: '${provider.catalogError}',
+              onRetry: provider.hasMoreProducts
+                  ? provider.loadMoreCatalog : provider.refreshCatalog,
+            ),
+          ],
+          if (provider.hasMoreProducts) ...[
+            const SizedBox(height: 16),
+            Text('Filters and price sorting apply to loaded listings. '
+                'Load more to include older listings.',
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 8),
+            Center(child: OutlinedButton.icon(
+              onPressed: provider.isLoadingCatalog ? null : provider.loadMoreCatalog,
+              icon: provider.isLoadingCatalog
+                  ? const SizedBox(width: 18, height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.expand_more),
+              label: const Text('Load More Products'),
+            )),
+          ],
         ],
       ),
     );
@@ -433,8 +705,13 @@ class _CatalogTab extends StatelessWidget {
 class _ProductCard extends StatelessWidget {
   final MarketplaceProduct product;
   final VoidCallback onPurchase;
+  final VoidCallback onDetails;
 
-  const _ProductCard({required this.product, required this.onPurchase});
+  const _ProductCard({
+    required this.product,
+    required this.onPurchase,
+    required this.onDetails,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -520,6 +797,15 @@ class _ProductCard extends StatelessWidget {
             const SizedBox(height: 15),
             SizedBox(
               width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onDetails,
+                icon: const Icon(Icons.info_outline),
+                label: const Text('View Details'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
               child: FilledButton.icon(
                 onPressed: onPurchase,
                 icon: const Icon(Icons.shopping_cart_checkout_outlined),
@@ -567,7 +853,7 @@ class _PurchasesTab extends StatelessWidget {
         ),
       );
     }
-    if (provider.purchaseRequests.isEmpty) {
+    if (provider.purchaseRequests.isEmpty && !provider.hasMorePurchases) {
       return const _EmptyCard(
         icon: Icons.receipt_long_outlined,
         title: 'No purchase requests yet',
@@ -579,7 +865,8 @@ class _PurchasesTab extends StatelessWidget {
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 40),
         itemCount: provider.purchaseRequests.length +
-            (provider.purchaseError == null ? 0 : 1),
+            (provider.purchaseError == null ? 0 : 1) +
+            (provider.hasMorePurchases ? 1 : 0),
         separatorBuilder: (_, _) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           if (provider.purchaseError != null && index == 0) {
@@ -589,6 +876,14 @@ class _PurchasesTab extends StatelessWidget {
             );
           }
           final offset = provider.purchaseError == null ? 0 : 1;
+          if (index - offset == provider.purchaseRequests.length) {
+            return Center(child: OutlinedButton(
+              onPressed: provider.isLoadingPurchases
+                  ? null : provider.loadMorePurchases,
+              child: Text(provider.isLoadingPurchases
+                  ? 'Loading…' : 'Load More Requests'),
+            ));
+          }
           final request = provider.purchaseRequests[index - offset];
           return _PurchaseCard(
             request: request,
@@ -638,7 +933,7 @@ class _PurchaseCard extends StatelessWidget {
             ),
             const SizedBox(height: 9),
             Text(
-              '${request.quantity} × ${request.unitPriceLabel} • Total ${request.subtotalLabel}',
+              '${request.quantity} × ${request.unitPriceLabel} • Items ${request.subtotalLabel}',
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 5),
@@ -657,6 +952,8 @@ class _PurchaseCard extends StatelessWidget {
               const SizedBox(height: 10),
               Text('Your note: ${request.buyerNote}'),
             ],
+            const SizedBox(height: 10),
+            PurchaseFulfillment(request: request),
             if (request.sellerNote.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
@@ -683,6 +980,7 @@ class _PurchaseCard extends StatelessWidget {
                 label: const Text('Cancel Request'),
               ),
             ],
+            PurchaseTimeline(request: request),
           ],
         ),
       ),
@@ -793,8 +1091,14 @@ class _EmptyCard extends StatelessWidget {
 class _PurchaseSubmission {
   final int quantity;
   final String note;
+  final String method;
+  final String location;
+  final String timing;
+  final int feeMinor;
 
-  const _PurchaseSubmission({required this.quantity, required this.note});
+  const _PurchaseSubmission({required this.quantity, required this.note,
+    required this.method, required this.location, required this.timing,
+    required this.feeMinor});
 }
 
 Color _purchaseStatusColor(ProductPurchaseStatus status) => switch (status) {

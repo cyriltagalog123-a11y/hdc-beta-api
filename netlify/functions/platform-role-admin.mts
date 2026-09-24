@@ -197,7 +197,7 @@ async function mutateRole(
 
 async function handle(req: Request): Promise<Response> {
   if (req.method !== 'GET' && req.method !== 'PUT') return methodNotAllowed();
-  const sql = openDb();
+  const sql = openDb(req.url);
   try {
     const authorization = await authorize(req, sql);
     if (authorization instanceof Response) return authorization;

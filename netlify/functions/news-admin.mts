@@ -261,7 +261,7 @@ async function handle(req: Request): Promise<Response> {
   if (!['GET', 'POST', 'PUT', 'DELETE'].includes(req.method)) {
     return methodNotAllowed();
   }
-  const sql = openDb();
+  const sql = openDb(req.url);
   try {
     const authorization = await authorize(req, sql);
     if (authorization instanceof Response) return authorization;

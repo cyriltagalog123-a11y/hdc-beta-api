@@ -27,6 +27,7 @@ class MarketplaceProduct {
   final String id;
   final String publicListingId;
   final String sellerPublicName;
+  final String? sellerPublicProfileId;
   final HDCPlatformRole sellerRole;
   final String categoryCode;
   final String title;
@@ -42,6 +43,7 @@ class MarketplaceProduct {
     required this.id,
     required this.publicListingId,
     required this.sellerPublicName,
+    this.sellerPublicProfileId,
     required this.sellerRole,
     required this.categoryCode,
     required this.title,
@@ -65,6 +67,9 @@ class MarketplaceProduct {
       id: _requiredString(json, 'id'),
       publicListingId: _requiredString(json, 'publicListingId'),
       sellerPublicName: _requiredString(json, 'sellerPublicName'),
+      sellerPublicProfileId: json['sellerPublicProfileId'] is String
+          ? json['sellerPublicProfileId'] as String
+          : null,
       sellerRole: sellerRole!,
       categoryCode: _requiredString(json, 'categoryCode'),
       title: _requiredString(json, 'title'),
@@ -83,6 +88,38 @@ class MarketplaceProduct {
   String get categoryLabel => _categoryLabel(categoryCode);
 }
 
+class PurchaseFulfillmentProposal {
+  final String method;
+  final String location;
+  final String timing;
+  final int feeMinor;
+  final int totalMinor;
+
+  const PurchaseFulfillmentProposal({
+    required this.method,
+    required this.location,
+    required this.timing,
+    required this.feeMinor,
+    required this.totalMinor,
+  });
+
+  factory PurchaseFulfillmentProposal.fromJson(Map<String, dynamic> json) {
+    final method = _requiredString(json, 'method');
+    if (method != 'pickup' && method != 'delivery') {
+      throw const FormatException('Invalid HDC fulfillment method.');
+    }
+    return PurchaseFulfillmentProposal(
+      method: method,
+      location: _requiredString(json, 'location'),
+      timing: _requiredString(json, 'timing'),
+      feeMinor: _integer(json, 'feeMinor'),
+      totalMinor: _integer(json, 'totalMinor'),
+    );
+  }
+
+  String get methodLabel => method == 'pickup' ? 'Pickup' : 'Delivery';
+}
+
 class ProductPurchaseRequest {
   final String id;
   final String publicPurchaseId;
@@ -97,6 +134,7 @@ class ProductPurchaseRequest {
   final String currency;
   final int unitPriceMinor;
   final int subtotalMinor;
+  final PurchaseFulfillmentProposal? fulfillment;
   final String buyerNote;
   final String sellerNote;
   final ProductPurchaseStatus status;
@@ -105,6 +143,7 @@ class ProductPurchaseRequest {
   final DateTime? decidedAt;
   final DateTime? cancelledAt;
   final DateTime updatedAt;
+  final List<ProductPurchaseEvent> events;
 
   const ProductPurchaseRequest({
     required this.id,
@@ -120,12 +159,14 @@ class ProductPurchaseRequest {
     required this.currency,
     required this.unitPriceMinor,
     required this.subtotalMinor,
+    this.fulfillment,
     required this.buyerNote,
     required this.sellerNote,
     required this.status,
     required this.version,
     required this.submittedAt,
     required this.updatedAt,
+    this.events = const [],
     this.decidedAt,
     this.cancelledAt,
   });
@@ -151,6 +192,11 @@ class ProductPurchaseRequest {
       currency: _requiredString(json, 'currency'),
       unitPriceMinor: _integer(json, 'unitPriceMinor'),
       subtotalMinor: _integer(json, 'subtotalMinor'),
+      fulfillment: json['fulfillment'] is Map
+          ? PurchaseFulfillmentProposal.fromJson(
+              Map<String, dynamic>.from(json['fulfillment'] as Map),
+            )
+          : null,
       buyerNote: '${json['buyerNote'] ?? ''}',
       sellerNote: '${json['sellerNote'] ?? ''}',
       status: _purchaseStatus(json['status']),
@@ -159,6 +205,11 @@ class ProductPurchaseRequest {
       decidedAt: _optionalDate(json['decidedAt']),
       cancelledAt: _optionalDate(json['cancelledAt']),
       updatedAt: DateTime.parse(_requiredString(json, 'updatedAt')),
+      events: (json['events'] as List<dynamic>? ?? const [])
+          .map((event) => ProductPurchaseEvent.fromJson(
+                Map<String, dynamic>.from(event as Map),
+              ))
+          .toList(growable: false),
     );
   }
 
@@ -166,7 +217,40 @@ class ProductPurchaseRequest {
 
   String get subtotalLabel => _money(currency, subtotalMinor);
 
+  String get fulfillmentFeeLabel =>
+      _money(currency, fulfillment?.feeMinor ?? 0);
+
+  String get proposedTotalLabel =>
+      _money(currency, fulfillment?.totalMinor ?? subtotalMinor);
+
   bool get canCancel => status == ProductPurchaseStatus.submitted;
+}
+
+class ProductPurchaseEvent {
+  final ProductPurchaseStatus type;
+  final ProductPurchaseStatus? fromStatus;
+  final ProductPurchaseStatus toStatus;
+  final DateTime occurredAt;
+  final String note;
+
+  const ProductPurchaseEvent({
+    required this.type,
+    required this.fromStatus,
+    required this.toStatus,
+    required this.occurredAt,
+    required this.note,
+  });
+
+  factory ProductPurchaseEvent.fromJson(Map<String, dynamic> json) =>
+      ProductPurchaseEvent(
+        type: _purchaseStatus(json['type']),
+        fromStatus: json['fromStatus'] == null
+            ? null
+            : _purchaseStatus(json['fromStatus']),
+        toStatus: _purchaseStatus(json['toStatus']),
+        occurredAt: DateTime.parse(_requiredString(json, 'occurredAt')),
+        note: '${json['note'] ?? ''}',
+      );
 }
 
 ProductPurchaseStatus _purchaseStatus(Object? value) {

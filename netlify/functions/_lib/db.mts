@@ -3,16 +3,17 @@ import type {
   DatabaseReadiness,
   HdcDatabaseAdapter,
 } from '../../../server/contracts/database.mjs';
-import { databaseDriver, databaseUrl } from './env.mjs';
+import { databaseDriver } from './env.mjs';
+import { databaseUrlForRequest } from './deploy-database.mjs';
 
 export type DbClient = ReturnType<typeof postgres>;
 export type DbJsonValue = postgres.JSONValue;
 
-const postgresAdapter: HdcDatabaseAdapter<DbClient> = Object.freeze({
+const postgresAdapter = Object.freeze({
   driver: 'postgres',
-  open(): DbClient {
+  open(requestUrl?: string): DbClient {
     databaseDriver();
-    return postgres(databaseUrl(), {
+    return postgres(databaseUrlForRequest(requestUrl), {
       max: 1,
       prepare: false,
       idle_timeout: 10,
@@ -30,10 +31,10 @@ const postgresAdapter: HdcDatabaseAdapter<DbClient> = Object.freeze({
       latencyMs: Date.now() - startedAt,
     });
   },
-});
+}) satisfies HdcDatabaseAdapter<DbClient>;
 
-export function openDb(): DbClient {
-  return postgresAdapter.open();
+export function openDb(requestUrl?: string): DbClient {
+  return postgresAdapter.open(requestUrl);
 }
 
 export async function closeDb(sql: DbClient): Promise<void> {

@@ -20,7 +20,7 @@ function view(row: Record<string, unknown>) {
 
 async function handle(req: Request): Promise<Response> {
   if (req.method !== 'GET') return methodNotAllowed();
-  const sql = openDb();
+  const sql = openDb(req.url);
   try {
     const rows = await sql`
       SELECT

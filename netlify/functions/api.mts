@@ -31,11 +31,14 @@ import {
   currentLegalDocumentList,
 } from './_lib/legal-documents.mjs';
 import {
+  COMMERCE_PAGE_SIZE,
   canTransitionProductListing,
+  commerceNextCursor,
   isProductListingStatus,
   parseProductListingWrite,
   parseProductPurchaseDecisionWrite,
   parseProductPurchaseRequestWrite,
+  parseCommerceCursor,
   productListingView,
   productPurchaseRequestView,
   publicProductListingView,
@@ -2358,8 +2361,16 @@ async function handleProductCatalog(
   sql: DbClient,
 ): Promise<Response> {
   if (req.method !== 'GET') return methodNotAllowed();
+  let cursor;
+  try { cursor = parseCommerceCursor(new URL(req.url).searchParams.get('cursor')); }
+  catch { return json({ error: 'invalid_cursor' }, 400); }
   const rows = await sql`
-    SELECT listing.*, profile.public_name AS seller_public_name
+    SELECT listing.*,
+           to_char(listing.published_at AT TIME ZONE 'UTC',
+             'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,
+           profile.public_name AS seller_public_name,
+           profile.is_public AS seller_profile_public,
+           profile.id AS seller_profile_public_id
     FROM public.hdc_product_listings listing
     JOIN public.hdc_platform_role_profiles profile
       ON profile.id = listing.seller_profile_id
@@ -2374,14 +2385,55 @@ async function handleProductCatalog(
     WHERE listing.status = 'active'
       AND listing.stock_quantity > 0
       AND listing.published_at IS NOT NULL
-    ORDER BY listing.updated_at DESC
-    LIMIT 500
+      AND (${cursor?.at ?? null}::timestamptz IS NULL OR
+        (listing.published_at, listing.id) <
+        (${cursor?.at ?? null}::timestamptz, ${cursor?.id ?? null}::uuid))
+    ORDER BY listing.published_at DESC, listing.id DESC
+    LIMIT ${COMMERCE_PAGE_SIZE + 1}
   `;
+  const page = rows.slice(0, COMMERCE_PAGE_SIZE);
   return json({
-    listings: rows.map((row) => publicProductListingView(rowObject(row))),
-    returned: rows.length,
-    limit: 500,
+    listings: page.map((row) => publicProductListingView(rowObject(row))),
+    returned: page.length,
+    limit: COMMERCE_PAGE_SIZE,
+    nextCursor: commerceNextCursor(rows.map(rowObject), 'published_at'),
   });
+}
+
+async function handlePublicSellerProfile(
+  req: Request,
+  sql: DbClient,
+  profileId: string,
+): Promise<Response> {
+  if (req.method !== 'GET') return methodNotAllowed();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(profileId)) {
+    return json({ error: 'seller_profile_not_found' }, 404);
+  }
+  const rows = await sql`
+    SELECT profile.id, profile.role, profile.public_name,
+           profile.headline, profile.description, profile.location
+    FROM public.hdc_platform_role_profiles profile
+    JOIN public.hdc_users seller
+      ON seller.id = profile.user_id AND seller.status = 'active'
+    JOIN public.hdc_user_roles assignment
+      ON assignment.user_id = profile.user_id
+     AND assignment.role::text = profile.role
+     AND assignment.is_active = true AND assignment.status = 'active'
+    WHERE profile.id = ${profileId}::uuid
+      AND profile.role IN ('seller', 'supplier', 'store')
+      AND profile.is_public = true
+    LIMIT 1
+  `;
+  if (rows.length === 0) return json({ error: 'seller_profile_not_found' }, 404);
+  const row = rowObject(rows[0]);
+  return json({ profile: {
+    id: String(row.id),
+    role: String(row.role),
+    publicName: String(row.public_name),
+    headline: String(row.headline ?? ''),
+    description: String(row.description ?? ''),
+    location: String(row.location ?? ''),
+  } });
 }
 
 async function handleBuyerDashboard(
@@ -2390,16 +2442,36 @@ async function handleBuyerDashboard(
   user: UserView,
 ): Promise<Response> {
   if (req.method !== 'GET') return methodNotAllowed();
+  let cursor;
+  try { cursor = parseCommerceCursor(new URL(req.url).searchParams.get('cursor')); }
+  catch { return json({ error: 'invalid_cursor' }, 400); }
   const rows = await sql`
-    SELECT *
-    FROM public.hdc_product_purchase_requests
-    WHERE buyer_user_id = ${user.id}
-    ORDER BY submitted_at DESC
-    LIMIT 500
+    SELECT purchase.*,
+      to_char(purchase.submitted_at AT TIME ZONE 'UTC',
+        'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,
+      COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'type', event.event_type,
+        'fromStatus', event.from_status,
+        'toStatus', event.to_status,
+        'occurredAt', event.occurred_at,
+        'note', COALESCE(event.snapshot->>'note', '')
+      ) ORDER BY event.occurred_at, event.id)
+      FROM public.hdc_product_purchase_request_events event
+      WHERE event.purchase_request_id = purchase.id
+    ), '[]'::jsonb) AS timeline
+    FROM public.hdc_product_purchase_requests purchase
+    WHERE purchase.buyer_user_id = ${user.id}
+      AND (${cursor?.at ?? null}::timestamptz IS NULL OR
+        (purchase.submitted_at, purchase.id) <
+        (${cursor?.at ?? null}::timestamptz, ${cursor?.id ?? null}::uuid))
+    ORDER BY purchase.submitted_at DESC, purchase.id DESC
+    LIMIT ${COMMERCE_PAGE_SIZE + 1}
   `;
   return json({
-    purchaseRequests: rows.map((row) =>
+    purchaseRequests: rows.slice(0, COMMERCE_PAGE_SIZE).map((row) =>
       productPurchaseRequestView(rowObject(row))),
+    nextCursor: commerceNextCursor(rows.map(rowObject), 'submitted_at'),
   });
 }
 
@@ -2422,7 +2494,7 @@ async function handleCreateProductPurchaseRequest(
   if (!write) {
     return json({
       error: 'invalid_purchase_request',
-      message: 'Choose an available quantity and check the buyer note.',
+      message: 'Choose an available quantity and complete the pickup or delivery proposal.',
     }, 400);
   }
 
@@ -2431,7 +2503,11 @@ async function handleCreateProductPurchaseRequest(
     await tx`SELECT id FROM public.hdc_users WHERE id = ${user.id}::uuid FOR UPDATE`;
     const retryRequest = (row: Record<string, unknown>) => {
       if (String(row.listing_id) !== write.listingId || Number(row.quantity) !== write.quantity ||
-          String(row.buyer_note) !== write.buyerNote) {
+          String(row.buyer_note) !== write.buyerNote ||
+          String(row.fulfillment_method) !== write.fulfillmentMethod ||
+          String(row.fulfillment_location) !== write.fulfillmentLocation ||
+          String(row.fulfillment_timing) !== write.fulfillmentTiming ||
+          Number(row.fulfillment_fee_minor) !== write.fulfillmentFeeMinor) {
         throw new WorkflowHttpError('purchase_request_key_reused', 409,
           'This request key was already used for different purchase details.');
       }
@@ -2504,7 +2580,9 @@ async function handleCreateProductPurchaseRequest(
         buyer_user_id, public_listing_id_snapshot, listing_title_snapshot,
         seller_name_snapshot, buyer_name_snapshot,
         buyer_public_member_id_snapshot, quantity, currency,
-        unit_price_minor, subtotal_minor, buyer_note
+        unit_price_minor, subtotal_minor, buyer_note,
+        fulfillment_method, fulfillment_location, fulfillment_timing,
+        fulfillment_fee_minor
       ) VALUES (
         ${write.clientRequestId}, ${write.listingId},
         ${String(listing.seller_user_id)}, ${String(listing.seller_role)},
@@ -2512,7 +2590,9 @@ async function handleCreateProductPurchaseRequest(
         ${String(listing.title)}, ${String(listing.seller_public_name)},
         ${user.displayName}, ${user.publicMemberId}, ${write.quantity},
         ${String(listing.currency)}, ${Number(listing.unit_price_minor)},
-        ${subtotal}, ${write.buyerNote}
+        ${subtotal}, ${write.buyerNote}, ${write.fulfillmentMethod},
+        ${write.fulfillmentLocation}, ${write.fulfillmentTiming},
+        ${write.fulfillmentFeeMinor}
       )
       ON CONFLICT DO NOTHING
       RETURNING *
@@ -2816,6 +2896,13 @@ async function handleSellerDashboard(
   user: UserView,
 ): Promise<Response> {
   if (req.method !== 'GET') return methodNotAllowed();
+  const params = new URL(req.url).searchParams;
+  let listingCursor;
+  let purchaseCursor;
+  try {
+    listingCursor = parseCommerceCursor(params.get('listingCursor'));
+    purchaseCursor = parseCommerceCursor(params.get('purchaseCursor'));
+  } catch { return json({ error: 'invalid_cursor' }, 400); }
 
   const profiles = await sql`
     SELECT profile.id, profile.role, profile.public_name
@@ -2830,19 +2917,15 @@ async function handleSellerDashboard(
     ORDER BY profile.role
   `;
   const listings = await sql`
-    SELECT *
+    SELECT *, to_char(created_at AT TIME ZONE 'UTC',
+      'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at
     FROM public.hdc_product_listings
     WHERE seller_user_id = ${user.id}
-    ORDER BY
-      CASE status
-        WHEN 'active' THEN 1
-        WHEN 'draft' THEN 2
-        WHEN 'paused' THEN 3
-        WHEN 'sold' THEN 4
-        ELSE 5
-      END,
-      updated_at DESC
-    LIMIT 500
+      AND (${listingCursor?.at ?? null}::timestamptz IS NULL OR
+        (created_at, id) <
+        (${listingCursor?.at ?? null}::timestamptz, ${listingCursor?.id ?? null}::uuid))
+    ORDER BY created_at DESC, id DESC
+    LIMIT ${COMMERCE_PAGE_SIZE + 1}
   `;
   const summaryRows = await sql`
     SELECT
@@ -2861,18 +2944,27 @@ async function handleSellerDashboard(
     WHERE seller_user_id = ${user.id}
   `;
   const purchaseRequests = await sql`
-    SELECT *
-    FROM public.hdc_product_purchase_requests
-    WHERE seller_user_id = ${user.id}
-    ORDER BY
-      CASE status
-        WHEN 'submitted' THEN 1
-        WHEN 'accepted' THEN 2
-        WHEN 'declined' THEN 3
-        ELSE 4
-      END,
-      submitted_at DESC
-    LIMIT 500
+    SELECT purchase.*,
+      to_char(purchase.submitted_at AT TIME ZONE 'UTC',
+        'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,
+      COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'type', event.event_type,
+        'fromStatus', event.from_status,
+        'toStatus', event.to_status,
+        'occurredAt', event.occurred_at,
+        'note', COALESCE(event.snapshot->>'note', '')
+      ) ORDER BY event.occurred_at, event.id)
+      FROM public.hdc_product_purchase_request_events event
+      WHERE event.purchase_request_id = purchase.id
+    ), '[]'::jsonb) AS timeline
+    FROM public.hdc_product_purchase_requests purchase
+    WHERE purchase.seller_user_id = ${user.id}
+      AND (${purchaseCursor?.at ?? null}::timestamptz IS NULL OR
+        (purchase.submitted_at, purchase.id) <
+        (${purchaseCursor?.at ?? null}::timestamptz, ${purchaseCursor?.id ?? null}::uuid))
+    ORDER BY purchase.submitted_at DESC, purchase.id DESC
+    LIMIT ${COMMERCE_PAGE_SIZE + 1}
   `;
   const purchaseSummaryRows = await sql`
     SELECT (count(*) FILTER (WHERE status = 'submitted'))::int
@@ -2880,7 +2972,8 @@ async function handleSellerDashboard(
     FROM public.hdc_product_purchase_requests
     WHERE seller_user_id = ${user.id}
   `;
-  const views = listings.map((row) => productListingView(rowObject(row)));
+  const views = listings.slice(0, COMMERCE_PAGE_SIZE)
+    .map((row) => productListingView(rowObject(row)));
   const summary = rowObject(summaryRows[0]);
   const purchaseSummary = rowObject(purchaseSummaryRows[0]);
 
@@ -2901,8 +2994,10 @@ async function handleSellerDashboard(
         Number(purchaseSummary.pending_purchase_requests),
     },
     listings: views,
-    purchaseRequests: purchaseRequests.map((row) =>
+    nextListingCursor: commerceNextCursor(listings.map(rowObject), 'created_at'),
+    purchaseRequests: purchaseRequests.slice(0, COMMERCE_PAGE_SIZE).map((row) =>
       productPurchaseRequestView(rowObject(row))),
+    nextPurchaseCursor: commerceNextCursor(purchaseRequests.map(rowObject), 'submitted_at'),
   });
 }
 
@@ -6463,7 +6558,7 @@ async function handleReadiness(req: Request): Promise<Response> {
   if (req.method !== 'GET') return methodNotAllowed();
   let sql: DbClient | null = null;
   try {
-    sql = openDb();
+    sql = openDb(req.url);
     const database = await checkDbReadiness(sql);
     if (!database.ready) {
       return json({ service: 'hdc-beta-api', status: 'not_ready' }, 503);
@@ -6531,6 +6626,7 @@ async function handleReadiness(req: Request): Promise<Response> {
           EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0022') AND
           EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0023') AND
           EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0024') AND
+          EXISTS (SELECT 1 FROM public.hdc_schema_migrations WHERE version = '0025') AND
           to_regclass('public.hdc_knowledge_articles') IS NOT NULL AND
           to_regclass('public.hdc_knowledge_article_versions') IS NOT NULL AND
           to_regclass('public.hdc_knowledge_feedback') IS NOT NULL
@@ -6624,7 +6720,7 @@ async function handleHdcApiRequestCore(
     return json({
       service: 'hdc-beta-api',
       status: 'ok',
-      build: '0.6.4-build27',
+      build: '0.6.4-build28',
     });
   }
   if (path === '/api/health/ready') return await handleReadiness(req);
@@ -6699,7 +6795,7 @@ async function handleHdcApiRequestCore(
 
   let sql: DbClient | null = null;
   try {
-    sql = openDb();
+    sql = openDb(req.url);
     if (path === '/api/auth/register') return await handleRegister(req, sql);
     if (path === '/api/auth/login') return await handleLogin(req, sql);
     if (path === '/api/auth/session') return await handleSession(req, sql);
@@ -6724,6 +6820,10 @@ async function handleHdcApiRequestCore(
 
     if (path === '/api/commerce/catalog') {
       return await handleProductCatalog(req, sql);
+    }
+    const publicSellerMatch = /^\/api\/commerce\/sellers\/([^/]+)$/.exec(path);
+    if (publicSellerMatch) {
+      return await handlePublicSellerProfile(req, sql, publicSellerMatch[1]);
     }
 
     if (path === '/api/discovery/technicians') {
@@ -7333,6 +7433,7 @@ export const config: Config = {
     '/api/discovery/technicians/:id',
     '/api/discovery/opportunities',
     '/api/commerce/catalog',
+    '/api/commerce/sellers/:id',
     '/api/commerce/buyer-dashboard',
     '/api/commerce/seller-dashboard',
     '/api/commerce/listings',

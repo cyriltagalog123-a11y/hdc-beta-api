@@ -337,7 +337,7 @@ async function submitFeedback(req: Request, sql: DbClient): Promise<Response> {
 
 async function handle(req: Request): Promise<Response> {
   if (!['GET', 'POST'].includes(req.method)) return methodNotAllowed();
-  const sql = openDb();
+  const sql = openDb(req.url);
   try {
     if (req.method === 'POST') return await submitFeedback(req, sql);
     const url = new URL(req.url);

@@ -105,6 +105,10 @@ void main() {
         product: provider.products.single,
         quantity: 1,
         buyerNote: '',
+        fulfillmentMethod: 'pickup',
+        fulfillmentLocation: 'Cebu City public square',
+        fulfillmentTiming: 'Saturday afternoon',
+        fulfillmentFeeMinor: 0,
       );
       await pumpEventQueue();
       expect(provider.isSaving, isTrue);
@@ -201,10 +205,15 @@ void main() {
         product: provider.products.single,
         quantity: 1,
         buyerNote: 'Please confirm pickup options.',
+        fulfillmentMethod: 'pickup',
+        fulfillmentLocation: 'Cebu City public square',
+        fulfillmentTiming: 'Saturday afternoon',
+        fulfillmentFeeMinor: 0,
       );
 
       expect(submitted?['listingId'], _listingId);
       expect(submitted?['quantity'], 1);
+      expect(submitted?['fulfillmentLocation'], 'Cebu City public square');
       expect(
         submitted?['clientRequestId'],
         matches(

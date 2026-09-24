@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  commerceNextCursor,
+  parseCommerceCursor,
   canTransitionProductListing,
   parseProductListingWrite,
   parseProductPurchaseDecisionWrite,
@@ -110,11 +112,19 @@ describe('marketplace purchase-request contract', () => {
       quantity: 2,
       buyerNote: '  Please confirm   pickup options. ',
       clientRequestId: '4ffdf7ba-c7b6-43ee-82bb-8db78a1c0f04',
+      fulfillmentMethod: 'pickup',
+      fulfillmentLocation: 'Cebu City public square',
+      fulfillmentTiming: 'Saturday morning',
+      fulfillmentFeeMinor: 0,
     })).toEqual({
       listingId: 'f1dd4c8b-e6a5-46ff-ae29-739e2d64b78b',
       quantity: 2,
       buyerNote: 'Please confirm pickup options.',
       clientRequestId: '4ffdf7ba-c7b6-43ee-82bb-8db78a1c0f04',
+      fulfillmentMethod: 'pickup',
+      fulfillmentLocation: 'Cebu City public square',
+      fulfillmentTiming: 'Saturday morning',
+      fulfillmentFeeMinor: 0,
     });
     expect(parseProductPurchaseRequestWrite({
       listingId: 'not-an-id',
@@ -126,6 +136,38 @@ describe('marketplace purchase-request contract', () => {
       quantity: 0,
       clientRequestId: '4ffdf7ba-c7b6-43ee-82bb-8db78a1c0f04',
     })).toBeNull();
+  });
+
+  it('requires a bounded, exact fulfillment proposal', () => {
+    const input = {
+      listingId: 'f1dd4c8b-e6a5-46ff-ae29-739e2d64b78b',
+      clientRequestId: '4ffdf7ba-c7b6-43ee-82bb-8db78a1c0f04',
+      quantity: 1, fulfillmentMethod: 'delivery',
+      fulfillmentLocation: 'Central Cebu City',
+      fulfillmentTiming: 'Tuesday, after 2 PM', fulfillmentFeeMinor: 500,
+    };
+    expect(parseProductPurchaseRequestWrite(input)?.fulfillmentFeeMinor).toBe(500);
+    expect(parseProductPurchaseRequestWrite({ ...input, fulfillmentFeeMinor: 2.5 })).toBeNull();
+    expect(parseProductPurchaseRequestWrite({ ...input, fulfillmentLocation: 'x' })).toBeNull();
+    expect(parseProductPurchaseRequestWrite({ ...input, fulfillmentMethod: 'courier' })).toBeNull();
+    expect(parseProductPurchaseRequestWrite({ ...input, fulfillmentFeeMinor: 1000000000 })).toBeNull();
+  });
+
+  it('uses bounded stable time and UUID page cursors', () => {
+    const rows: Array<{ published_at: string; id: string; cursor_at?: string }> =
+      Array.from({ length: 101 }, (_, index) => ({
+      published_at: '2026-08-24T10:00:00.000Z',
+      id: `4ffdf7ba-c7b6-43ee-82bb-${(100 + index).toString().padStart(12, '0')}`,
+    }));
+    const cursor = commerceNextCursor(rows, 'published_at');
+    expect(parseCommerceCursor(cursor)).toEqual({
+      at: rows[99].published_at, id: rows[99].id,
+    });
+    rows[99].cursor_at = '2026-08-24T10:00:00.123456Z';
+    expect(parseCommerceCursor(commerceNextCursor(rows, 'published_at'))?.at)
+      .toBe('2026-08-24T10:00:00.123456Z');
+    expect(commerceNextCursor(rows.slice(0, 100), 'published_at')).toBeNull();
+    expect(() => parseCommerceCursor('not-a-cursor')).toThrow('invalid_cursor');
   });
 
   it('allows only versioned buyer and seller lifecycle actions', () => {

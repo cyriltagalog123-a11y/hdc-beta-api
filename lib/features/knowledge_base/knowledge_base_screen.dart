@@ -124,7 +124,7 @@ class _KnowledgeBaseBodyState extends State<_KnowledgeBaseBody> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const HDCFlowHero(
-                        eyebrow: 'BUILD 27 • LIVE KNOWLEDGE',
+                        eyebrow: 'LIVE KNOWLEDGE',
                         title: 'HDC Knowledge Base',
                         description: 'Search reviewed HDC troubleshooting guides, follow structured steps, know when to stop, and move directly into a service request when self-service is not enough.',
                         icon: Icons.menu_book_outlined,
@@ -238,7 +238,7 @@ class _KnowledgeBaseBodyState extends State<_KnowledgeBaseBody> {
                             SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                'Nexus retrieval in Build 27 is intentionally grounded. It can retrieve only published HDC Knowledge Base versions marked Nexus-ready; this release does not allow Nexus to invent unsupported troubleshooting procedures.',
+                                'Nexus retrieval is intentionally grounded. It can retrieve only published HDC Knowledge Base versions marked Nexus-ready; this release does not allow Nexus to invent unsupported troubleshooting procedures.',
                                 style: TextStyle(
                                   color: HDCColors.textSecondary,
                                   height: 1.5,

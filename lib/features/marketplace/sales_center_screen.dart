@@ -7,6 +7,8 @@ import '../../models/product_listing.dart';
 import '../../providers/hdc_sales_center_provider.dart';
 import '../roles/role_center_screen.dart';
 import 'product_listing_edit_screen.dart';
+import 'purchase_timeline.dart';
+import 'purchase_fulfillment.dart';
 
 class SalesCenterScreen extends StatefulWidget {
   const SalesCenterScreen({super.key});
@@ -126,13 +128,15 @@ class _SalesCenterScreenState extends State<SalesCenterScreen> {
         ),
         content: SizedBox(
           width: 520,
-          child: Column(
+          child: SingleChildScrollView(child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 '${request.buyerDisplayName} requested ${request.quantity} × ${request.listingTitle} for ${request.subtotalLabel}.',
               ),
+              const SizedBox(height: 10),
+              PurchaseFulfillment(request: request),
               const SizedBox(height: 14),
               TextField(
                 controller: noteController,
@@ -149,7 +153,7 @@ class _SalesCenterScreenState extends State<SalesCenterScreen> {
               const SizedBox(height: 8),
               Text(
                 accepting
-                    ? 'Accepting allocates ${request.quantity} item(s) from the listing stock. It does not verify payment, issue a receipt, or mark delivery complete.'
+                    ? 'Accepting records these exact terms and allocates ${request.quantity} item(s). To change terms, decline and ask the buyer to submit another proposal. No payment or delivery is verified.'
                     : 'Declining closes this request without changing inventory.',
                 style: const TextStyle(
                   color: HDCColors.textSecondary,
@@ -157,7 +161,7 @@ class _SalesCenterScreenState extends State<SalesCenterScreen> {
                 ),
               ),
             ],
-          ),
+          )),
         ),
         actions: [
           TextButton(
@@ -316,7 +320,9 @@ class _SalesCenterScreenState extends State<SalesCenterScreen> {
                               requests: provider.purchaseRequests,
                               canManage: (request) => manageableRoles
                                   .contains(request.sellerRole),
-                              canAccept: (request) => provider.listings.any(
+                              canAccept: (request) => !provider.listings.any(
+                                (listing) => listing.id == request.listingId,
+                              ) || provider.listings.any(
                                 (listing) =>
                                     listing.id == request.listingId &&
                                     listing.status ==
@@ -459,16 +465,25 @@ class _ListingList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (listings.isEmpty) {
+    final provider = context.watch<HdcSalesCenterProvider>();
+    if (listings.isEmpty && !provider.hasMoreListings) {
       return _EmptyState(title: emptyTitle, message: emptyMessage);
     }
     return RefreshIndicator(
       onRefresh: context.read<HdcSalesCenterProvider>().refresh,
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-        itemCount: listings.length,
+        itemCount: listings.length + (provider.hasMoreListings ? 1 : 0),
         separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
+          if (index == listings.length) {
+            return Center(child: OutlinedButton(
+              onPressed: provider.isLoadingMoreListings
+                  ? null : provider.loadMoreListings,
+              child: Text(provider.isLoadingMoreListings
+                  ? 'Loading…' : 'Load More Listings'),
+            ));
+          }
           final listing = listings[index];
           return _ListingCard(
             listing: listing,
@@ -499,7 +514,8 @@ class _SellerOrderList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (requests.isEmpty) {
+    final provider = context.watch<HdcSalesCenterProvider>();
+    if (requests.isEmpty && !provider.hasMorePurchases) {
       return const _EmptyState(
         title: 'No buyer requests yet',
         message:
@@ -510,9 +526,17 @@ class _SellerOrderList extends StatelessWidget {
       onRefresh: context.read<HdcSalesCenterProvider>().refresh,
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-        itemCount: requests.length,
+        itemCount: requests.length + (provider.hasMorePurchases ? 1 : 0),
         separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
+          if (index == requests.length) {
+            return Center(child: OutlinedButton(
+              onPressed: provider.isLoadingMorePurchases
+                  ? null : provider.loadMorePurchases,
+              child: Text(provider.isLoadingMorePurchases
+                  ? 'Loading…' : 'Load More Orders'),
+            ));
+          }
           final request = requests[index];
           return _SellerOrderCard(
             request: request,
@@ -585,7 +609,7 @@ class _SellerOrderCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${request.quantity} × ${request.unitPriceLabel} • ${request.subtotalLabel}',
+                        '${request.quantity} × ${request.unitPriceLabel} • Items ${request.subtotalLabel}',
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ],
@@ -610,6 +634,8 @@ class _SellerOrderCard extends StatelessWidget {
               const SizedBox(height: 10),
               Text('Buyer note: ${request.buyerNote}'),
             ],
+            const SizedBox(height: 10),
+            PurchaseFulfillment(request: request),
             if (request.sellerNote.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
@@ -674,6 +700,7 @@ class _SellerOrderCard extends StatelessWidget {
                   ],
                 ),
             ],
+            PurchaseTimeline(request: request),
           ],
         ),
       ),

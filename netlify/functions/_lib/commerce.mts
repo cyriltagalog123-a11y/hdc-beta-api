@@ -57,7 +57,44 @@ export type ProductPurchaseRequestWrite = Readonly<{
   quantity: number;
   buyerNote: string;
   clientRequestId: string;
+  fulfillmentMethod: 'pickup' | 'delivery';
+  fulfillmentLocation: string;
+  fulfillmentTiming: string;
+  fulfillmentFeeMinor: number;
 }>;
+
+export const COMMERCE_PAGE_SIZE = 100;
+export type CommerceCursor = Readonly<{ at: string; id: string }>;
+
+export function parseCommerceCursor(value: string | null): CommerceCursor | null {
+  if (value === null) return null;
+  if (!/^[A-Za-z0-9_-]{1,512}$/.test(value)) throw new Error('invalid_cursor');
+  try {
+    const item: unknown = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
+    if (typeof item !== 'object' || item === null) throw new Error();
+    const cursor = item as Record<string, unknown>;
+    if (typeof cursor.at !== 'string' ||
+        !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}(?:\d{3})?Z$/.test(cursor.at) ||
+        !Number.isFinite(Date.parse(cursor.at)) ||
+        new Date(cursor.at).toISOString().slice(0, 23) !== cursor.at.slice(0, 23) ||
+        typeof cursor.id !== 'string' || !uuidPattern.test(cursor.id)) throw new Error();
+    return { at: cursor.at, id: cursor.id.toLowerCase() };
+  } catch {
+    throw new Error('invalid_cursor');
+  }
+}
+
+export function commerceNextCursor(
+  rows: readonly Record<string, unknown>[],
+  column: 'published_at' | 'created_at' | 'submitted_at',
+): string | null {
+  if (rows.length <= COMMERCE_PAGE_SIZE) return null;
+  const last = rows[COMMERCE_PAGE_SIZE - 1];
+  return Buffer.from(JSON.stringify({
+    at: String(last.cursor_at ?? new Date(String(last[column])).toISOString()),
+    id: String(last.id),
+  })).toString('base64url');
+}
 
 export type ProductPurchaseDecisionWrite = Readonly<{
   action: ProductPurchaseAction;
@@ -209,13 +246,20 @@ export function parseProductPurchaseRequestWrite(
     : '';
   const quantity = wholeNumber(input.quantity, 1, 1000);
   const buyerNote = optionalText(input.buyerNote, 1000);
+  const fulfillmentMethod = input.fulfillmentMethod;
+  const fulfillmentLocation = text(input.fulfillmentLocation, 5, 240);
+  const fulfillmentTiming = text(input.fulfillmentTiming, 5, 240);
+  const fulfillmentFeeMinor = wholeNumber(input.fulfillmentFeeMinor, 0, 999999999);
   if (
     !uuidPattern.test(listingId) ||
     !uuidPattern.test(clientRequestId) ||
     quantity === null ||
-    buyerNote === null
+    buyerNote === null ||
+    (fulfillmentMethod !== 'pickup' && fulfillmentMethod !== 'delivery') ||
+    !fulfillmentLocation || !fulfillmentTiming || fulfillmentFeeMinor === null
   ) return null;
-  return Object.freeze({ listingId, quantity, buyerNote, clientRequestId });
+  return Object.freeze({ listingId, quantity, buyerNote, clientRequestId,
+    fulfillmentMethod, fulfillmentLocation, fulfillmentTiming, fulfillmentFeeMinor });
 }
 
 export function parseProductPurchaseDecisionWrite(
@@ -243,6 +287,9 @@ export function publicProductListingView(
     id: String(row.id),
     publicListingId: String(row.public_listing_id),
     sellerPublicName: String(row.seller_public_name),
+    sellerPublicProfileId: row.seller_profile_public === true
+      ? String(row.seller_profile_public_id)
+      : null,
     sellerRole: String(row.seller_role),
     categoryCode: String(row.category_code),
     title: String(row.title),
@@ -259,6 +306,7 @@ export function publicProductListingView(
 export function productPurchaseRequestView(
   row: Record<string, unknown>,
 ): Record<string, unknown> {
+  const timeline = Array.isArray(row.timeline) ? row.timeline : [];
   return {
     id: String(row.id),
     publicPurchaseId: String(row.public_purchase_id),
@@ -273,6 +321,15 @@ export function productPurchaseRequestView(
     currency: String(row.currency),
     unitPriceMinor: Number(row.unit_price_minor),
     subtotalMinor: Number(row.subtotal_minor),
+    fulfillment: row.fulfillment_method === null || row.fulfillment_method === undefined
+      ? null
+      : {
+          method: String(row.fulfillment_method),
+          location: String(row.fulfillment_location),
+          timing: String(row.fulfillment_timing),
+          feeMinor: Number(row.fulfillment_fee_minor),
+          totalMinor: Number(row.subtotal_minor) + Number(row.fulfillment_fee_minor),
+        },
     buyerNote: String(row.buyer_note ?? ''),
     sellerNote: String(row.seller_note ?? ''),
     status: String(row.status),
@@ -285,6 +342,16 @@ export function productPurchaseRequestView(
       ? new Date(String(row.cancelled_at)).toISOString()
       : null,
     updatedAt: new Date(String(row.updated_at)).toISOString(),
+    events: timeline.map((event) => {
+      const item = event as Record<string, unknown>;
+      return {
+        type: String(item.type),
+        fromStatus: item.fromStatus === null ? null : String(item.fromStatus),
+        toStatus: String(item.toStatus),
+        occurredAt: new Date(String(item.occurredAt)).toISOString(),
+        note: String(item.note ?? ''),
+      };
+    }),
   };
 }
 

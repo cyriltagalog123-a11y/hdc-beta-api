@@ -23,6 +23,10 @@ class HdcSalesCenterProvider extends ChangeNotifier {
   int _pendingPurchaseRequestCount = 0;
   bool _isLoading = false;
   bool _isSaving = false;
+  bool _isLoadingMoreListings = false;
+  bool _isLoadingMorePurchases = false;
+  String? _nextListingCursor;
+  String? _nextPurchaseCursor;
   Object? _lastError;
   int _bindingVersion = 0;
   int _refreshGeneration = 0;
@@ -38,6 +42,10 @@ class HdcSalesCenterProvider extends ChangeNotifier {
       List<ProductPurchaseRequest>.unmodifiable(_purchaseRequests);
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
+  bool get isLoadingMoreListings => _isLoadingMoreListings;
+  bool get isLoadingMorePurchases => _isLoadingMorePurchases;
+  bool get hasMoreListings => _nextListingCursor != null;
+  bool get hasMorePurchases => _nextPurchaseCursor != null;
   bool get backendAvailable => client != null;
   Object? get lastError => _lastError;
   bool get canSell => _identitySellingRoles.isNotEmpty;
@@ -73,6 +81,10 @@ class HdcSalesCenterProvider extends ChangeNotifier {
       _purchaseRequests = const [];
       _clearSummary();
     }
+    _nextListingCursor = null;
+    _nextPurchaseCursor = null;
+    _isLoadingMoreListings = false;
+    _isLoadingMorePurchases = false;
     _isLoading = false;
     _isSaving = false;
     _lastError = null;
@@ -93,6 +105,8 @@ class HdcSalesCenterProvider extends ChangeNotifier {
     final version = _bindingVersion;
     final generation = ++_refreshGeneration;
     _isLoading = true;
+    _isLoadingMoreListings = false;
+    _isLoadingMorePurchases = false;
     _lastError = null;
     _announce();
     try {
@@ -123,6 +137,8 @@ class HdcSalesCenterProvider extends ChangeNotifier {
       _purchaseRequests = List<ProductPurchaseRequest>.unmodifiable(
         receivedPurchaseRequests,
       );
+      _nextListingCursor = _pageCursor(response['nextListingCursor']);
+      _nextPurchaseCursor = _pageCursor(response['nextPurchaseCursor']);
       _activeListingCount = _summaryCount(summary, 'activeListings');
       _draftListingCount = _summaryCount(summary, 'draftListings');
       _pausedListingCount = _summaryCount(summary, 'pausedListings');
@@ -139,6 +155,64 @@ class HdcSalesCenterProvider extends ChangeNotifier {
     } finally {
       if (_isCurrent(userId, version) && generation == _refreshGeneration) {
         _isLoading = false;
+        _announce();
+      }
+    }
+  }
+
+  Future<void> loadMoreListings() => _loadMore(listings: true);
+
+  Future<void> loadMorePurchases() => _loadMore(listings: false);
+
+  Future<void> _loadMore({required bool listings}) async {
+    final api = client;
+    final userId = _boundUserId;
+    final cursor = listings ? _nextListingCursor : _nextPurchaseCursor;
+    if (_disposed || api == null || userId == null || cursor == null ||
+        _isLoading || (listings ? _isLoadingMoreListings : _isLoadingMorePurchases)) {
+      return;
+    }
+    final version = _bindingVersion;
+    final generation = _refreshGeneration;
+    if (listings) { _isLoadingMoreListings = true; }
+    else { _isLoadingMorePurchases = true; }
+    _lastError = null;
+    _announce();
+    try {
+      final key = listings ? 'listingCursor' : 'purchaseCursor';
+      final response = await api.get(
+        '/api/commerce/seller-dashboard?$key=${Uri.encodeQueryComponent(cursor)}',
+      );
+      if (!_isCurrent(userId, version) || generation != _refreshGeneration) return;
+      if (listings) {
+        final received = _objectList(response['listings'])
+            .map(ProductListing.fromJson).toList(growable: false);
+        if (received.any((item) => item.sellerUserId != userId)) {
+          throw const HdcWorkflowException(
+            code: 'invalid_server_response',
+            message: 'HDC rejected a marketplace response for another account.',
+          );
+        }
+        final byId = {for (final item in _listings) item.id: item};
+        for (final item in received) { byId[item.id] = item; }
+        _listings = List<ProductListing>.unmodifiable(byId.values);
+        _nextListingCursor = _pageCursor(response['nextListingCursor']);
+      } else {
+        final received = _objectList(response['purchaseRequests'])
+            .map(ProductPurchaseRequest.fromJson).toList(growable: false);
+        final byId = {for (final item in _purchaseRequests) item.id: item};
+        for (final item in received) { byId[item.id] = item; }
+        _purchaseRequests = List<ProductPurchaseRequest>.unmodifiable(byId.values);
+        _nextPurchaseCursor = _pageCursor(response['nextPurchaseCursor']);
+      }
+    } on Object catch (error) {
+      if (_isCurrent(userId, version) && generation == _refreshGeneration) {
+        _lastError = error;
+      }
+    } finally {
+      if (_isCurrent(userId, version) && generation == _refreshGeneration) {
+        if (listings) { _isLoadingMoreListings = false; }
+        else { _isLoadingMorePurchases = false; }
         _announce();
       }
     }
@@ -373,6 +447,15 @@ bool _isSellingRole(HDCPlatformRole role) =>
     role == HDCPlatformRole.seller ||
     role == HDCPlatformRole.supplier ||
     role == HDCPlatformRole.store;
+
+String? _pageCursor(Object? value) {
+  if (value == null) return null;
+  if (value is String && value.isNotEmpty) return value;
+  throw const HdcWorkflowException(
+    code: 'invalid_server_response',
+    message: 'HDC returned an invalid marketplace page.',
+  );
+}
 
 List<Map<String, dynamic>> _objectList(Object? value) {
   if (value is! List) {

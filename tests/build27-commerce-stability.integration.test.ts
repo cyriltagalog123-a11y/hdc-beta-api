@@ -58,6 +58,8 @@ async function listing(stock = 2) {
 async function purchase(item: Row, actor = buyer, key = randomUUID(), quantity = 1) {
   return call('/api/commerce/purchase-requests', actor, {
     listingId: item.id, quantity, buyerNote: 'Recorded test note', clientRequestId: key,
+    fulfillmentMethod: 'pickup', fulfillmentLocation: 'Cebu City public square',
+    fulfillmentTiming: 'Saturday afternoon', fulfillmentFeeMinor: 350,
   });
 }
 async function decision(order: Row, action: string, actor = seller) {
@@ -90,6 +92,48 @@ describe.skipIf(process.env.HDC_POSTGRES_INTEGRATION !== '1').sequential('Build 
     } finally { await sql`UPDATE public.hdc_users SET status = 'active' WHERE id = ${seller.id}::uuid`; }
   });
 
+  it('links only an opted-in active seller profile and exposes its public fields', async () => {
+    const item = await listing();
+    const profileId = String(item.sellerProfileId);
+    const profilePath = `/api/commerce/sellers/${profileId}`;
+    const before = await call('/api/commerce/catalog');
+    expect((before.body.listings as Row[]).find((row) => row.id === item.id)?.sellerPublicProfileId).toBeNull();
+    expect((await call(profilePath)).status).toBe(404);
+    await sql`UPDATE public.hdc_platform_role_profiles SET is_public = true
+      WHERE id = ${profileId}::uuid`;
+    try {
+      const after = await call('/api/commerce/catalog');
+      expect((after.body.listings as Row[]).find((row) => row.id === item.id)?.sellerPublicProfileId).toBe(profileId);
+      const publicProfile = await call(profilePath);
+      expect(publicProfile.status).toBe(200);
+      expect(publicProfile.body.profile).toMatchObject({ id: profileId, role: 'seller' });
+      for (const field of ['userId', 'contactEmail', 'contactPhone', 'details']) {
+        expect(publicProfile.body.profile).not.toHaveProperty(field);
+      }
+    } finally {
+      await sql`UPDATE public.hdc_platform_role_profiles SET is_public = false
+        WHERE id = ${profileId}::uuid`;
+    }
+    expect((await call(profilePath)).status).toBe(404);
+  });
+
+  it('pages active listings by an exact published time and stable id', async () => {
+    const older = await listing();
+    const newer = await listing();
+    const latest = await sql`
+      SELECT to_char(published_at AT TIME ZONE 'UTC',
+        'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at
+      FROM public.hdc_product_listings WHERE id = ${String(newer.id)}::uuid
+    `;
+    const cursor = Buffer.from(JSON.stringify({
+      at: String(latest[0].cursor_at), id: String(newer.id),
+    })).toString('base64url');
+    const page = await call(`/api/commerce/catalog?cursor=${cursor}`);
+    expect(page.status).toBe(200);
+    expect((page.body.listings as Row[]).some((row) => row.id === older.id)).toBe(true);
+    expect((page.body.listings as Row[]).some((row) => row.id === newer.id)).toBe(false);
+  });
+
   it('serializes repeated requests and rejects an idempotency key with changed terms', async () => {
     const item = await listing();
     const key = randomUUID();
@@ -99,6 +143,12 @@ describe.skipIf(process.env.HDC_POSTGRES_INTEGRATION !== '1').sequential('Build 
     const changed = await purchase(item, buyer, key, 2);
     expect(changed.status).toBe(409);
     expect(changed.body.error).toBe('purchase_request_key_reused');
+    const changedFee = await call('/api/commerce/purchase-requests', buyer, {
+      listingId: item.id, quantity: 1, buyerNote: 'Recorded test note', clientRequestId: key,
+      fulfillmentMethod: 'pickup', fulfillmentLocation: 'Cebu City public square',
+      fulfillmentTiming: 'Saturday afternoon', fulfillmentFeeMinor: 351,
+    });
+    expect(changedFee.status).toBe(409);
     const counts = await sql`SELECT count(*)::int AS count FROM public.hdc_product_purchase_requests
       WHERE buyer_user_id = ${buyer.id}::uuid AND idempotency_key = ${key}::uuid`;
     expect(counts[0].count).toBe(1);
@@ -139,6 +189,31 @@ describe.skipIf(process.env.HDC_POSTGRES_INTEGRATION !== '1').sequential('Build 
     expect(accepted.body.purchaseRequest).toMatchObject({ currency: 'USD', unitPriceMinor: 19999, subtotalMinor: 39998 });
     await expect(sql`UPDATE public.hdc_product_purchase_requests SET unit_price_minor = 1
       WHERE id = ${String(order.id)}::uuid`).rejects.toThrow(/immutable/);
+    await expect(sql`UPDATE public.hdc_product_purchase_requests SET fulfillment_fee_minor = 0
+      WHERE id = ${String(order.id)}::uuid`).rejects.toThrow(/immutable/);
+  });
+
+  it('shows the same scoped purchase timeline to participants only', async () => {
+    const item = await listing();
+    const submitted = (await purchase(item)).body.purchaseRequest as Row;
+    const accepted = await call(`/api/commerce/purchase-requests/${submitted.id}/status`, seller,
+      { action: 'accept', version: submitted.version, note: 'Meet at the agreed public pickup point.' }, 'PUT');
+    expect(accepted.status).toBe(200);
+    const buyerHistory = await call('/api/commerce/buyer-dashboard', buyer);
+    const sellerHistory = await call('/api/commerce/seller-dashboard', seller);
+    const unrelatedHistory = await call('/api/commerce/buyer-dashboard', other);
+    const buyerOrder = (buyerHistory.body.purchaseRequests as Row[]).find((row) => row.id === submitted.id)!;
+    const sellerOrder = (sellerHistory.body.purchaseRequests as Row[]).find((row) => row.id === submitted.id)!;
+    expect(buyerOrder.fulfillment).toEqual(sellerOrder.fulfillment);
+    expect(buyerOrder.fulfillment).toMatchObject({ method: 'pickup',
+      location: 'Cebu City public square', feeMinor: 350, totalMinor: 20349 });
+    expect(buyerOrder.events).toEqual(sellerOrder.events);
+    expect((buyerOrder.events as Row[]).map((event) => event.type)).toEqual(['submitted', 'accepted']);
+    expect((buyerOrder.events as Row[])[1].note).toBe('Meet at the agreed public pickup point.');
+    expect(JSON.stringify(buyerOrder.events)).not.toContain(seller.id);
+    expect((unrelatedHistory.body.purchaseRequests as Row[]).some((row) => row.id === submitted.id)).toBe(false);
+    expect((await call('/api/commerce/catalog?cursor=bad')).status).toBe(400);
+    expect((await call('/api/commerce/buyer-dashboard?cursor=bad', buyer)).status).toBe(400);
   });
 
   it('checks completion participants before version and denies revoked seller fulfillment', async () => {
