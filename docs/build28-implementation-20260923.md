@@ -1,7 +1,8 @@
 # Build 28 Shop Technology — first implementation review
 
 Build 27 stabilization shipped in PR #36. This Build 28 increment reuses its
-PostgreSQL commerce authority and adds no migration or payment processor.
+PostgreSQL commerce authority and adds migration 0025 for immutable buyer
+fulfillment proposals. It adds no payment processor.
 
 ## Implemented in this increment
 
@@ -22,19 +23,24 @@ PostgreSQL commerce authority and adds no migration or payment processor.
 - Existing seller draft/publish/stock/version and buyer request/decision flows
   remain server-authoritative. The existing stock allocation, duplicate retry,
   account isolation and cancellation tests remain release gates.
+- New requests record pickup or delivery, location, time window and fee as
+  immutable columns. Seller acceptance records agreement to those terms while
+  allocating stock; a change requires decline and a new buyer request. Old
+  requests display that no terms were recorded. The fee and total are proposals,
+  not proof of payment or shipping.
+- Stable, bounded pages replace silent 500-row cutoffs. Buyer/seller histories
+  and public listings expose cursors and explicit Load More controls. Catalog
+  filters and price sort apply to loaded listings, with that limit shown in UI.
 
 ## What the shop does not yet claim
 
-The next code increment adds a runtime database selection guard across every
+The branch includes a runtime database selection guard across every
 Netlify Function: preview and branch URLs require a separate
 `HDC_PREVIEW_DATABASE_URL`, while the primary origin retains the production
 connection. It is checked locally; production and preview configuration still
 require an end-to-end identity check once Netlify usage refreshes.
 
-The current listing description and buyer/seller notes are unstructured.
-Build 28 still needs a reviewed, immutable pickup/delivery agreement that
-records method, location, fee and timing before fulfillment can be described as
-agreed. Existing completion status records seller-reported fulfillment and buyer
+Existing completion status records seller-reported fulfillment and buyer
 confirmation; it does not prove payment or external delivery.
 
 No product-photo upload is enabled. Choose a storage provider with quota,

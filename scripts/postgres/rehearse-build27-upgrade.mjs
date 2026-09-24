@@ -291,7 +291,7 @@ try {
   const check = rows[0];
   if (
     Number(check.migration_count) !== migrations.length ||
-    check.latest_version !== '0024' ||
+    check.latest_version !== '0025' ||
     Number(check.users) !== 2 ||
     Number(check.member_profiles) !== 2 ||
     Number(check.service_requests) !== 1 ||
@@ -334,7 +334,7 @@ try {
   );
 
   console.log(
-    'Build 27 upgrade rehearsal preserved representative 0016 data and applied migrations 0017-0024.',
+    'Upgrade rehearsal preserved representative 0016 data and applied migrations 0017-0025.',
   );
 } finally {
   if (upgradeSql) await upgradeSql.end({ timeout: 2 });

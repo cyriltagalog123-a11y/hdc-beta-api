@@ -21,6 +21,9 @@ class HdcMarketplaceProvider extends ChangeNotifier {
   Object? _purchaseError;
   int _bindingVersion = 0;
   int _purchaseReadGeneration = 0;
+  int _catalogReadGeneration = 0;
+  String? _nextCatalogCursor;
+  String? _nextPurchaseCursor;
   bool _disposed = false;
 
   HdcMarketplaceProvider({this.client});
@@ -36,6 +39,8 @@ class HdcMarketplaceProvider extends ChangeNotifier {
   Object? get catalogError => _catalogError;
   Object? get purchaseError => _purchaseError;
   int get availableProductCount => _products.length;
+  bool get hasMoreProducts => _nextCatalogCursor != null;
+  bool get hasMorePurchases => _nextPurchaseCursor != null;
   int get pendingPurchaseCount => _purchaseRequests
       .where((item) => item.status == ProductPurchaseStatus.submitted)
       .length;
@@ -48,6 +53,8 @@ class HdcMarketplaceProvider extends ChangeNotifier {
     _boundUserId = userId;
     _bindingVersion += 1;
     _purchaseRequests = const [];
+    _nextPurchaseCursor = null;
+    _purchaseReadGeneration += 1;
     _purchaseError = null;
     _isLoadingPurchases = false;
     _isSaving = false;
@@ -61,19 +68,31 @@ class HdcMarketplaceProvider extends ChangeNotifier {
     });
   }
 
-  Future<void> refreshCatalog() async {
+  Future<void> refreshCatalog() => _readCatalog(loadMore: false);
+
+  Future<void> loadMoreCatalog() => _readCatalog(loadMore: true);
+
+  Future<void> _readCatalog({required bool loadMore}) async {
     final api = client;
-    if (_disposed || api == null || _isLoadingCatalog) return;
+    final cursor = _nextCatalogCursor;
+    if (_disposed || api == null || _isLoadingCatalog ||
+        (loadMore && cursor == null)) return;
+    final generation = ++_catalogReadGeneration;
     _isLoadingCatalog = true;
     _catalogError = null;
     _announce();
     try {
-      final response = await api.getPublic('/api/commerce/catalog');
+      final response = await api.getPublic(loadMore
+          ? '/api/commerce/catalog?cursor=${Uri.encodeQueryComponent(cursor!)}'
+          : '/api/commerce/catalog');
       final products = _objectList(
         response['listings'],
       ).map(MarketplaceProduct.fromJson).toList(growable: false);
-      if (_disposed) return;
-      _products = List<MarketplaceProduct>.unmodifiable(products);
+      if (_disposed || generation != _catalogReadGeneration) return;
+      _nextCatalogCursor = _cursor(response['nextCursor']);
+      _products = List<MarketplaceProduct>.unmodifiable(loadMore
+          ? _mergeProducts(_products, products)
+          : products);
     } on Object catch (error) {
       if (!_disposed) _catalogError = error;
     } finally {
@@ -85,26 +104,37 @@ class HdcMarketplaceProvider extends ChangeNotifier {
   }
 
   Future<void> refreshPurchases() async {
+    await _readPurchases(loadMore: false);
+  }
+
+  Future<void> loadMorePurchases() => _readPurchases(loadMore: true);
+
+  Future<void> _readPurchases({required bool loadMore}) async {
     final api = client;
     final userId = _boundUserId;
     if (_disposed || api == null || userId == null || _isLoadingPurchases) {
       return;
     }
+    final cursor = _nextPurchaseCursor;
+    if (loadMore && cursor == null) return;
     final version = _bindingVersion;
     final generation = ++_purchaseReadGeneration;
     _isLoadingPurchases = true;
     _purchaseError = null;
     _announce();
     try {
-      final response = await api.get('/api/commerce/buyer-dashboard');
+      final response = await api.get(loadMore
+          ? '/api/commerce/buyer-dashboard?cursor=${Uri.encodeQueryComponent(cursor!)}'
+          : '/api/commerce/buyer-dashboard');
       if (!_isCurrent(userId, version) || generation != _purchaseReadGeneration) {
         return;
       }
-      _purchaseRequests = List<ProductPurchaseRequest>.unmodifiable(
-        _objectList(
-          response['purchaseRequests'],
-        ).map(ProductPurchaseRequest.fromJson),
-      );
+      final received = _objectList(response['purchaseRequests'])
+          .map(ProductPurchaseRequest.fromJson).toList(growable: false);
+      _nextPurchaseCursor = _cursor(response['nextCursor']);
+      _purchaseRequests = List<ProductPurchaseRequest>.unmodifiable(loadMore
+          ? _mergePurchases(_purchaseRequests, received)
+          : received);
     } on Object catch (error) {
       if (_isCurrent(userId, version) && generation == _purchaseReadGeneration) {
         _purchaseError = error;
@@ -122,11 +152,19 @@ class HdcMarketplaceProvider extends ChangeNotifier {
     required MarketplaceProduct product,
     required int quantity,
     required String buyerNote,
+    required String fulfillmentMethod,
+    required String fulfillmentLocation,
+    required String fulfillmentTiming,
+    required int fulfillmentFeeMinor,
   }) async {
     return _writePurchase('/api/commerce/purchase-requests', {
       'listingId': product.id,
       'quantity': quantity,
       'buyerNote': buyerNote,
+      'fulfillmentMethod': fulfillmentMethod,
+      'fulfillmentLocation': fulfillmentLocation,
+      'fulfillmentTiming': fulfillmentTiming,
+      'fulfillmentFeeMinor': fulfillmentFeeMinor,
       'clientRequestId': _newUuid(),
     }, create: true);
   }
@@ -216,6 +254,37 @@ class HdcMarketplaceProvider extends ChangeNotifier {
     _disposed = true;
     super.dispose();
   }
+}
+
+String? _cursor(Object? value) {
+  if (value == null) return null;
+  if (value is String && value.isNotEmpty) return value;
+  throw const HdcWorkflowException(
+    code: 'invalid_server_response',
+    message: 'HDC returned an invalid marketplace page.',
+  );
+}
+
+List<MarketplaceProduct> _mergeProducts(
+  List<MarketplaceProduct> current,
+  List<MarketplaceProduct> received,
+) {
+  final byId = {for (final item in current) item.id: item};
+  for (final item in received) {
+    byId[item.id] = item;
+  }
+  return byId.values.toList(growable: false);
+}
+
+List<ProductPurchaseRequest> _mergePurchases(
+  List<ProductPurchaseRequest> current,
+  List<ProductPurchaseRequest> received,
+) {
+  final byId = {for (final item in current) item.id: item};
+  for (final item in received) {
+    byId[item.id] = item;
+  }
+  return byId.values.toList(growable: false);
 }
 
 List<Map<String, dynamic>> _objectList(Object? value) {

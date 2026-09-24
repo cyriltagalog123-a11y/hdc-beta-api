@@ -1,6 +1,6 @@
 # Build 28 — Shop Technology preparation
 
-Status: implementation underway. See [the first review increment](build28-implementation-20260923.md).
+Status: implementation in review. See [the implementation record](build28-implementation-20260923.md).
 
 ## Existing foundation
 
@@ -46,8 +46,9 @@ submitted requests are not reservations. The current accepted allocation is not
 automatically released. No cart or saved-items feature is added before the basic
 purchase journey is complete. Product photos stay disabled until storage,
 quota, server validation and consent boundaries are configured. Pickup/delivery
-methods, location, fees and timing still need an immutable agreement design;
-free-form notes must not be described as an agreed delivery contract.
+method, place, time and fee are now immutable on new buyer requests. Seller
+acceptance records agreement to those terms while allocating stock. Different
+terms require decline and a new request; older orders show no recorded terms.
 
 Payments continue to use the existing recorded payment workflow. Payment
 processing, custody of funds, refunds through a gateway, shipping integrations

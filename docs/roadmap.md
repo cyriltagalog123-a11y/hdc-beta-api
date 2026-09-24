@@ -225,7 +225,8 @@ seller inventory workspace and buyer purchase history. Preserve server stock,
 role, participant and payment authority. Delivery order, open decisions and
 acceptance gates are recorded in `docs/build28-shop-technology.md`.
 
-The first Build 28 increment improves discovery, public seller-profile access,
-product details and purchase timelines. Structured fulfillment agreements and
-product-photo storage remain separate review gates before the complete shop
-journey can be claimed.
+Build 28 improves discovery, public seller-profile access, product details,
+purchase timelines, recorded fulfillment proposals and paged histories.
+Product-photo storage remains a separate review gate before a complete shop
+journey can be claimed. Preview database identity and the held Netlify release
+remain pre-stabilization gates.

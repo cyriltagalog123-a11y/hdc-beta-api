@@ -88,6 +88,38 @@ class MarketplaceProduct {
   String get categoryLabel => _categoryLabel(categoryCode);
 }
 
+class PurchaseFulfillmentProposal {
+  final String method;
+  final String location;
+  final String timing;
+  final int feeMinor;
+  final int totalMinor;
+
+  const PurchaseFulfillmentProposal({
+    required this.method,
+    required this.location,
+    required this.timing,
+    required this.feeMinor,
+    required this.totalMinor,
+  });
+
+  factory PurchaseFulfillmentProposal.fromJson(Map<String, dynamic> json) {
+    final method = _requiredString(json, 'method');
+    if (method != 'pickup' && method != 'delivery') {
+      throw const FormatException('Invalid HDC fulfillment method.');
+    }
+    return PurchaseFulfillmentProposal(
+      method: method,
+      location: _requiredString(json, 'location'),
+      timing: _requiredString(json, 'timing'),
+      feeMinor: _integer(json, 'feeMinor'),
+      totalMinor: _integer(json, 'totalMinor'),
+    );
+  }
+
+  String get methodLabel => method == 'pickup' ? 'Pickup' : 'Delivery';
+}
+
 class ProductPurchaseRequest {
   final String id;
   final String publicPurchaseId;
@@ -102,6 +134,7 @@ class ProductPurchaseRequest {
   final String currency;
   final int unitPriceMinor;
   final int subtotalMinor;
+  final PurchaseFulfillmentProposal? fulfillment;
   final String buyerNote;
   final String sellerNote;
   final ProductPurchaseStatus status;
@@ -126,6 +159,7 @@ class ProductPurchaseRequest {
     required this.currency,
     required this.unitPriceMinor,
     required this.subtotalMinor,
+    this.fulfillment,
     required this.buyerNote,
     required this.sellerNote,
     required this.status,
@@ -158,6 +192,11 @@ class ProductPurchaseRequest {
       currency: _requiredString(json, 'currency'),
       unitPriceMinor: _integer(json, 'unitPriceMinor'),
       subtotalMinor: _integer(json, 'subtotalMinor'),
+      fulfillment: json['fulfillment'] is Map
+          ? PurchaseFulfillmentProposal.fromJson(
+              Map<String, dynamic>.from(json['fulfillment'] as Map),
+            )
+          : null,
       buyerNote: '${json['buyerNote'] ?? ''}',
       sellerNote: '${json['sellerNote'] ?? ''}',
       status: _purchaseStatus(json['status']),
@@ -177,6 +216,12 @@ class ProductPurchaseRequest {
   String get unitPriceLabel => _money(currency, unitPriceMinor);
 
   String get subtotalLabel => _money(currency, subtotalMinor);
+
+  String get fulfillmentFeeLabel =>
+      _money(currency, fulfillment?.feeMinor ?? 0);
+
+  String get proposedTotalLabel =>
+      _money(currency, fulfillment?.totalMinor ?? subtotalMinor);
 
   bool get canCancel => status == ProductPurchaseStatus.submitted;
 }

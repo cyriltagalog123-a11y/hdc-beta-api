@@ -11,6 +11,7 @@ import '../../providers/hdc_marketplace_provider.dart';
 import '../authentication/registered_user_gate.dart';
 import 'catalog_filters.dart';
 import 'product_detail_screen.dart';
+import 'purchase_fulfillment.dart';
 import 'purchase_timeline.dart';
 
 const _catalogCategories = <String, String>{
@@ -87,9 +88,13 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
     final formKey = GlobalKey<FormState>();
     final quantityController = TextEditingController(text: '1');
     final noteController = TextEditingController();
+    final locationController = TextEditingController();
+    final timingController = TextEditingController();
+    final feeController = TextEditingController(text: '0');
+    var fulfillmentMethod = 'pickup';
     final submission = await showDialog<_PurchaseSubmission>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => StatefulBuilder(builder: (context, updateDialog) => AlertDialog(
         title: const Text('Send Purchase Request'),
         content: SizedBox(
           width: 520,
@@ -128,6 +133,59 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
                     },
                   ),
                   const SizedBox(height: 14),
+                  DropdownButtonFormField<String>(
+                    initialValue: fulfillmentMethod,
+                    decoration: const InputDecoration(
+                      labelText: 'Proposed fulfillment',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'pickup', child: Text('Pickup')),
+                      DropdownMenuItem(value: 'delivery', child: Text('Delivery')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) updateDialog(() => fulfillmentMethod = value);
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: locationController,
+                    maxLength: 240,
+                    decoration: InputDecoration(
+                      labelText: fulfillmentMethod == 'pickup'
+                          ? 'Proposed pickup place' : 'Proposed delivery place',
+                      hintText: 'A place both parties can identify',
+                      border: const OutlineInputBorder(),
+                    ),
+                    validator: (value) => (value?.trim().length ?? 0) < 5
+                        ? 'Enter at least 5 characters.' : null,
+                  ),
+                  TextFormField(
+                    controller: timingController,
+                    maxLength: 240,
+                    decoration: const InputDecoration(
+                      labelText: 'Proposed time or window',
+                      hintText: 'Example: Saturday afternoon; confirm exact time',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) => (value?.trim().length ?? 0) < 5
+                        ? 'Enter at least 5 characters.' : null,
+                  ),
+                  TextFormField(
+                    controller: feeController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: 'Proposed fulfillment fee (${product.currency})',
+                      helperText: 'Enter 0 if no fee is proposed. This is not a payment.',
+                      border: const OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      final minor = catalogPriceMinor(value ?? '');
+                      return minor == null || minor > 999999999
+                          ? 'Enter a fee from 0 to 9,999,999.99.' : null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
                   TextFormField(
                     controller: noteController,
                     minLines: 3,
@@ -135,7 +193,7 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
                     maxLength: 1000,
                     decoration: const InputDecoration(
                       labelText: 'Message to seller (optional)',
-                      hintText: 'Ask about pickup, delivery, or item details.',
+                      hintText: 'Ask about item details or explain your proposal.',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -152,7 +210,7 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
                         SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'This sends a purchase request only. HDC will not charge you, create a receipt, or claim delivery is complete. Stock is allocated only if the seller accepts.',
+                            'The seller can accept these exact proposed terms or decline so you can submit a new request. HDC will not charge you or verify delivery. Stock is allocated only if the seller accepts.',
                             style: TextStyle(height: 1.35),
                           ),
                         ),
@@ -176,6 +234,10 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
                 _PurchaseSubmission(
                   quantity: int.parse(quantityController.text.trim()),
                   note: noteController.text.trim(),
+                  method: fulfillmentMethod,
+                  location: locationController.text.trim(),
+                  timing: timingController.text.trim(),
+                  feeMinor: catalogPriceMinor(feeController.text)!,
                 ),
               );
             },
@@ -183,10 +245,13 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
             label: const Text('Send Request'),
           ),
         ],
-      ),
+      )),
     );
     quantityController.dispose();
     noteController.dispose();
+    locationController.dispose();
+    timingController.dispose();
+    feeController.dispose();
     if (submission == null || !mounted) return;
 
     try {
@@ -195,6 +260,10 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
             product: product,
             quantity: submission.quantity,
             buyerNote: submission.note,
+            fulfillmentMethod: submission.method,
+            fulfillmentLocation: submission.location,
+            fulfillmentTiming: submission.timing,
+            fulfillmentFeeMinor: submission.feeMinor,
           );
       await marketplace.refreshPurchases();
       if (!mounted) return;
@@ -556,10 +625,11 @@ class _CatalogTab extends StatelessWidget {
             ]);
           }),
           const SizedBox(height: 18),
-          if (provider.catalogError != null)
+          if (provider.catalogError != null && provider.products.isEmpty)
             _ErrorCard(
               message: '${provider.catalogError}',
-              onRetry: provider.refreshCatalog,
+              onRetry: provider.hasMoreProducts
+                  ? provider.loadMoreCatalog : provider.refreshCatalog,
             )
           else if (provider.isLoadingCatalog && provider.products.isEmpty)
             const Padding(
@@ -567,10 +637,12 @@ class _CatalogTab extends StatelessWidget {
               child: Center(child: CircularProgressIndicator()),
             )
           else if (products.isEmpty)
-            const _EmptyCard(
+            _EmptyCard(
               icon: Icons.search_off_outlined,
               title: 'No products found',
-              message: 'Try another search or category. New seller listings will appear here when published.',
+              message: provider.hasMoreProducts
+                  ? 'No matches in the loaded listings. Load more to continue searching.'
+                  : 'Try another search or category. New seller listings will appear here when published.',
             )
           else
             LayoutBuilder(
@@ -601,6 +673,29 @@ class _CatalogTab extends StatelessWidget {
                 );
               },
             ),
+          if (provider.catalogError != null && provider.products.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _ErrorCard(
+              message: '${provider.catalogError}',
+              onRetry: provider.hasMoreProducts
+                  ? provider.loadMoreCatalog : provider.refreshCatalog,
+            ),
+          ],
+          if (provider.hasMoreProducts) ...[
+            const SizedBox(height: 16),
+            Text('Filters and price sorting apply to loaded listings. '
+                'Load more to include older listings.',
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 8),
+            Center(child: OutlinedButton.icon(
+              onPressed: provider.isLoadingCatalog ? null : provider.loadMoreCatalog,
+              icon: provider.isLoadingCatalog
+                  ? const SizedBox(width: 18, height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.expand_more),
+              label: const Text('Load More Products'),
+            )),
+          ],
         ],
       ),
     );
@@ -758,7 +853,7 @@ class _PurchasesTab extends StatelessWidget {
         ),
       );
     }
-    if (provider.purchaseRequests.isEmpty) {
+    if (provider.purchaseRequests.isEmpty && !provider.hasMorePurchases) {
       return const _EmptyCard(
         icon: Icons.receipt_long_outlined,
         title: 'No purchase requests yet',
@@ -770,7 +865,8 @@ class _PurchasesTab extends StatelessWidget {
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 40),
         itemCount: provider.purchaseRequests.length +
-            (provider.purchaseError == null ? 0 : 1),
+            (provider.purchaseError == null ? 0 : 1) +
+            (provider.hasMorePurchases ? 1 : 0),
         separatorBuilder: (_, _) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           if (provider.purchaseError != null && index == 0) {
@@ -780,6 +876,14 @@ class _PurchasesTab extends StatelessWidget {
             );
           }
           final offset = provider.purchaseError == null ? 0 : 1;
+          if (index - offset == provider.purchaseRequests.length) {
+            return Center(child: OutlinedButton(
+              onPressed: provider.isLoadingPurchases
+                  ? null : provider.loadMorePurchases,
+              child: Text(provider.isLoadingPurchases
+                  ? 'Loading…' : 'Load More Requests'),
+            ));
+          }
           final request = provider.purchaseRequests[index - offset];
           return _PurchaseCard(
             request: request,
@@ -829,7 +933,7 @@ class _PurchaseCard extends StatelessWidget {
             ),
             const SizedBox(height: 9),
             Text(
-              '${request.quantity} × ${request.unitPriceLabel} • Total ${request.subtotalLabel}',
+              '${request.quantity} × ${request.unitPriceLabel} • Items ${request.subtotalLabel}',
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 5),
@@ -848,6 +952,8 @@ class _PurchaseCard extends StatelessWidget {
               const SizedBox(height: 10),
               Text('Your note: ${request.buyerNote}'),
             ],
+            const SizedBox(height: 10),
+            PurchaseFulfillment(request: request),
             if (request.sellerNote.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
@@ -985,8 +1091,14 @@ class _EmptyCard extends StatelessWidget {
 class _PurchaseSubmission {
   final int quantity;
   final String note;
+  final String method;
+  final String location;
+  final String timing;
+  final int feeMinor;
 
-  const _PurchaseSubmission({required this.quantity, required this.note});
+  const _PurchaseSubmission({required this.quantity, required this.note,
+    required this.method, required this.location, required this.timing,
+    required this.feeMinor});
 }
 
 Color _purchaseStatusColor(ProductPurchaseStatus status) => switch (status) {

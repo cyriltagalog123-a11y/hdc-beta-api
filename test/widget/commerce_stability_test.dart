@@ -58,6 +58,13 @@ Map<String, dynamic> _purchase() => {
   'currency': 'USD',
   'unitPriceMinor': 19999,
   'subtotalMinor': 19999,
+  'fulfillment': {
+    'method': 'pickup',
+    'location': 'Cebu City public square',
+    'timing': 'Saturday afternoon',
+    'feeMinor': 350,
+    'totalMinor': 20349,
+  },
   'buyerNote': '',
   'sellerNote': '',
   'status': 'fulfilled',
@@ -230,6 +237,8 @@ void main() {
       await tester.tap(find.text('Orders'));
       await tester.pumpAndSettle();
       expect(find.text(ProductPurchaseStatus.fulfilled.label), findsOneWidget);
+      expect(find.text('Accepted fulfillment terms'), findsOneWidget);
+      expect(find.textContaining('Cebu City public square'), findsOneWidget);
       expect(tester.takeException(), isNull);
       sales.bindIdentity(null);
       await tester.pumpAndSettle();

@@ -59,7 +59,7 @@ describe('Build 27 Knowledge Base release contract', () => {
     expect(cleanSchema).toContain('AS knowledge_ready');
     expect(cleanSchema).toContain('AS knowledge_protection_triggers');
     expect(upgrade).toContain('Representative legacy request');
-    expect(upgrade).toContain('migrations 0017-0024');
+    expect(upgrade).toContain('migrations 0017-0025');
     expect(ci).toContain('npm run db:rehearse-build27-upgrade');
   });
 });
