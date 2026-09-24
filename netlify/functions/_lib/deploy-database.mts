@@ -31,7 +31,13 @@ export function databaseUrlForRequest(
 
   const request = new URL(requestUrl);
   const primary = new URL(primaryUrl);
-  if (request.origin === primary.origin) {
+  if (request.protocol !== 'https:') {
+    throw new Error('HDC database access requires HTTPS on Netlify.');
+  }
+  // Netlify may represent the primary URL with an HTTP scheme even while its
+  // public TLS endpoint serves requests over HTTPS.
+  if (request.hostname === primary.hostname ||
+      request.hostname === `${siteName}.netlify.app`) {
     if (!productionUrl) throw new Error('Missing required server environment variable: HDC_DATABASE_URL');
     return productionUrl;
   }
@@ -43,8 +49,7 @@ export function databaseUrlForRequest(
   const prefix = request.hostname.endsWith(suffix)
     ? request.hostname.slice(0, -suffix.length)
     : '';
-  if (request.protocol !== 'https:' ||
-      !/^(?:deploy-preview-[1-9][0-9]*|[a-z0-9][a-z0-9-]*)$/.test(prefix)) {
+  if (!/^(?:deploy-preview-[1-9][0-9]*|[a-z0-9][a-z0-9-]*)$/.test(prefix)) {
     throw new Error('HDC database access is unavailable at this deploy origin.');
   }
 

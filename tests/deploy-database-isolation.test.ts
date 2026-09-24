@@ -20,6 +20,14 @@ describe('hosted database isolation', () => {
       ...hosted,
       URL: 'https://hdc.example',
     })).toBe(hosted.HDC_DATABASE_URL);
+    expect(select('https://hdc-beta-api.netlify.app/api/health/ready', {
+      ...hosted,
+      URL: 'http://hdc-beta-api.netlify.app',
+    })).toBe(hosted.HDC_DATABASE_URL);
+    expect(select('https://hdc-beta-api.netlify.app/api/news', {
+      ...hosted,
+      URL: 'https://hdc.example',
+    })).toBe(hosted.HDC_DATABASE_URL);
   });
 
   it('requires a distinct database for deploy previews and branch deploys', () => {
@@ -50,6 +58,7 @@ describe('hosted database isolation', () => {
       'https://other.netlify.app/api/commerce/catalog',
       'https://deploy-preview-42--another-site.netlify.app/api/commerce/catalog',
       'http://deploy-preview-42--hdc-beta-api.netlify.app/api/commerce/catalog',
+      'http://hdc-beta-api.netlify.app/api/commerce/catalog',
       'https://-invalid--hdc-beta-api.netlify.app/api/commerce/catalog',
     ]) {
       expect(() => select(url, hosted)).toThrow();
