@@ -76,7 +76,9 @@ class HdcMarketplaceProvider extends ChangeNotifier {
     final api = client;
     final cursor = _nextCatalogCursor;
     if (_disposed || api == null || _isLoadingCatalog ||
-        (loadMore && cursor == null)) return;
+        (loadMore && cursor == null)) {
+      return;
+    }
     final generation = ++_catalogReadGeneration;
     _isLoadingCatalog = true;
     _catalogError = null;

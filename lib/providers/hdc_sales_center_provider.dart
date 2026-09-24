@@ -169,7 +169,9 @@ class HdcSalesCenterProvider extends ChangeNotifier {
     final userId = _boundUserId;
     final cursor = listings ? _nextListingCursor : _nextPurchaseCursor;
     if (_disposed || api == null || userId == null || cursor == null ||
-        _isLoading || (listings ? _isLoadingMoreListings : _isLoadingMorePurchases)) return;
+        _isLoading || (listings ? _isLoadingMoreListings : _isLoadingMorePurchases)) {
+      return;
+    }
     final version = _bindingVersion;
     final generation = _refreshGeneration;
     if (listings) { _isLoadingMoreListings = true; }
