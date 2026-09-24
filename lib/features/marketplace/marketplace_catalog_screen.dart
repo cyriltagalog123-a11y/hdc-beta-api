@@ -63,7 +63,9 @@ class _MarketplaceCatalogScreenState extends State<MarketplaceCatalogScreen>
       final maximum = catalogPriceMinor(_maximumPrice);
       if ((_minimumPrice.trim().isNotEmpty && minimum == null) ||
           (_maximumPrice.trim().isNotEmpty && maximum == null) ||
-          (minimum != null && maximum != null && minimum > maximum)) return;
+          (minimum != null && maximum != null && minimum > maximum)) {
+        return;
+      }
       if (minimum != null) filters['minPriceMinor'] = '$minimum';
       if (maximum != null) filters['maxPriceMinor'] = '$maximum';
       if (_lowStockOnly) filters['lowStock'] = 'true';

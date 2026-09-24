@@ -51,9 +51,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         );
       }
     } on Object catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$error')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isRefreshing = false);
     }
@@ -128,7 +130,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               onPressed: () => Navigator.of(context).push(
                                 MaterialPageRoute<void>(
                                   builder: (_) => SellerPublicProfileScreen(
-                                    profileId: product!.sellerPublicProfileId!,
+                                    profileId: product.sellerPublicProfileId!,
                                   ),
                                 ),
                               ),
@@ -143,7 +145,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           ),
                           const SizedBox(height: 20),
                           FilledButton.icon(
-                            onPressed: () => widget.onPurchase(product!),
+                            onPressed: () => widget.onPurchase(product),
                             icon: const Icon(Icons.shopping_cart_checkout_outlined),
                             label: const Text('Request to Buy'),
                           ),
