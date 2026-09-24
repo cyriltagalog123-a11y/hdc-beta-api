@@ -289,7 +289,10 @@ void main() {
       await tester.runAsync(() => pumpEventQueue(times: 20));
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(find.text('View Details'), 320,
-          scrollable: find.byType(Scrollable).first);
+          scrollable: find.descendant(
+            of: find.byType(ListView).first,
+            matching: find.byType(Scrollable),
+          ).first);
       await tester.tap(find.text('View Details'));
       await tester.pumpAndSettle();
       expect(find.text('Product details'), findsOneWidget);
