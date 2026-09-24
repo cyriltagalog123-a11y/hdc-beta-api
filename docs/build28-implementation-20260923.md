@@ -25,6 +25,12 @@ PostgreSQL commerce authority and adds no migration or payment processor.
 
 ## What the shop does not yet claim
 
+The next code increment adds a runtime database selection guard across every
+Netlify Function: preview and branch URLs require a separate
+`HDC_PREVIEW_DATABASE_URL`, while the primary origin retains the production
+connection. It is checked locally; production and preview configuration still
+require an end-to-end identity check once Netlify usage refreshes.
+
 The current listing description and buyer/seller notes are unstructured.
 Build 28 still needs a reviewed, immutable pickup/delivery agreement that
 records method, location, fee and timing before fulfillment can be described as

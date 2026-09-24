@@ -6521,7 +6521,7 @@ async function handleReadiness(req: Request): Promise<Response> {
   if (req.method !== 'GET') return methodNotAllowed();
   let sql: DbClient | null = null;
   try {
-    sql = openDb();
+    sql = openDb(req.url);
     const database = await checkDbReadiness(sql);
     if (!database.ready) {
       return json({ service: 'hdc-beta-api', status: 'not_ready' }, 503);
@@ -6757,7 +6757,7 @@ async function handleHdcApiRequestCore(
 
   let sql: DbClient | null = null;
   try {
-    sql = openDb();
+    sql = openDb(req.url);
     if (path === '/api/auth/register') return await handleRegister(req, sql);
     if (path === '/api/auth/login') return await handleLogin(req, sql);
     if (path === '/api/auth/session') return await handleSession(req, sql);

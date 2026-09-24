@@ -4,7 +4,7 @@ import { handleRegistrationWithDb } from './_lib/registration.mjs';
 
 export default async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') return corsPreflightResponse(req);
-  const sql = openDb();
+  const sql = openDb(req.url);
   try {
     const response = await handleRegistrationWithDb(
       req,

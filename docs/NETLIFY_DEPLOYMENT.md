@@ -32,10 +32,24 @@ one atomic release.
 
 ## Required production secrets
 
-Store these in Netlify, scoped to production Functions/runtime only:
+Store these in Netlify as secret values, with `HDC_DATABASE_URL` set for the
+Production context only. On Netlify Free, variables are available to all scopes;
+do not put these values in `netlify.toml` or Flutter build settings:
 
 - `HDC_DATABASE_URL` using Neon's pooled TLS connection string.
 - `HDC_SESSION_SECRET` with at least 32 random characters.
+
+Preview and branch deploys require `HDC_PREVIEW_DATABASE_URL`, set only for
+those contexts and pointing to an isolated Neon branch with the reviewed
+migrations. A preview does not need to receive `HDC_DATABASE_URL`. The server checks
+Netlify's runtime `URL`, `SITE_ID`, and `SITE_NAME` against the request origin;
+non-production origins never use `HDC_DATABASE_URL`. With a missing preview
+URL, identical production/preview connection strings, or an unknown origin,
+database-backed routes fail closed. Production uses `HDC_DATABASE_URL` only at
+the configured primary origin. Provision preview-only session/recovery keys as
+separate context values before private-journey tests, and verify the branch
+identity on the preview database itself. This does not prove two distinct URLs
+cannot point to the same underlying database branch.
 
 Keep previous signing or recovery keys during a planned rotation. Optional
 provider selectors and delivery credentials remain disabled until their
